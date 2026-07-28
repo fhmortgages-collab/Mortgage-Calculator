@@ -89,5 +89,4 @@ elif st.session_state.step == 5:
     st.metric("Estimated GDS", f"{gds:.2f}%")
     st.metric("Estimated TDS", f"{tds:.2f}%")
     if st.button("Finalize Application & Notify Broker"):
-        st.success("✅ Notification sent to fh.mortgages@gmail.com!")
-```eof
+        st.success("✅ Notification sent to fh.mortgages@gmail.com!"
