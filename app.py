@@ -41,7 +41,6 @@ def render_field(label, key, input_type="text"):
     st.session_state.form_data[key] = str(val)
     if is_missing:
         st.markdown('<div class="yellow-warning-text">⚠️ This field is required to proceed</div>', unsafe_allow_html=True)
-        st.markdown(f'<style>div[data-testid="stTextInput"] input[aria-label="{label}"] {{ border: 2px solid #FBC02D; }}</style>', unsafe_allow_html=True)
 
 # --- UI ---
 st.title("🏠 FH Mortgages Wizard")
@@ -58,7 +57,7 @@ if st.session_state.step == 1:
     render_field("Email", "email")
     render_field("Phone Number", "phone")
     if st.button("Next ➔"):
-        if not [f for f in ["name", "email", "phone"] if not st.session_state.form_data.get(f)]:
+        if not [f for f in ["name", "dob", "email", "phone"] if not st.session_state.form_data.get(f)]:
             st.session_state.attempted_submit = False; st.session_state.step = 2; st.rerun()
         else: st.session_state.attempted_submit = True; st.warning("⚠️ Please complete all steps")
 
@@ -89,4 +88,4 @@ elif st.session_state.step == 5:
     st.metric("Estimated GDS", f"{gds:.2f}%")
     st.metric("Estimated TDS", f"{tds:.2f}%")
     if st.button("Finalize Application & Notify Broker"):
-        st.success("✅ Notification sent to fh.mortgages@gmail.com!"
+        st.success("✅ Notification sent to fh.mortgages@gmail.com!")
