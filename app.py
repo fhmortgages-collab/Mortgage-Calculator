@@ -5,6 +5,7 @@ import streamlit as st
 
 from downpayment_sources import DOWN_PAYMENT_SOURCES
 from income_sources import INCOME_SOURCES
+from debt_types import DEBT_TYPES
 
 # ---------------------------------------------------------------------------
 # Shared config
@@ -15,8 +16,12 @@ PHONE_RE = re.compile(r"^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$")
 
 GENDER_OPTIONS = ["", "Male", "Female", "Other", "Prefer not to say"]
 MARITAL_OPTIONS = ["", "Single", "Married", "Divorced", "Widowed", "Common-Law"]
+PROPERTY_TYPES = ["", "Primary Residence", "Secondary Home", "Investment Property", "Cottage / Vacation Home", "Other"]
 
 STEPS = ["Client Details", "Down Payment", "Income", "Debts", "Analysis"]
+
+GDS_LIMIT = 32.0
+TDS_LIMIT = 40.0
 
 
 def fmt_money(value):
@@ -47,6 +52,18 @@ def empty_borrower():
         "phone": "",
         "email": "",
         "address": "",
+    }
+
+
+def empty_property():
+    return {
+        "address": "",
+        "prop_type": "",
+        "other_type_desc": "",
+        "mortgage_payment": "",
+        "property_taxes": "",
+        "condo_fees": "",
+        "heating": "",
     }
 
 
@@ -83,6 +100,16 @@ def init_state():
         st.session_state.income_other_desc = {}
     if "income_errors" not in st.session_state:
         st.session_state.income_errors = {}
+    if "properties" not in st.session_state:
+        st.session_state.properties = []
+    if "debt_selected" not in st.session_state:
+        st.session_state.debt_selected = []
+    if "debt_amounts" not in st.session_state:
+        st.session_state.debt_amounts = {}
+    if "debt_other_desc" not in st.session_state:
+        st.session_state.debt_other_desc = ""
+    if "debt_errors" not in st.session_state:
+        st.session_state.debt_errors = {}
 
 
 def render_stepper(active_index):
@@ -128,6 +155,12 @@ st.markdown(
     .borrower-total {
         font-weight:600; font-size:15px; margin: 10px 0 4px; color:#111827;
     }
+    .ratio-green {color:#16a34a; font-weight:700;}
+    .ratio-yellow {color:#ca8a04; font-weight:700;}
+    .ratio-red {color:#dc2626; font-weight:700;}
+    .property-total {
+        font-weight:600; font-size:14px; margin: 8px 0 4px; color:#111827;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -140,6 +173,10 @@ st.caption("Residential Mortgage Application")
 
 render_stepper(st.session_state.step)
 
+
+# ---------------------------------------------------------------------------
+# STEP 0 — Client Details
+# ---------------------------------------------------------------------------
 
 def validate_borrower(b):
     errors = {}
@@ -318,6 +355,10 @@ def render_client_details():
             else:
                 st.rerun()
 
+
+# ---------------------------------------------------------------------------
+# STEP 1 — Down Payment
+# ---------------------------------------------------------------------------
 
 def refresh_page2():
     st.session_state.purchase_price_raw = ""
@@ -501,6 +542,10 @@ def render_down_payment():
                 st.error("Please resolve the issues above before continuing.")
 
 
+# ---------------------------------------------------------------------------
+# STEP 2 — Income
+# ---------------------------------------------------------------------------
+
 def refresh_page3():
     st.session_state.income_selected = {}
     st.session_state.income_amounts = {}
@@ -547,6 +592,14 @@ def compute_borrower_income(borrower_idx):
         total += value
 
     return total, breakdown
+
+
+def compute_total_income():
+    grand_total = 0.0
+    for idx in range(st.session_state.borrower_count):
+        total, _ = compute_borrower_income(idx)
+        grand_total += total
+    return grand_total
 
 
 def render_income():
@@ -740,6 +793,291 @@ def render_income():
                 st.error("Please resolve the issues above before continuing.")
 
 
+# ---------------------------------------------------------------------------
+# STEP 3 — Debts & Liabilities
+# ---------------------------------------------------------------------------
+
+def refresh_page4():
+    st.session_state.properties = []
+    st.session_state.debt_selected = []
+    st.session_state.debt_amounts = {}
+    st.session_state.debt_other_desc = ""
+    st.session_state.debt_errors = {}
+
+
+def get_debt_type(key):
+    for dt in DEBT_TYPES:
+        if dt["key"] == key:
+            return dt
+    return None
+
+
+def compute_property_total(prop):
+    m = parse_money(prop.get("mortgage_payment", "")) or 0.0
+    t = parse_money(prop.get("property_taxes", "")) or 0.0
+    c = parse_money(prop.get("condo_fees", "")) or 0.0
+    h = parse_money(prop.get("heating", "")) or 0.0
+    return m + t + c + h, m, t, c, h
+
+
+def compute_debt_payment(debt_type, amounts):
+    if debt_type["calc"] == "percent_of_balance":
+        balance = parse_money(amounts.get("balance", "")) or 0.0
+        return balance * debt_type["percent"]
+    else:
+        return parse_money(amounts.get("payment", "")) or 0.0
+
+
+def render_debts():
+    st.markdown("### Debts & Liabilities")
+    st.write("Enter property debts and other liabilities for this application.")
+
+    st.write("**Property Debts**")
+
+    if st.button("+ Add Property", key="add_property"):
+        st.session_state.properties.append(empty_property())
+        st.rerun()
+
+    total_property_debt = 0.0
+    total_mortgage_pi_proxy = 0.0
+    total_taxes = 0.0
+    total_heat = 0.0
+    total_condo = 0.0
+    property_errors_any = False
+
+    for pidx, prop in enumerate(st.session_state.properties):
+        with st.expander("Property " + str(pidx + 1), expanded=True):
+            prop["address"] = st.text_area(
+                "Property Address", value=prop["address"], placeholder="Enter full property address",
+                key="prop_addr_" + str(pidx), height=70,
+            )
+            prop["prop_type"] = st.selectbox(
+                "Property Type", PROPERTY_TYPES,
+                index=PROPERTY_TYPES.index(prop["prop_type"]) if prop["prop_type"] in PROPERTY_TYPES else 0,
+                key="prop_type_" + str(pidx),
+            )
+            if prop["prop_type"] == "Other":
+                prop["other_type_desc"] = st.text_input(
+                    "Describe property type", value=prop.get("other_type_desc", ""), key="prop_other_" + str(pidx)
+                )
+
+            c1, c2 = st.columns(2)
+            with c1:
+                prop["mortgage_payment"] = st.text_input(
+                    "Monthly Mortgage / Loan Payment ($)", value=prop["mortgage_payment"],
+                    placeholder="Enter monthly payment amount", key="prop_mtg_" + str(pidx),
+                )
+                prop["condo_fees"] = st.text_input(
+                    "Monthly Condo / Strata Fees ($)", value=prop["condo_fees"],
+                    placeholder="Enter monthly fee amount (0 if none)", key="prop_condo_" + str(pidx),
+                )
+            with c2:
+                prop["property_taxes"] = st.text_input(
+                    "Monthly Property Taxes ($)", value=prop["property_taxes"],
+                    placeholder="Enter monthly tax amount", key="prop_tax_" + str(pidx),
+                )
+                prop["heating"] = st.text_input(
+                    "Monthly Heating Costs ($)", value=prop["heating"],
+                    placeholder="Enter monthly heating amount", key="prop_heat_" + str(pidx),
+                )
+
+            prop_total, m, t, c, h = compute_property_total(prop)
+            total_property_debt += prop_total
+            total_mortgage_pi_proxy += m
+            total_taxes += t
+            total_condo += c
+            total_heat += h
+
+            st.markdown(
+                "<div class='property-total'>Total Monthly Property Debt: " + fmt_money(prop_total) + "</div>",
+                unsafe_allow_html=True,
+            )
+
+            if not prop["address"].strip():
+                st.caption(":red[Please enter the property address.]")
+                property_errors_any = True
+
+            st.markdown(
+                "<div class='doc-list'><b>Required Documentation</b><ul style='margin:6px 0 0 18px;'>"
+                "<li>Mortgage statement or loan agreement</li>"
+                "<li>Property tax assessment or bill</li>"
+                "<li>Condo fee statement (if applicable)</li>"
+                "<li>Heating bill or utility estimate</li>"
+                "</ul></div>",
+                unsafe_allow_html=True,
+            )
+
+            if st.button("Remove Property " + str(pidx + 1), key="remove_prop_" + str(pidx)):
+                st.session_state["confirm_remove_prop"] = pidx
+                st.rerun()
+
+            if st.session_state.get("confirm_remove_prop") == pidx:
+                st.warning("Remove this property? This cannot be undone.")
+                rc1, rc2 = st.columns(2)
+                with rc1:
+                    if st.button("Yes, remove", key="confirm_remove_yes_" + str(pidx)):
+                        st.session_state.properties.pop(pidx)
+                        st.session_state["confirm_remove_prop"] = None
+                        st.rerun()
+                with rc2:
+                    if st.button("Cancel", key="confirm_remove_no_" + str(pidx)):
+                        st.session_state["confirm_remove_prop"] = None
+                        st.rerun()
+
+        st.session_state.properties[pidx] = prop
+
+    st.divider()
+
+    st.write("**Select Other Debt Types**")
+
+    selected = st.session_state.debt_selected
+    total_other_debt = 0.0
+    other_debt_errors_any = False
+
+    for debt_type in DEBT_TYPES:
+        dkey = debt_type["key"]
+        checked = dkey in selected
+        new_checked = st.checkbox(debt_type["label"], value=checked, key="debt_" + dkey)
+
+        if new_checked and dkey not in selected:
+            selected.append(dkey)
+        elif not new_checked and dkey in selected:
+            selected.remove(dkey)
+            st.session_state.debt_amounts.pop(dkey, None)
+
+        if new_checked:
+            if dkey not in st.session_state.debt_amounts:
+                st.session_state.debt_amounts[dkey] = {}
+            amounts = st.session_state.debt_amounts[dkey]
+
+            if debt_type["calc"] == "percent_of_balance":
+                amounts["balance"] = st.text_input(
+                    "Total Outstanding Balance ($)", value=amounts.get("balance", ""),
+                    placeholder="Enter total balance", key="debt_bal_" + dkey,
+                )
+                balance_v = parse_money(amounts.get("balance", "")) or 0.0
+                calc_payment = balance_v * debt_type["percent"]
+                st.caption(
+                    "Estimated Monthly Payment (" + str(int(debt_type["percent"] * 100)) + "% of balance): "
+                    + fmt_money(calc_payment)
+                )
+                if amounts.get("balance", "").strip() == "":
+                    other_debt_errors_any = True
+            else:
+                amounts["payment"] = st.text_input(
+                    "Monthly Payment Amount ($)", value=amounts.get("payment", ""),
+                    placeholder="Enter monthly payment amount", key="debt_pay_" + dkey,
+                )
+                if amounts.get("payment", "").strip() == "":
+                    other_debt_errors_any = True
+
+            if dkey == "other":
+                st.session_state.debt_other_desc = st.text_input(
+                    "Describe the other obligation", value=st.session_state.debt_other_desc,
+                    key="debt_other_desc_input",
+                )
+
+            payment_value = compute_debt_payment(debt_type, amounts)
+            total_other_debt += payment_value
+
+            docs_html = ""
+            for d in debt_type["documents"]:
+                docs_html += "<li>" + d + "</li>"
+            notes_html = "<div style='margin-top:6px;'>" + debt_type["notes"] + "</div>" if debt_type["notes"] else ""
+            st.markdown(
+                "<div class='doc-list'><b>Required Documentation</b>"
+                "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
+                unsafe_allow_html=True,
+            )
+
+            st.session_state.debt_amounts[dkey] = amounts
+
+    st.session_state.debt_selected = selected
+
+    st.divider()
+
+    total_monthly_debt = total_property_debt + total_other_debt
+    st.markdown("#### Total Monthly Debt Obligations: " + fmt_money(total_monthly_debt))
+
+    total_income = compute_total_income()
+    monthly_income = total_income / 12 if total_income else 0.0
+
+    if monthly_income > 0:
+        gds = (total_mortgage_pi_proxy + total_taxes + total_heat + total_condo) / monthly_income * 100
+        tds = (total_mortgage_pi_proxy + total_taxes + total_heat + total_condo + total_other_debt) / monthly_income * 100
+    else:
+        gds = None
+        tds = None
+
+    def ratio_class(value, limit):
+        if value is None:
+            return "", "—"
+        display = "{:.2f}%".format(value)
+        if value <= limit * 0.9:
+            return "ratio-green", display
+        elif value <= limit:
+            return "ratio-yellow", display
+        else:
+            return "ratio-red", display
+
+    gds_class, gds_display = ratio_class(gds, GDS_LIMIT)
+    tds_class, tds_display = ratio_class(tds, TDS_LIMIT)
+
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>GDS Ratio (target ≤ " + str(int(GDS_LIMIT)) + "%)</div>"
+        "<div class='metric-value " + gds_class + "'>" + gds_display + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>TDS Ratio (target ≤ " + str(int(TDS_LIMIT)) + "%)</div>"
+        "<div class='metric-value " + tds_class + "'>" + tds_display + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    if monthly_income == 0:
+        st.caption(":gray[Complete the Income step to calculate GDS/TDS ratios.]")
+
+    st.divider()
+
+    has_any_debt = len(st.session_state.properties) > 0 or len(selected) > 0
+    is_valid = has_any_debt and not property_errors_any and not other_debt_errors_any
+
+    if not has_any_debt:
+        st.caption(":red[Please add at least one property or select at least one debt type.]")
+
+    back_col, refresh_col, continue_col = st.columns(3)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p4_back"):
+            st.session_state.step = 2
+            st.rerun()
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p4_refresh"):
+            st.session_state["p4_show_refresh_confirm"] = True
+
+    if st.session_state.get("p4_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p4_confirm_refresh"):
+                refresh_page4()
+                st.session_state["p4_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p4_cancel_refresh"):
+                st.session_state["p4_show_refresh_confirm"] = False
+                st.rerun()
+
+    with continue_col:
+        if st.button("Continue →", type="primary", use_container_width=True, key="p4_continue"):
+            if is_valid:
+                st.session_state.step = 4
+                st.rerun()
+            else:
+                st.error("Please resolve the issues above before continuing.")
+
+
+# ---------------------------------------------------------------------------
+# STEP 4+ — placeholder for the rest of the wizard
+# ---------------------------------------------------------------------------
+
 def render_placeholder_step(step_name):
     st.markdown("### " + step_name)
     st.info("The '" + step_name + "' step is not yet built. Your data from previous steps has been saved.")
@@ -748,11 +1086,17 @@ def render_placeholder_step(step_name):
         st.rerun()
 
 
+# ---------------------------------------------------------------------------
+# Router
+# ---------------------------------------------------------------------------
+
 if st.session_state.step == 0:
     render_client_details()
 elif st.session_state.step == 1:
     render_down_payment()
 elif st.session_state.step == 2:
     render_income()
+elif st.session_state.step == 3:
+    render_debts()
 else:
     render_placeholder_step(STEPS[st.session_state.step])
