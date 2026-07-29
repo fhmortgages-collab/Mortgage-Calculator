@@ -124,6 +124,18 @@ def init_state():
         st.session_state.amortization_years = 25
     if "benchmark_rate" not in st.session_state:
         st.session_state.benchmark_rate = 5.25
+    if "subject_location" not in st.session_state:
+        st.session_state.subject_location = ""
+    if "subject_prop_type" not in st.session_state:
+        st.session_state.subject_prop_type = ""
+    if "subject_prop_age" not in st.session_state:
+        st.session_state.subject_prop_age = ""
+    if "subject_garage" not in st.session_state:
+        st.session_state.subject_garage = ""
+    if "subject_rural_urban" not in st.session_state:
+        st.session_state.subject_rural_urban = ""
+    if "subject_sqft" not in st.session_state:
+        st.session_state.subject_sqft = ""
 
 
 def render_stepper(active_index):
@@ -577,8 +589,12 @@ def refresh_property_details():
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
-    st.session_state.contract_rate = 5.0
-    st.session_state.amortization_years = 25
+    st.session_state.subject_location = ""
+    st.session_state.subject_prop_type = ""
+    st.session_state.subject_prop_age = ""
+    st.session_state.subject_garage = ""
+    st.session_state.subject_rural_urban = ""
+    st.session_state.subject_sqft = ""
 
 
 def get_subject_property_costs():
@@ -622,17 +638,46 @@ def render_property_details():
     if not st.session_state.subject_address.strip():
         st.caption(":red[Please enter the property address.]")
 
-    st.write("**Financing Terms**")
+    st.caption(
+        "Financing terms (contract rate, amortization) are now collected on the Analysis "
+        "step, alongside the stress test."
+    )
+
+    st.write("**Property Characteristics**")
+    st.caption(
+        "Best-effort is fine here — the client may only have what's on the MLS listing "
+        "or heard secondhand, not a formal appraisal. Leave anything unknown blank."
+    )
     c1, c2 = st.columns(2)
     with c1:
-        st.session_state.contract_rate = st.number_input(
-            "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
-            value=st.session_state.contract_rate, step=0.05,
+        st.session_state.subject_location = st.text_input(
+            "Location (city / neighbourhood)", value=st.session_state.subject_location,
+            placeholder="e.g. Oakville, ON",
+        )
+        st.session_state.subject_prop_age = st.text_input(
+            "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
+            placeholder="e.g. 15 years or Built 2011",
+        )
+        st.session_state.subject_rural_urban = st.selectbox(
+            "Rural / Urban",
+            ["", "Urban", "Suburban", "Rural"],
+            index=["", "Urban", "Suburban", "Rural"].index(st.session_state.subject_rural_urban)
+            if st.session_state.subject_rural_urban in ["", "Urban", "Suburban", "Rural"] else 0,
         )
     with c2:
-        st.session_state.amortization_years = st.number_input(
-            "Amortization (years)", min_value=1, max_value=35,
-            value=st.session_state.amortization_years, step=1,
+        st.session_state.subject_prop_type = st.selectbox(
+            "Property Type", PROPERTY_TYPES,
+            index=PROPERTY_TYPES.index(st.session_state.subject_prop_type)
+            if st.session_state.subject_prop_type in PROPERTY_TYPES else 0,
+            key="subject_prop_type_select",
+        )
+        st.session_state.subject_garage = st.selectbox(
+            "Garage", ["", "None", "Attached", "Detached", "Carport"],
+            index=["", "None", "Attached", "Detached", "Carport"].index(st.session_state.subject_garage)
+            if st.session_state.subject_garage in ["", "None", "Attached", "Detached", "Carport"] else 0,
+        )
+        st.session_state.subject_sqft = st.text_input(
+            "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
         )
 
     st.write("**Monthly Carrying Costs**")
@@ -988,6 +1033,23 @@ def compute_debt_payment(debt_type, amounts):
         return parse_money(amounts.get("payment", "")) or 0.0
 
 
+def explain_debt_payment(debt_type, amounts):
+    """Returns (payment, explanation_string) showing the math behind a debt's monthly payment."""
+    if debt_type["calc"] == "percent_of_balance":
+        balance = parse_money(amounts.get("balance", "")) or 0.0
+        pct = debt_type["percent"]
+        payment = balance * pct
+        explanation = (
+            debt_type["label"] + ": " + "{:.0f}%".format(pct * 100) + " of "
+            + fmt_money(balance) + " balance = " + fmt_money(payment) + "/month"
+        )
+        return payment, explanation
+    else:
+        payment = parse_money(amounts.get("payment", "")) or 0.0
+        explanation = debt_type["label"] + ": stated monthly payment = " + fmt_money(payment) + "/month"
+        return payment, explanation
+
+
 def render_debts():
     st.markdown("### Debts & Liabilities")
     st.write("Enter property debts and other liabilities for this application.")
@@ -1048,6 +1110,11 @@ def render_debts():
             total_condo += c
             total_heat += h
 
+            st.caption(
+                "Mortgage/Loan " + fmt_money(m) + " + Taxes " + fmt_money(t)
+                + " + Condo " + fmt_money(c) + " + Heat " + fmt_money(h)
+                + " = " + fmt_money(prop_total) + "/month"
+            )
             st.markdown(
                 "<div class='property-total'>Total Monthly Property Debt: " + fmt_money(prop_total) + "</div>",
                 unsafe_allow_html=True,
@@ -1115,12 +1182,6 @@ def render_debts():
                     "Total Outstanding Balance ($)", value=amounts.get("balance", ""),
                     placeholder="Enter total balance", key="debt_bal_" + dkey,
                 )
-                balance_v = parse_money(amounts.get("balance", "")) or 0.0
-                calc_payment = balance_v * debt_type["percent"]
-                st.caption(
-                    "Estimated Monthly Payment (" + str(int(debt_type["percent"] * 100)) + "% of balance): "
-                    + fmt_money(calc_payment)
-                )
                 if amounts.get("balance", "").strip() == "":
                     other_debt_errors_any = True
             else:
@@ -1130,6 +1191,9 @@ def render_debts():
                 )
                 if amounts.get("payment", "").strip() == "":
                     other_debt_errors_any = True
+
+            _, debt_explanation = explain_debt_payment(debt_type, amounts)
+            st.caption(debt_explanation)
 
             if dkey == "other":
                 st.session_state.debt_other_desc = st.text_input(
@@ -1155,6 +1219,14 @@ def render_debts():
     st.session_state.debt_selected = selected
 
     st.divider()
+
+    if selected:
+        st.write("**Other Debt Breakdown**")
+        for dkey in selected:
+            dt = get_debt_type(dkey)
+            amounts = st.session_state.debt_amounts.get(dkey, {})
+            _, exp = explain_debt_payment(dt, amounts)
+            st.caption(exp)
 
     total_monthly_debt = total_property_debt + total_other_debt
     st.markdown("#### Total Monthly Debt Obligations (Other Properties + Debts): " + fmt_money(total_monthly_debt))
@@ -1312,6 +1384,12 @@ def refresh_all():
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
+    st.session_state.subject_location = ""
+    st.session_state.subject_prop_type = ""
+    st.session_state.subject_prop_age = ""
+    st.session_state.subject_garage = ""
+    st.session_state.subject_rural_urban = ""
+    st.session_state.subject_sqft = ""
     st.session_state.contract_rate = 5.0
     st.session_state.amortization_years = 25
     st.session_state.benchmark_rate = 5.25
@@ -1320,6 +1398,21 @@ def refresh_all():
 def render_analysis():
     st.markdown("### Qualification Summary")
     st.write("This page aggregates data from all previous steps — nothing to re-enter here.")
+
+    # --- Financing Terms (moved here from Property Details) ---
+    st.markdown("#### Financing Terms")
+    fc1, fc2 = st.columns(2)
+    with fc1:
+        st.session_state.contract_rate = st.number_input(
+            "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
+            value=st.session_state.contract_rate, step=0.05, key="analysis_contract_rate",
+        )
+    with fc2:
+        st.session_state.amortization_years = st.number_input(
+            "Amortization (years)", min_value=1, max_value=35,
+            value=st.session_state.amortization_years, step=1, key="analysis_amortization",
+        )
+    st.divider()
 
     # --- Aggregate data ---
     total_income = compute_total_income()
@@ -1363,14 +1456,53 @@ def render_analysis():
 
     st.divider()
 
-    # --- GDS / TDS at contract terms ---
-    st.markdown("#### GDS / TDS Calculation")
+    # --- Benchmark rate + stress test numbers (computed early so they can sit next to contract GDS/TDS) ---
+    st.session_state.benchmark_rate = st.number_input(
+        "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
+        value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
+    )
+    qualifying_rate = max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate)
+    st.caption(
+        "Qualifying Rate Used for Stress Test: " + "{:.2f}%".format(qualifying_rate)
+        + " (greater of contract + " + str(int(STRESS_TEST_ADDON)) + "%, or benchmark)"
+    )
+    stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, st.session_state.amortization_years)
+
+    # --- GDS / TDS at contract terms AND stressed, side by side ---
+    st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
 
     gds, tds, annual_housing, annual_other_debt = compute_gds_tds(
         pi_payment, taxes, heat, condo, other_debt_monthly, total_income
     )
+    stressed_gds, stressed_tds, stressed_annual_housing, stressed_annual_other_debt = compute_gds_tds(
+        stressed_pi, taxes, heat, condo, other_debt_monthly, total_income
+    )
 
-    with st.expander("Show calculation details", expanded=False):
+    gds_display = "{:.2f}%".format(gds) if gds is not None else "—"
+    tds_display = "{:.2f}%".format(tds) if tds is not None else "—"
+    stressed_gds_display = "{:.2f}%".format(stressed_gds) if stressed_gds is not None else "—"
+    stressed_tds_display = "{:.2f}%".format(stressed_tds) if stressed_tds is not None else "—"
+
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>GDS — Contract Rate</div>"
+        "<div class='metric-value'>" + gds_display + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>GDS — Stressed</div>"
+        "<div class='metric-value'>" + stressed_gds_display + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>TDS — Contract Rate</div>"
+        "<div class='metric-value'>" + tds_display + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>TDS — Stressed</div>"
+        "<div class='metric-value'>" + stressed_tds_display + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("Show calculation details (Contract Rate)", expanded=False):
         st.markdown("**Formula:** GDS = (P + I + T + H + 0.5C) ÷ Gross Annual Income × 100")
         calc_text = (
             "- Principal + Interest (P + I): " + fmt_money(pi_payment) + "/month × 12 = " + fmt_money(pi_payment * 12) + "\n"
@@ -1378,8 +1510,7 @@ def render_analysis():
             "- Heating (H): " + fmt_money(heat) + "/month × 12 = " + fmt_money(heat * 12) + "\n"
             "- 50% Condo Fees (0.5C): " + fmt_money(condo) + "/month × 12 × 0.5 = " + fmt_money(condo * 12 * 0.5) + "\n\n"
             "**Total Annual Housing Costs (PITH) = " + fmt_money(annual_housing) + "**\n\n"
-            "GDS = " + fmt_money(annual_housing) + " ÷ " + fmt_money(total_income) + " × 100 = "
-            + ("{:.2f}%".format(gds) if gds is not None else "—")
+            "GDS = " + fmt_money(annual_housing) + " ÷ " + fmt_money(total_income) + " × 100 = " + gds_display
         )
         st.markdown(calc_text)
 
@@ -1388,14 +1519,39 @@ def render_analysis():
             "- Annual Housing Costs (PITH, from GDS above): " + fmt_money(annual_housing) + "\n"
             "- All Other Monthly Debt Payments × 12: " + fmt_money(annual_other_debt) + "\n\n"
             "**Total Annual Debt Obligations = " + fmt_money(annual_housing + annual_other_debt) + "**\n\n"
-            "TDS = " + fmt_money(annual_housing + annual_other_debt) + " ÷ " + fmt_money(total_income) + " × 100 = "
-            + ("{:.2f}%".format(tds) if tds is not None else "—")
+            "TDS = " + fmt_money(annual_housing + annual_other_debt) + " ÷ " + fmt_money(total_income) + " × 100 = " + tds_display
+        )
+
+    with st.expander("Show calculation details (Stressed, at " + "{:.2f}%".format(qualifying_rate) + ")", expanded=False):
+        st.markdown(
+            "Stressed P&I substitutes the qualifying rate (" + "{:.2f}%".format(qualifying_rate)
+            + ") in place of the contract rate (" + "{:.2f}%".format(st.session_state.contract_rate)
+            + "); taxes, heat, and condo fees are unchanged."
+        )
+        st.markdown("**Formula:** GDS = (Stressed P&I + T + H + 0.5C) ÷ Gross Annual Income × 100")
+        stressed_calc_text = (
+            "- Stressed Principal + Interest: " + fmt_money(stressed_pi) + "/month × 12 = " + fmt_money(stressed_pi * 12) + "\n"
+            "- Property Taxes (T): " + fmt_money(taxes) + "/month × 12 = " + fmt_money(taxes * 12) + "\n"
+            "- Heating (H): " + fmt_money(heat) + "/month × 12 = " + fmt_money(heat * 12) + "\n"
+            "- 50% Condo Fees (0.5C): " + fmt_money(condo) + "/month × 12 × 0.5 = " + fmt_money(condo * 12 * 0.5) + "\n\n"
+            "**Total Stressed Annual Housing Costs (PITH) = " + fmt_money(stressed_annual_housing) + "**\n\n"
+            "GDS = " + fmt_money(stressed_annual_housing) + " ÷ " + fmt_money(total_income) + " × 100 = " + stressed_gds_display
+        )
+        st.markdown(stressed_calc_text)
+
+        st.markdown("**Formula:** TDS = (Stressed PITH + All Other Monthly Debt Payments × 12) ÷ Gross Annual Income × 100")
+        st.markdown(
+            "- Stressed Annual Housing Costs (PITH, from GDS above): " + fmt_money(stressed_annual_housing) + "\n"
+            "- All Other Monthly Debt Payments × 12: " + fmt_money(stressed_annual_other_debt) + "\n\n"
+            "**Total Stressed Annual Debt Obligations = " + fmt_money(stressed_annual_housing + stressed_annual_other_debt) + "**\n\n"
+            "TDS = " + fmt_money(stressed_annual_housing + stressed_annual_other_debt) + " ÷ " + fmt_money(total_income)
+            + " × 100 = " + stressed_tds_display
         )
 
     st.divider()
 
     # --- Visual gauges ---
-    st.markdown("#### Visual Indicators")
+    st.markdown("#### Visual Indicators (Contract Rate)")
     render_gauge("GDS", gds, GDS_LIMIT)
     render_gauge("TDS", tds, TDS_LIMIT)
 
@@ -1411,8 +1567,8 @@ def render_analysis():
     else:
         st.error(
             "❌ NOT QUALIFIED — Your GDS/TDS ratios exceed acceptable limits.\n\n"
-            "GDS: " + ("{:.2f}%".format(gds) if gds is not None else "—") + " (Acceptable: ≤ " + str(int(GDS_LIMIT)) + "%)\n\n"
-            "TDS: " + ("{:.2f}%".format(tds) if tds is not None else "—") + " (Acceptable: ≤ " + str(int(TDS_LIMIT)) + "%)\n\n"
+            "GDS: " + gds_display + " (Acceptable: ≤ " + str(int(GDS_LIMIT)) + "%)\n\n"
+            "TDS: " + tds_display + " (Acceptable: ≤ " + str(int(TDS_LIMIT)) + "%)\n\n"
             "Please consider:\n"
             "- Increasing down payment to reduce mortgage amount\n"
             "- Reducing debt obligations\n"
@@ -1422,43 +1578,13 @@ def render_analysis():
 
     st.divider()
 
-    # --- Stress test ---
-    st.markdown("#### Stress Test")
-    st.caption(
-        "A common public convention: qualify at the greater of your contract rate + "
-        + str(int(STRESS_TEST_ADDON)) + "%, or a benchmark qualifying rate. "
-        "Contract rate and amortization are carried over from the Property Details step."
-    )
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown(
-            "<div class='metric-card'><div class='metric-label'>Contract Rate (from Property Details)</div>"
-            "<div class='metric-value'>" + "{:.2f}%".format(st.session_state.contract_rate) + "</div></div>",
-            unsafe_allow_html=True,
-        )
-    with c2:
-        st.session_state.benchmark_rate = st.number_input(
-            "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
-            value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
-        )
-
-    qualifying_rate = max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate)
-    st.caption("Qualifying Rate Used: " + "{:.2f}%".format(qualifying_rate))
-
-    stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, st.session_state.amortization_years)
-    stressed_gds, stressed_tds, _, _ = compute_gds_tds(
-        stressed_pi, taxes, heat, condo, other_debt_monthly, total_income
-    )
-
-    stressed_gds_display = "{:.2f}%".format(stressed_gds) if stressed_gds is not None else "—"
-    stressed_tds_display = "{:.2f}%".format(stressed_tds) if stressed_tds is not None else "—"
+    # --- Stress test result ---
+    st.markdown("#### Stress Test Result")
     stressed_qualified = (
         stressed_gds is not None and stressed_tds is not None
         and stressed_gds <= GDS_LIMIT and stressed_tds <= TDS_LIMIT
     )
     stress_result = "PASS ✓" if stressed_qualified else "FAIL ✗"
-
     st.markdown(
         "Stress Test (Qualifying Rate: " + "{:.2f}%".format(qualifying_rate) + "):\n\n"
         "- Stressed Monthly P&I: " + fmt_money(stressed_pi) + "\n"
