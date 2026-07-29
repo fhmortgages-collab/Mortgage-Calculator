@@ -1,3 +1,13 @@
+"""
+Down payment source configuration.
+
+All sources and documentation requirements below reflect general,
+industry-standard mortgage lending practice (the kind of thing found in
+public CMHC/insurer guidelines and typical lender disclosure documents).
+Nothing here references any specific financial institution's internal
+policy, product names, or proprietary underwriting overlays.
+"""
+
 DOWN_PAYMENT_SOURCES = [
     {
         "key": "savings",
