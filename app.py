@@ -636,6 +636,9 @@ def refresh_property_details():
     st.session_state.subject_parking_spaces = ""
     st.session_state.subject_land_size = ""
     st.session_state.subject_title_type = ""
+
+
+def get_subject_property_costs():
     """Returns (pi_payment, taxes, condo, heat, monthly_housing_total) for the property being purchased."""
     purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
     down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
