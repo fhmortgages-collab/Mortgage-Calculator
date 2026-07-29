@@ -1075,15 +1075,306 @@ def render_debts():
 
 
 # ---------------------------------------------------------------------------
-# STEP 4+ — placeholder for the rest of the wizard
+# STEP 4 — Analysis (GDS/TDS Qualification Summary)
 # ---------------------------------------------------------------------------
 
-def render_placeholder_step(step_name):
-    st.markdown("### " + step_name)
-    st.info("The '" + step_name + "' step is not yet built. Your data from previous steps has been saved.")
-    if st.button("← Back", key="back_from_" + step_name):
-        st.session_state.step -= 1
-        st.rerun()
+STRESS_TEST_ADDON = 2.0  # commonly: contract rate + 2%, per public stress-test convention
+DEFAULT_BENCHMARK_RATE = 5.25  # a commonly cited public benchmark qualifying rate; editable below
+DEFAULT_AMORTIZATION_YEARS = 25
+
+
+def monthly_mortgage_payment(principal, annual_rate_percent, amortization_years):
+    if principal <= 0 or amortization_years <= 0:
+        return 0.0
+    r = (annual_rate_percent / 100.0) / 12.0
+    n = amortization_years * 12
+    if r == 0:
+        return principal / n
+    return principal * (r * (1 + r) ** n) / ((1 + r) ** n - 1)
+
+
+def get_primary_property():
+    for prop in st.session_state.properties:
+        if prop.get("prop_type") == "Primary Residence":
+            return prop
+    if st.session_state.properties:
+        return st.session_state.properties[0]
+    return None
+
+
+def compute_gds_tds(pi_payment, taxes, heat, condo, other_debt_monthly, annual_income):
+    annual_housing = (pi_payment + taxes + heat + condo * 0.5) * 12
+    annual_other_debt = other_debt_monthly * 12
+    if annual_income <= 0:
+        return None, None, annual_housing, annual_other_debt
+    gds = annual_housing / annual_income * 100
+    tds = (annual_housing + annual_other_debt) / annual_income * 100
+    return gds, tds, annual_housing, annual_other_debt
+
+
+def ratio_badge(value, limit):
+    if value is None:
+        return "—", ""
+    display = "{:.2f}%".format(value)
+    if value <= limit * 0.9:
+        return display, "ratio-green"
+    elif value <= limit:
+        return display, "ratio-yellow"
+    else:
+        return display, "ratio-red"
+
+
+def render_gauge(label, value, limit):
+    if value is None:
+        st.write("**" + label + ":** —")
+        return
+    pct_of_scale = min(value / 50.0, 1.0)
+    filled = int(pct_of_scale * 28)
+    bar = "█" * filled + "░" * (28 - filled)
+    display, css_class = ratio_badge(value, limit)
+    check = "✓" if value <= limit else "✗"
+    st.markdown(
+        "<div style='margin-bottom:10px;'>"
+        "<b>" + label + ":</b> <span class='" + css_class + "'>" + display + "</span> " + check + "<br>"
+        "<span style='font-family:monospace; letter-spacing:1px;'>[" + bar + "]</span><br>"
+        "<span style='font-size:12px; color:#6b7280;'>Acceptable Range: ≤ " + str(int(limit)) + "%</span>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def refresh_all():
+    st.session_state.step = 0
+    st.session_state.borrower_count = 1
+    st.session_state.borrowers = [empty_borrower()]
+    st.session_state.borrower_errors = [{}]
+    st.session_state.consent = False
+    st.session_state.purchase_price_raw = ""
+    st.session_state.down_payment_raw = ""
+    st.session_state.selected_sources = []
+    st.session_state.source_amounts = {}
+    st.session_state.other_source_desc = ""
+    st.session_state.dp_errors = {}
+    st.session_state.income_selected = {}
+    st.session_state.income_amounts = {}
+    st.session_state.income_special = {}
+    st.session_state.income_other_desc = {}
+    st.session_state.income_errors = {}
+    st.session_state.properties = []
+    st.session_state.debt_selected = []
+    st.session_state.debt_amounts = {}
+    st.session_state.debt_other_desc = ""
+    st.session_state.debt_errors = {}
+
+
+def render_analysis():
+    st.markdown("### Qualification Summary")
+    st.write("This page aggregates data from all previous steps — nothing to re-enter here.")
+
+    # --- Aggregate data ---
+    total_income = compute_total_income()
+    purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
+    down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
+    loan_amount = max(purchase_price - down_payment, 0.0)
+    ltv = (loan_amount / purchase_price * 100) if purchase_price else None
+
+    primary_property = get_primary_property()
+    pi_payment = parse_money(primary_property.get("mortgage_payment", "")) if primary_property else 0.0
+    taxes = parse_money(primary_property.get("property_taxes", "")) if primary_property else 0.0
+    heat = parse_money(primary_property.get("heating", "")) if primary_property else 0.0
+    condo = parse_money(primary_property.get("condo_fees", "")) if primary_property else 0.0
+    pi_payment = pi_payment or 0.0
+    taxes = taxes or 0.0
+    heat = heat or 0.0
+    condo = condo or 0.0
+
+    other_debt_monthly = 0.0
+    for dkey in st.session_state.debt_selected:
+        dt = get_debt_type(dkey)
+        amounts = st.session_state.debt_amounts.get(dkey, {})
+        other_debt_monthly += compute_debt_payment(dt, amounts)
+    # Add any additional (non-primary) properties' full carrying costs into other debt for TDS
+    for prop in st.session_state.properties:
+        if prop is primary_property:
+            continue
+        p_total, _, _, _, _ = compute_property_total(prop)
+        other_debt_monthly += p_total
+
+    st.markdown("#### Combined Figures")
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>Combined Gross Annual Income</div>"
+        "<div class='metric-value'>" + fmt_money(total_income) + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>Mortgage Loan Amount</div>"
+        "<div class='metric-value'>" + fmt_money(loan_amount) + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    ltv_display = "{:.2f}%".format(ltv) if ltv is not None else "—"
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>LTV Ratio</div>"
+        "<div class='metric-value'>" + ltv_display + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>Monthly Housing Costs (Primary Residence)</div>"
+        "<div class='metric-value'>" + fmt_money(pi_payment + taxes + heat + condo) + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+
+    # --- GDS / TDS at contract terms ---
+    st.markdown("#### GDS / TDS Calculation")
+
+    gds, tds, annual_housing, annual_other_debt = compute_gds_tds(
+        pi_payment, taxes, heat, condo, other_debt_monthly, total_income
+    )
+
+    calc_text = (
+        "**GDS Calculation:**\n\n"
+        "- Principal + Interest: " + fmt_money(pi_payment) + "/month × 12 = " + fmt_money(pi_payment * 12) + "\n"
+        "- Property Taxes: " + fmt_money(taxes) + "/month × 12 = " + fmt_money(taxes * 12) + "\n"
+        "- Heating: " + fmt_money(heat) + "/month × 12 = " + fmt_money(heat * 12) + "\n"
+        "- 50% Condo Fees: " + fmt_money(condo) + "/month × 12 × 0.5 = " + fmt_money(condo * 12 * 0.5) + "\n\n"
+        "**Total Annual Housing Costs = " + fmt_money(annual_housing) + "**\n\n"
+        "GDS = " + fmt_money(annual_housing) + " ÷ " + fmt_money(total_income) + " × 100 = "
+        + ("{:.2f}%".format(gds) if gds is not None else "—")
+    )
+    st.markdown(calc_text)
+
+    st.markdown(
+        "**TDS Calculation:**\n\n"
+        "- Annual Housing Costs (GDS total): " + fmt_money(annual_housing) + "\n"
+        "- All Other Monthly Debt Payments × 12: " + fmt_money(annual_other_debt) + "\n\n"
+        "**Total Annual Debt Obligations = " + fmt_money(annual_housing + annual_other_debt) + "**\n\n"
+        "TDS = " + fmt_money(annual_housing + annual_other_debt) + " ÷ " + fmt_money(total_income) + " × 100 = "
+        + ("{:.2f}%".format(tds) if tds is not None else "—")
+    )
+
+    st.divider()
+
+    # --- Visual gauges ---
+    st.markdown("#### Visual Indicators")
+    render_gauge("GDS", gds, GDS_LIMIT)
+    render_gauge("TDS", tds, TDS_LIMIT)
+
+    st.divider()
+
+    # --- Qualification status ---
+    qualified = gds is not None and tds is not None and gds <= GDS_LIMIT and tds <= TDS_LIMIT
+
+    if total_income <= 0:
+        st.warning("Enter income details in the Income step to calculate qualification.")
+    elif qualified:
+        st.success("✅ QUALIFIED — Your GDS and TDS ratios are within acceptable limits.")
+    else:
+        st.error(
+            "❌ NOT QUALIFIED — Your GDS/TDS ratios exceed acceptable limits.\n\n"
+            "GDS: " + ("{:.2f}%".format(gds) if gds is not None else "—") + " (Acceptable: ≤ " + str(int(GDS_LIMIT)) + "%)\n\n"
+            "TDS: " + ("{:.2f}%".format(tds) if tds is not None else "—") + " (Acceptable: ≤ " + str(int(TDS_LIMIT)) + "%)\n\n"
+            "Please consider:\n"
+            "- Increasing down payment to reduce mortgage amount\n"
+            "- Reducing debt obligations\n"
+            "- Increasing income\n"
+            "- Adding a co-signer or guarantor"
+        )
+
+    st.divider()
+
+    # --- Stress test ---
+    st.markdown("#### Stress Test")
+    st.caption(
+        "A common public convention: qualify at the greater of your contract rate + "
+        + str(int(STRESS_TEST_ADDON)) + "%, or a benchmark qualifying rate. Enter your figures below."
+    )
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        contract_rate = st.number_input(
+            "Contract Rate (%)", min_value=0.0, max_value=25.0, value=st.session_state.get("contract_rate", 5.0),
+            step=0.05, key="contract_rate",
+        )
+    with c2:
+        benchmark_rate = st.number_input(
+            "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
+            value=st.session_state.get("benchmark_rate", DEFAULT_BENCHMARK_RATE), step=0.05, key="benchmark_rate",
+        )
+    with c3:
+        amortization_years = st.number_input(
+            "Amortization (years)", min_value=1, max_value=35,
+            value=st.session_state.get("amortization_years", DEFAULT_AMORTIZATION_YEARS), step=1,
+            key="amortization_years",
+        )
+
+    qualifying_rate = max(contract_rate + STRESS_TEST_ADDON, benchmark_rate)
+    st.caption("Qualifying Rate Used: " + "{:.2f}%".format(qualifying_rate))
+
+    stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, amortization_years)
+    stressed_gds, stressed_tds, _, _ = compute_gds_tds(
+        stressed_pi, taxes, heat, condo, other_debt_monthly, total_income
+    )
+
+    stressed_gds_display = "{:.2f}%".format(stressed_gds) if stressed_gds is not None else "—"
+    stressed_tds_display = "{:.2f}%".format(stressed_tds) if stressed_tds is not None else "—"
+    stressed_qualified = (
+        stressed_gds is not None and stressed_tds is not None
+        and stressed_gds <= GDS_LIMIT and stressed_tds <= TDS_LIMIT
+    )
+    stress_result = "PASS ✓" if stressed_qualified else "FAIL ✗"
+
+    st.markdown(
+        "Stress Test (Qualifying Rate: " + "{:.2f}%".format(qualifying_rate) + "):\n\n"
+        "- Stressed Monthly P&I: " + fmt_money(stressed_pi) + "\n"
+        "- GDS: " + stressed_gds_display + "\n"
+        "- TDS: " + stressed_tds_display + "\n"
+        "- Result: **" + stress_result + "**"
+    )
+
+    st.divider()
+
+    # --- Summary table ---
+    st.markdown("#### Summary Table")
+    rows = "<tr><th>Metric</th><th>Combined</th></tr>"
+    rows += "<tr><td>Gross Annual Income</td><td>" + fmt_money(total_income) + "</td></tr>"
+    rows += "<tr><td>Monthly Housing Costs</td><td>" + fmt_money(pi_payment + taxes + heat + condo) + "</td></tr>"
+    rows += "<tr><td>Monthly Other Debt Payments</td><td>" + fmt_money(other_debt_monthly) + "</td></tr>"
+    rows += "<tr><td>GDS</td><td>" + ("{:.2f}%".format(gds) if gds is not None else "—") + "</td></tr>"
+    rows += "<tr><td>TDS</td><td>" + ("{:.2f}%".format(tds) if tds is not None else "—") + "</td></tr>"
+    rows += "<tr><td>Qualification</td><td>" + ("PASS ✓" if qualified else "FAIL ✗") + "</td></tr>"
+    st.markdown(
+        "<table style='width:100%; border-collapse:collapse;' border='1' cellpadding='8'>" + rows + "</table>",
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+
+    # --- Navigation ---
+    back_col, refresh_col, submit_col = st.columns(3)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p5_back"):
+            st.session_state.step = 3
+            st.rerun()
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p5_refresh"):
+            st.session_state["p5_show_refresh_confirm"] = True
+
+    if st.session_state.get("p5_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data across all pages will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p5_confirm_refresh"):
+                refresh_all()
+                st.session_state["p5_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p5_cancel_refresh"):
+                st.session_state["p5_show_refresh_confirm"] = False
+                st.rerun()
+
+    with submit_col:
+        submit_disabled = total_income <= 0
+        if st.button("Submit Application", type="primary", use_container_width=True, key="p5_submit", disabled=submit_disabled):
+            st.success("Application submitted. (Connect this button to your backend to persist the data.)")
 
 
 # ---------------------------------------------------------------------------
@@ -1098,5 +1389,5 @@ elif st.session_state.step == 2:
     render_income()
 elif st.session_state.step == 3:
     render_debts()
-else:
-    render_placeholder_step(STEPS[st.session_state.step])
+elif st.session_state.step == 4:
+    render_analysis()
