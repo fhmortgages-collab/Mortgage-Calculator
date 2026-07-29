@@ -1,3 +1,12 @@
+"""
+Income source configuration.
+
+Reflects general, industry-standard mortgage income verification practice
+(the kind of thing found in public CMHC guidelines and typical lender
+disclosure documents). Nothing here references any specific financial
+institution's internal policy, escalation paths, or proprietary program names.
+"""
+
 INCOME_SOURCES = [
     {
         "key": "salaried",
