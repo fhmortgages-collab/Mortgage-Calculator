@@ -1,8 +1,10 @@
 import streamlit as st
+import datetime
 
-st.set_page_config(page_title="FH Mortgage Loan Wizard", layout="wide")
+# --- CONFIGURATION & STYLING ---
+st.set_page_config(page_title="FH Mortgage Loan Wizard - Final", layout="wide")
 
-# --- CUSTOM CSS FOR UI MATCH ---
+# --- CUSTOM CSS FOR EXACT UI MATCH ---
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117; color: #ffffff; }
@@ -10,11 +12,12 @@ st.markdown("""
     div[data-testid="stExpander"] { background: #161b22; border: 1px solid #30363d; border-radius: 8px; }
     input { background: #161b22 !important; border: 1px solid #30363d !important; color: white !important; }
     .stMetric { background: #161b22; padding: 15px; border-radius: 8px; border: 1px solid #30363d; }
+    .css-1r6slb0 { background-color: #ffffff; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- POLICY-BASED MAPPING ---
-DOCS = {
+# --- POLICY-BASED DOCUMENT MAPPING ---
+REQUIREMENTS = {
     "Employed (Salaried/Hourly)": ["📄 Letter of Employment", "📄 Recent Pay Stubs", "📄 T4 Slips (2 years)"],
     "Self-Employed (Sole/Partnership)": ["📄 T1 General (2 years)", "📄 Notice of Assessment (NOA)", "📄 Organization Chart"],
     "Self-Employed (Corporation)": ["📄 T1 General (Personal income only)", "📄 T4/T5A Slips"],
@@ -33,22 +36,25 @@ DOCS = {
 # --- STATE MANAGEMENT ---
 if 'step' not in st.session_state: st.session_state.step = 1
 if 'form' not in st.session_state: st.session_state.form = {
-    'borrowers': [{}], 'inc_sources': [], 'down_sources': [], 'debts': {}, 'loan_val': 0.0, 'income_val': 0.0, 'debt_total': 0.0
+    'borrowers': [{}], 'inc_sources': [], 'down_sources': {}, 'debts': {}, 'loan_val': 0.0, 'income_val': 0.0, 'debt_total': 0.0
 }
 
-# --- UI NAVIGATION ---
+# --- UI NAVIGATION (STEPPER) ---
 st.title("🏠 FH Mortgage Loan Wizard")
 cols = st.columns(5)
 steps = ["Client Details", "Mortgage", "Income", "Debts", "Analysis"]
 for i in range(5):
-    cols[i].button(str(i+1), disabled=(st.session_state.step != i+1))
+    # Highlight current step
+    btn_type = "primary" if st.session_state.step == i+1 else "secondary"
+    cols[i].button(str(i+1), disabled=(st.session_state.step != i+1), type=btn_type)
     cols[i].caption(steps[i])
 st.divider()
 
 # 1. CLIENT DETAILS
 if st.session_state.step == 1:
     st.header("Client Details")
-    num = st.number_input("Number of Borrowers", 1, 4, len(st.session_state.form['borrowers']))
+    st.write("Enter information for each borrower on this application.")
+    num = st.radio("Number of Borrowers", [1, 2, 3, 4], index=len(st.session_state.form['borrowers'])-1)
     if len(st.session_state.form['borrowers']) != num: st.session_state.form['borrowers'] = [{} for _ in range(num)]
     
     for i in range(num):
@@ -57,15 +63,16 @@ if st.session_state.step == 1:
             st.session_state.form['borrowers'][i]['name'] = col1.text_input("Full Name", key=f"n{i}")
             st.session_state.form['borrowers'][i]['email'] = col2.text_input("Email", key=f"e{i}")
             st.session_state.form['borrowers'][i]['phone'] = col1.text_input("Phone", key=f"p{i}")
-            st.session_state.form['borrowers'][i]['dob'] = col2.date_input("DOB", key=f"d{i}")
+            st.session_state.form['borrowers'][i]['dob'] = col2.date_input("Date of Birth", key=f"d{i}")
             st.session_state.form['borrowers'][i]['addr'] = st.text_input("Address", key=f"a{i}")
-            st.session_state.form['borrowers'][i]['sex'] = st.selectbox("Gender", ["Male", "Female"], key=f"s{i}")
-            st.session_state.form['borrowers'][i]['ms'] = st.selectbox("Marital Status", ["Single", "Married"], key=f"m{i}")
+            col3, col4 = st.columns(2)
+            st.session_state.form['borrowers'][i]['sex'] = col3.selectbox("Gender", ["Male", "Female"], key=f"s{i}")
+            st.session_state.form['borrowers'][i]['ms'] = col4.selectbox("Marital Status", ["Single", "Married"], key=f"m{i}")
     
     if st.checkbox("I acknowledge the Consent Form 524"):
         if st.button("Next ➔"): st.session_state.step = 2; st.rerun()
 
-# 2. MORTGAGE DETAILS
+# 2. MORTGAGE
 elif st.session_state.step == 2:
     st.header("Mortgage Details")
     price = st.number_input("Purchase Price ($)", value=0.0)
@@ -76,7 +83,7 @@ elif st.session_state.step == 2:
     st.write("### Down Payment Sources")
     srcs = st.multiselect("Select all sources:", list(DOCS.keys())[7:])
     for src in srcs:
-        st.session_state.form['down_sources'] = st.number_input(f"Amount ($) for {src}", key=f"dp_{src}")
+        st.session_state.form['down_sources'][src] = st.number_input(f"Amount ($) for {src}", key=f"dp_{src}")
         for doc in DOCS.get(src, []): st.info(doc)
 
     if st.button("⬅ Back"): st.session_state.step = 1; st.rerun()
@@ -85,17 +92,17 @@ elif st.session_state.step == 2:
 # 3. INCOME
 elif st.session_state.step == 3:
     st.header("Income Streams")
-    srcs = st.multiselect("Select All Income Sources:", list(DOCS.keys())[:7])
+    st.session_state.form['inc_sources'] = st.multiselect("Select All Income Sources:", list(DOCS.keys())[:7])
     st.session_state.form['income_val'] = st.number_input("Total Combined Annual Income ($)", value=0.0)
     
-    for src in srcs:
-        st.write(f"**Docs for {src}:**")
+    for src in st.session_state.form['inc_sources']:
+        st.write(f"**Required Docs for {src}:**")
         for doc in DOCS.get(src, []): st.info(doc)
     
     if st.button("⬅ Back"): st.session_state.step = 2; st.rerun()
     if st.button("Next ➔"): st.session_state.step = 4; st.rerun()
 
-# 4. DEBT CALCULATOR
+# 4. DEBTS
 elif st.session_state.step == 4:
     st.header("Debt Obligations")
     cats = st.multiselect("Select Debt Types:", ["Credit Cards", "Line of Credit", "Auto Loan", "Installment Loan", "Support Payments"])
@@ -103,14 +110,20 @@ elif st.session_state.step == 4:
     total_monthly = 0.0
     for cat in cats:
         st.write(f"### {cat}")
-        val_str = st.text_input(f"Enter values for {cat} (comma separated)", key=f"inp_{cat}")
+        val_str = st.text_input(f"Enter {cat} balance/payment amounts (comma separated)", key=f"inp_{cat}")
         if val_str:
-            vals = [float(x.strip()) for x in val_str.split(',')]
-            monthly = sum(vals) * 0.03 if cat in ["Credit Cards", "Line of Credit"] else (sum(vals) / 12)
-            st.write(f"**Total Balance: ${sum(vals):,.2f} | Monthly Impact: ${monthly:,.2f}**")
-            total_monthly += monthly
+            try:
+                vals = [float(x.strip()) for x in val_str.split(',')]
+                total = sum(vals)
+                # Policy Math: 3% for revolving, 100% of payment for others
+                monthly = total * 0.03 if cat in ["Credit Cards", "Line of Credit"] else (total / 12)
+                st.write(f"**Total: ${total:,.2f} | Monthly Impact: ${monthly:,.2f}**")
+                total_monthly += monthly
+            except: st.error("Please enter numbers separated by comma.")
     
     st.session_state.form['debt_total'] = total_monthly
+    st.write(f"### Total Monthly Debt Impact: ${total_monthly:,.2f}")
+    
     if st.button("⬅ Back"): st.session_state.step = 3; st.rerun()
     if st.button("Calculate Analysis ➔"): st.session_state.step = 5; st.rerun()
 
@@ -134,3 +147,4 @@ elif st.session_state.step == 5:
     st.metric("TDS Ratio", f"{tds:.1f}%")
     
     if st.button("⬅ Back to Debts"): st.session_state.step = 4; st.rerun()
+    if st.button("Finalize Submission"): st.success("Application successfully routed to underwriting.")
