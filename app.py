@@ -17,6 +17,17 @@ PHONE_RE = re.compile(r"^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$")
 GENDER_OPTIONS = ["", "Male", "Female", "Other", "Prefer not to say"]
 MARITAL_OPTIONS = ["", "Single", "Married", "Divorced", "Widowed", "Common-Law"]
 PROPERTY_TYPES = ["", "Primary Residence", "Secondary Home", "Investment Property", "Cottage / Vacation Home", "Other"]
+PROPERTY_STYLE_TYPES = [
+    "", "Detached", "Semi-Detached", "Townhouse / Row House", "Condo / Apartment",
+    "Duplex", "Triplex / Fourplex", "Mobile / Manufactured Home", "Other",
+]
+PROPERTY_PURPOSE_OPTIONS = ["", "Owner-Occupied (Primary Residence)", "Second Home", "Investment / Rental Property"]
+RURAL_URBAN_OPTIONS = ["", "Urban", "Suburban", "Rural", "Agricultural"]
+HEATING_TYPE_OPTIONS = ["", "Forced Air (Natural Gas)", "Forced Air (Electric)", "Baseboard (Electric)", "Heat Pump", "Radiant", "Oil", "Propane", "Other"]
+COOLING_OPTIONS = ["", "Central Air Conditioning", "Heat Pump", "Window/Wall Unit(s)", "None"]
+SEWER_OPTIONS = ["", "Sanitary Sewer (Municipal)", "Septic System", "Other"]
+WATER_OPTIONS = ["", "Municipal Water", "Well", "Other"]
+TITLE_TYPE_OPTIONS = ["", "Freehold", "Condominium", "Leasehold", "Other"]
 
 STEPS = ["Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis"]
 
@@ -124,8 +135,8 @@ def init_state():
         st.session_state.amortization_years = 25
     if "benchmark_rate" not in st.session_state:
         st.session_state.benchmark_rate = 5.25
-    if "subject_location" not in st.session_state:
-        st.session_state.subject_location = ""
+    if "subject_prop_purpose" not in st.session_state:
+        st.session_state.subject_prop_purpose = ""
     if "subject_prop_type" not in st.session_state:
         st.session_state.subject_prop_type = ""
     if "subject_prop_age" not in st.session_state:
@@ -136,6 +147,26 @@ def init_state():
         st.session_state.subject_rural_urban = ""
     if "subject_sqft" not in st.session_state:
         st.session_state.subject_sqft = ""
+    if "subject_storeys" not in st.session_state:
+        st.session_state.subject_storeys = ""
+    if "subject_heating_type" not in st.session_state:
+        st.session_state.subject_heating_type = ""
+    if "subject_cooling" not in st.session_state:
+        st.session_state.subject_cooling = ""
+    if "subject_foundation" not in st.session_state:
+        st.session_state.subject_foundation = ""
+    if "subject_exterior_finish" not in st.session_state:
+        st.session_state.subject_exterior_finish = ""
+    if "subject_sewer" not in st.session_state:
+        st.session_state.subject_sewer = ""
+    if "subject_water" not in st.session_state:
+        st.session_state.subject_water = ""
+    if "subject_parking_spaces" not in st.session_state:
+        st.session_state.subject_parking_spaces = ""
+    if "subject_land_size" not in st.session_state:
+        st.session_state.subject_land_size = ""
+    if "subject_title_type" not in st.session_state:
+        st.session_state.subject_title_type = ""
 
 
 def render_stepper(active_index):
@@ -589,15 +620,22 @@ def refresh_property_details():
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
-    st.session_state.subject_location = ""
     st.session_state.subject_prop_type = ""
+    st.session_state.subject_prop_purpose = ""
     st.session_state.subject_prop_age = ""
     st.session_state.subject_garage = ""
     st.session_state.subject_rural_urban = ""
     st.session_state.subject_sqft = ""
-
-
-def get_subject_property_costs():
+    st.session_state.subject_storeys = ""
+    st.session_state.subject_heating_type = ""
+    st.session_state.subject_cooling = ""
+    st.session_state.subject_foundation = ""
+    st.session_state.subject_exterior_finish = ""
+    st.session_state.subject_sewer = ""
+    st.session_state.subject_water = ""
+    st.session_state.subject_parking_spaces = ""
+    st.session_state.subject_land_size = ""
+    st.session_state.subject_title_type = ""
     """Returns (pi_payment, taxes, condo, heat, monthly_housing_total) for the property being purchased."""
     purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
     down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
@@ -650,26 +688,27 @@ def render_property_details():
     )
     c1, c2 = st.columns(2)
     with c1:
-        st.session_state.subject_location = st.text_input(
-            "Location (city / neighbourhood)", value=st.session_state.subject_location,
-            placeholder="e.g. Oakville, ON",
+        st.session_state.subject_prop_type = st.selectbox(
+            "Property Type", PROPERTY_STYLE_TYPES,
+            index=PROPERTY_STYLE_TYPES.index(st.session_state.subject_prop_type)
+            if st.session_state.subject_prop_type in PROPERTY_STYLE_TYPES else 0,
+            key="subject_prop_type_select",
         )
         st.session_state.subject_prop_age = st.text_input(
             "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
             placeholder="e.g. 15 years or Built 2011",
         )
         st.session_state.subject_rural_urban = st.selectbox(
-            "Rural / Urban",
-            ["", "Urban", "Suburban", "Rural"],
-            index=["", "Urban", "Suburban", "Rural"].index(st.session_state.subject_rural_urban)
-            if st.session_state.subject_rural_urban in ["", "Urban", "Suburban", "Rural"] else 0,
+            "Rural / Urban / Agricultural",
+            RURAL_URBAN_OPTIONS,
+            index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
+            if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
         )
     with c2:
-        st.session_state.subject_prop_type = st.selectbox(
-            "Property Type", PROPERTY_TYPES,
-            index=PROPERTY_TYPES.index(st.session_state.subject_prop_type)
-            if st.session_state.subject_prop_type in PROPERTY_TYPES else 0,
-            key="subject_prop_type_select",
+        st.session_state.subject_prop_purpose = st.selectbox(
+            "Property Purpose", PROPERTY_PURPOSE_OPTIONS,
+            index=PROPERTY_PURPOSE_OPTIONS.index(st.session_state.subject_prop_purpose)
+            if st.session_state.subject_prop_purpose in PROPERTY_PURPOSE_OPTIONS else 0,
         )
         st.session_state.subject_garage = st.selectbox(
             "Garage", ["", "None", "Attached", "Detached", "Carport"],
@@ -678,6 +717,52 @@ def render_property_details():
         )
         st.session_state.subject_sqft = st.text_input(
             "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
+        )
+
+    c3, c4 = st.columns(2)
+    with c3:
+        st.session_state.subject_storeys = st.text_input(
+            "Number of Storeys", value=st.session_state.subject_storeys, placeholder="e.g. 2",
+        )
+        st.session_state.subject_heating_type = st.selectbox(
+            "Heating Type", HEATING_TYPE_OPTIONS,
+            index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
+            if st.session_state.subject_heating_type in HEATING_TYPE_OPTIONS else 0,
+        )
+        st.session_state.subject_cooling = st.selectbox(
+            "Cooling", COOLING_OPTIONS,
+            index=COOLING_OPTIONS.index(st.session_state.subject_cooling)
+            if st.session_state.subject_cooling in COOLING_OPTIONS else 0,
+        )
+        st.session_state.subject_foundation = st.text_input(
+            "Foundation Type", value=st.session_state.subject_foundation,
+            placeholder="e.g. Poured Concrete",
+        )
+        st.session_state.subject_exterior_finish = st.text_input(
+            "Exterior Finish", value=st.session_state.subject_exterior_finish,
+            placeholder="e.g. Brick, Stone, Vinyl Siding",
+        )
+    with c4:
+        st.session_state.subject_sewer = st.selectbox(
+            "Utility Sewer", SEWER_OPTIONS,
+            index=SEWER_OPTIONS.index(st.session_state.subject_sewer)
+            if st.session_state.subject_sewer in SEWER_OPTIONS else 0,
+        )
+        st.session_state.subject_water = st.selectbox(
+            "Water", WATER_OPTIONS,
+            index=WATER_OPTIONS.index(st.session_state.subject_water)
+            if st.session_state.subject_water in WATER_OPTIONS else 0,
+        )
+        st.session_state.subject_parking_spaces = st.text_input(
+            "Total Parking Spaces", value=st.session_state.subject_parking_spaces, placeholder="e.g. 4",
+        )
+        st.session_state.subject_land_size = st.text_input(
+            "Land Size", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
+        )
+        st.session_state.subject_title_type = st.selectbox(
+            "Title", TITLE_TYPE_OPTIONS,
+            index=TITLE_TYPE_OPTIONS.index(st.session_state.subject_title_type)
+            if st.session_state.subject_title_type in TITLE_TYPE_OPTIONS else 0,
         )
 
     st.write("**Monthly Carrying Costs**")
@@ -1384,12 +1469,22 @@ def refresh_all():
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
-    st.session_state.subject_location = ""
     st.session_state.subject_prop_type = ""
+    st.session_state.subject_prop_purpose = ""
     st.session_state.subject_prop_age = ""
     st.session_state.subject_garage = ""
     st.session_state.subject_rural_urban = ""
     st.session_state.subject_sqft = ""
+    st.session_state.subject_storeys = ""
+    st.session_state.subject_heating_type = ""
+    st.session_state.subject_cooling = ""
+    st.session_state.subject_foundation = ""
+    st.session_state.subject_exterior_finish = ""
+    st.session_state.subject_sewer = ""
+    st.session_state.subject_water = ""
+    st.session_state.subject_parking_spaces = ""
+    st.session_state.subject_land_size = ""
+    st.session_state.subject_title_type = ""
     st.session_state.contract_rate = 5.0
     st.session_state.amortization_years = 25
     st.session_state.benchmark_rate = 5.25
