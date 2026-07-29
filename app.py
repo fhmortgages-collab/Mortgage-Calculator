@@ -557,13 +557,19 @@ def render_down_payment():
 # ---------------------------------------------------------------------------
 
 def monthly_mortgage_payment(principal, annual_rate_percent, amortization_years):
+    """
+    Canadian mortgages are compounded semi-annually by law (Interest Act),
+    not monthly. This converts the nominal annual rate to an equivalent
+    monthly rate before applying the standard annuity formula.
+    """
     if principal <= 0 or amortization_years <= 0:
         return 0.0
-    r = (annual_rate_percent / 100.0) / 12.0
     n = amortization_years * 12
-    if r == 0:
+    if annual_rate_percent == 0:
         return principal / n
-    return principal * (r * (1 + r) ** n) / ((1 + r) ** n - 1)
+    i_semi_annual = (annual_rate_percent / 100.0) / 2.0
+    i_monthly = (1 + i_semi_annual) ** (2.0 / 12.0) - 1
+    return principal * i_monthly / (1 - (1 + i_monthly) ** (-n))
 
 
 def refresh_property_details():
@@ -1364,26 +1370,27 @@ def render_analysis():
         pi_payment, taxes, heat, condo, other_debt_monthly, total_income
     )
 
-    calc_text = (
-        "**GDS Calculation:**\n\n"
-        "- Principal + Interest: " + fmt_money(pi_payment) + "/month × 12 = " + fmt_money(pi_payment * 12) + "\n"
-        "- Property Taxes: " + fmt_money(taxes) + "/month × 12 = " + fmt_money(taxes * 12) + "\n"
-        "- Heating: " + fmt_money(heat) + "/month × 12 = " + fmt_money(heat * 12) + "\n"
-        "- 50% Condo Fees: " + fmt_money(condo) + "/month × 12 × 0.5 = " + fmt_money(condo * 12 * 0.5) + "\n\n"
-        "**Total Annual Housing Costs = " + fmt_money(annual_housing) + "**\n\n"
-        "GDS = " + fmt_money(annual_housing) + " ÷ " + fmt_money(total_income) + " × 100 = "
-        + ("{:.2f}%".format(gds) if gds is not None else "—")
-    )
-    st.markdown(calc_text)
+    with st.expander("Show calculation details", expanded=False):
+        st.markdown("**Formula:** GDS = (P + I + T + H + 0.5C) ÷ Gross Annual Income × 100")
+        calc_text = (
+            "- Principal + Interest (P + I): " + fmt_money(pi_payment) + "/month × 12 = " + fmt_money(pi_payment * 12) + "\n"
+            "- Property Taxes (T): " + fmt_money(taxes) + "/month × 12 = " + fmt_money(taxes * 12) + "\n"
+            "- Heating (H): " + fmt_money(heat) + "/month × 12 = " + fmt_money(heat * 12) + "\n"
+            "- 50% Condo Fees (0.5C): " + fmt_money(condo) + "/month × 12 × 0.5 = " + fmt_money(condo * 12 * 0.5) + "\n\n"
+            "**Total Annual Housing Costs (PITH) = " + fmt_money(annual_housing) + "**\n\n"
+            "GDS = " + fmt_money(annual_housing) + " ÷ " + fmt_money(total_income) + " × 100 = "
+            + ("{:.2f}%".format(gds) if gds is not None else "—")
+        )
+        st.markdown(calc_text)
 
-    st.markdown(
-        "**TDS Calculation:**\n\n"
-        "- Annual Housing Costs (GDS total): " + fmt_money(annual_housing) + "\n"
-        "- All Other Monthly Debt Payments × 12: " + fmt_money(annual_other_debt) + "\n\n"
-        "**Total Annual Debt Obligations = " + fmt_money(annual_housing + annual_other_debt) + "**\n\n"
-        "TDS = " + fmt_money(annual_housing + annual_other_debt) + " ÷ " + fmt_money(total_income) + " × 100 = "
-        + ("{:.2f}%".format(tds) if tds is not None else "—")
-    )
+        st.markdown("**Formula:** TDS = (PITH + All Other Monthly Debt Payments × 12) ÷ Gross Annual Income × 100")
+        st.markdown(
+            "- Annual Housing Costs (PITH, from GDS above): " + fmt_money(annual_housing) + "\n"
+            "- All Other Monthly Debt Payments × 12: " + fmt_money(annual_other_debt) + "\n\n"
+            "**Total Annual Debt Obligations = " + fmt_money(annual_housing + annual_other_debt) + "**\n\n"
+            "TDS = " + fmt_money(annual_housing + annual_other_debt) + " ÷ " + fmt_money(total_income) + " × 100 = "
+            + ("{:.2f}%".format(tds) if tds is not None else "—")
+        )
 
     st.divider()
 
@@ -1464,13 +1471,13 @@ def render_analysis():
 
     # --- Summary table ---
     st.markdown("#### Summary Table")
-    rows = "<tr><th>Metric</th><th>Combined</th></tr>"
-    rows += "<tr><td>Gross Annual Income</td><td>" + fmt_money(total_income) + "</td></tr>"
-    rows += "<tr><td>Monthly Housing Costs</td><td>" + fmt_money(pi_payment + taxes + heat + condo) + "</td></tr>"
-    rows += "<tr><td>Monthly Other Debt Payments</td><td>" + fmt_money(other_debt_monthly) + "</td></tr>"
-    rows += "<tr><td>GDS</td><td>" + ("{:.2f}%".format(gds) if gds is not None else "—") + "</td></tr>"
-    rows += "<tr><td>TDS</td><td>" + ("{:.2f}%".format(tds) if tds is not None else "—") + "</td></tr>"
-    rows += "<tr><td>Qualification</td><td>" + ("PASS ✓" if qualified else "FAIL ✗") + "</td></tr>"
+    rows = "<tr><th>Metric</th><th>Contract Rate</th><th>Stress Test</th></tr>"
+    rows += "<tr><td>Gross Annual Income</td><td>" + fmt_money(total_income) + "</td><td>" + fmt_money(total_income) + "</td></tr>"
+    rows += "<tr><td>Monthly Housing Costs</td><td>" + fmt_money(pi_payment + taxes + heat + condo) + "</td><td>" + fmt_money(stressed_pi + taxes + heat + condo) + "</td></tr>"
+    rows += "<tr><td>Monthly Other Debt Payments</td><td>" + fmt_money(other_debt_monthly) + "</td><td>" + fmt_money(other_debt_monthly) + "</td></tr>"
+    rows += "<tr><td>GDS</td><td>" + ("{:.2f}%".format(gds) if gds is not None else "—") + "</td><td>" + stressed_gds_display + "</td></tr>"
+    rows += "<tr><td>TDS</td><td>" + ("{:.2f}%".format(tds) if tds is not None else "—") + "</td><td>" + stressed_tds_display + "</td></tr>"
+    rows += "<tr><td>Qualification</td><td>" + ("PASS ✓" if qualified else "FAIL ✗") + "</td><td>" + stress_result + "</td></tr>"
     st.markdown(
         "<table style='width:100%; border-collapse:collapse;' border='1' cellpadding='8'>" + rows + "</table>",
         unsafe_allow_html=True,
