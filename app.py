@@ -18,7 +18,7 @@ GENDER_OPTIONS = ["", "Male", "Female", "Other", "Prefer not to say"]
 MARITAL_OPTIONS = ["", "Single", "Married", "Divorced", "Widowed", "Common-Law"]
 PROPERTY_TYPES = ["", "Primary Residence", "Secondary Home", "Investment Property", "Cottage / Vacation Home", "Other"]
 
-STEPS = ["Client Details", "Down Payment", "Income", "Debts", "Analysis"]
+STEPS = ["Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis"]
 
 GDS_LIMIT = 32.0
 TDS_LIMIT = 40.0
@@ -110,19 +110,29 @@ def init_state():
         st.session_state.debt_other_desc = ""
     if "debt_errors" not in st.session_state:
         st.session_state.debt_errors = {}
+    if "subject_address" not in st.session_state:
+        st.session_state.subject_address = ""
+    if "subject_taxes_raw" not in st.session_state:
+        st.session_state.subject_taxes_raw = ""
+    if "subject_condo_raw" not in st.session_state:
+        st.session_state.subject_condo_raw = ""
+    if "subject_heat_raw" not in st.session_state:
+        st.session_state.subject_heat_raw = ""
+    if "contract_rate" not in st.session_state:
+        st.session_state.contract_rate = 5.0
+    if "amortization_years" not in st.session_state:
+        st.session_state.amortization_years = 25
+    if "benchmark_rate" not in st.session_state:
+        st.session_state.benchmark_rate = 5.25
 
 
 def render_stepper(active_index):
-    stepper_html = "<div class='stepper-wrap'>"
+    cols = st.columns(len(STEPS))
     for i, label in enumerate(STEPS):
-        active = "step-active" if i == active_index else ""
-        circle_active = "step-circle-active" if i == active_index else ""
-        stepper_html += (
-            "<div class='step " + active + "'>"
-            "<div class='step-circle " + circle_active + "'>" + str(i + 1) + "</div><br>" + label + "</div>"
-        )
-    stepper_html += "</div>"
-    st.markdown(stepper_html, unsafe_allow_html=True)
+        btn_type = "primary" if i == active_index else "secondary"
+        if cols[i].button(str(i + 1) + ". " + label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
+            st.session_state.step = i
+            st.rerun()
 
 
 st.set_page_config(page_title="Mortgage Application Wizard", page_icon="🏠", layout="centered")
@@ -543,6 +553,150 @@ def render_down_payment():
 
 
 # ---------------------------------------------------------------------------
+# STEP 2 — Property Details (subject property being purchased)
+# ---------------------------------------------------------------------------
+
+def monthly_mortgage_payment(principal, annual_rate_percent, amortization_years):
+    if principal <= 0 or amortization_years <= 0:
+        return 0.0
+    r = (annual_rate_percent / 100.0) / 12.0
+    n = amortization_years * 12
+    if r == 0:
+        return principal / n
+    return principal * (r * (1 + r) ** n) / ((1 + r) ** n - 1)
+
+
+def refresh_property_details():
+    st.session_state.subject_address = ""
+    st.session_state.subject_taxes_raw = ""
+    st.session_state.subject_condo_raw = ""
+    st.session_state.subject_heat_raw = ""
+    st.session_state.contract_rate = 5.0
+    st.session_state.amortization_years = 25
+
+
+def get_subject_property_costs():
+    """Returns (pi_payment, taxes, condo, heat, monthly_housing_total) for the property being purchased."""
+    purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
+    down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
+    loan_amount = max(purchase_price - down_payment, 0.0)
+    pi = monthly_mortgage_payment(loan_amount, st.session_state.contract_rate, st.session_state.amortization_years)
+    taxes = parse_money(st.session_state.subject_taxes_raw) or 0.0
+    condo = parse_money(st.session_state.subject_condo_raw) or 0.0
+    heat = parse_money(st.session_state.subject_heat_raw) or 0.0
+    housing_total = pi + taxes + heat + condo
+    return pi, taxes, condo, heat, housing_total
+
+
+def render_property_details():
+    st.markdown("### Property Details")
+    st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
+
+    purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
+    down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
+    loan_amount = max(purchase_price - down_payment, 0.0)
+
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>Purchase Price (from Down Payment step)</div>"
+        "<div class='metric-value'>" + fmt_money(purchase_price) + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>Mortgage Loan Amount</div>"
+        "<div class='metric-value'>" + fmt_money(loan_amount) + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption("To change the purchase price or down payment, go back to the Down Payment step.")
+
+    st.divider()
+
+    st.session_state.subject_address = st.text_area(
+        "Property Address", value=st.session_state.subject_address,
+        placeholder="Enter the full address of the property you're purchasing", height=70,
+    )
+    if not st.session_state.subject_address.strip():
+        st.caption(":red[Please enter the property address.]")
+
+    st.write("**Financing Terms**")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.session_state.contract_rate = st.number_input(
+            "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
+            value=st.session_state.contract_rate, step=0.05,
+        )
+    with c2:
+        st.session_state.amortization_years = st.number_input(
+            "Amortization (years)", min_value=1, max_value=35,
+            value=st.session_state.amortization_years, step=1,
+        )
+
+    st.write("**Monthly Carrying Costs**")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.session_state.subject_taxes_raw = st.text_input(
+            "Monthly Property Taxes ($)", value=st.session_state.subject_taxes_raw,
+            placeholder="Enter monthly tax amount",
+        )
+    with c2:
+        st.session_state.subject_condo_raw = st.text_input(
+            "Monthly Condo / Strata Fees ($)", value=st.session_state.subject_condo_raw,
+            placeholder="Enter monthly fee amount (0 if none)",
+        )
+    with c3:
+        st.session_state.subject_heat_raw = st.text_input(
+            "Monthly Heating Costs ($)", value=st.session_state.subject_heat_raw,
+            placeholder="Enter monthly heating amount",
+        )
+
+    pi, taxes, condo, heat, housing_total = get_subject_property_costs()
+
+    st.divider()
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>Calculated Monthly Mortgage Payment (P&I)</div>"
+        "<div class='metric-value'>" + fmt_money(pi) + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>Total Monthly Housing Costs</div>"
+        "<div class='metric-value'>" + fmt_money(housing_total) + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "P&I is calculated from the loan amount, contract rate, and amortization above — no need to enter it manually."
+    )
+
+    st.divider()
+
+    back_col, refresh_col, continue_col = st.columns(3)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p2b_back"):
+            st.session_state.step = 1
+            st.rerun()
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p2b_refresh"):
+            st.session_state["p2b_show_refresh_confirm"] = True
+
+    if st.session_state.get("p2b_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p2b_confirm_refresh"):
+                refresh_property_details()
+                st.session_state["p2b_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p2b_cancel_refresh"):
+                st.session_state["p2b_show_refresh_confirm"] = False
+                st.rerun()
+
+    with continue_col:
+        if st.button("Continue →", type="primary", use_container_width=True, key="p2b_continue"):
+            if st.session_state.subject_address.strip():
+                st.session_state.step = 3
+                st.rerun()
+            else:
+                st.error("Please enter the property address before continuing.")
+
+
+# ---------------------------------------------------------------------------
 # STEP 2 — Income
 # ---------------------------------------------------------------------------
 
@@ -765,7 +919,7 @@ def render_income():
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
         if st.button("← Back", use_container_width=True, key="p3_back"):
-            st.session_state.step = 1
+            st.session_state.step = 2
             st.rerun()
     with refresh_col:
         if st.button("Refresh", use_container_width=True, key="p3_refresh"):
@@ -787,7 +941,7 @@ def render_income():
     with continue_col:
         if st.button("Continue →", type="primary", use_container_width=True, key="p3_continue"):
             if all_valid:
-                st.session_state.step = 3
+                st.session_state.step = 4
                 st.rerun()
             else:
                 st.error("Please resolve the issues above before continuing.")
@@ -997,14 +1151,17 @@ def render_debts():
     st.divider()
 
     total_monthly_debt = total_property_debt + total_other_debt
-    st.markdown("#### Total Monthly Debt Obligations: " + fmt_money(total_monthly_debt))
+    st.markdown("#### Total Monthly Debt Obligations (Other Properties + Debts): " + fmt_money(total_monthly_debt))
+    st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
 
     total_income = compute_total_income()
     monthly_income = total_income / 12 if total_income else 0.0
 
+    subject_pi, subject_taxes, subject_condo, subject_heat, subject_housing_total = get_subject_property_costs()
+
     if monthly_income > 0:
-        gds = (total_mortgage_pi_proxy + total_taxes + total_heat + total_condo) / monthly_income * 100
-        tds = (total_mortgage_pi_proxy + total_taxes + total_heat + total_condo + total_other_debt) / monthly_income * 100
+        gds = (subject_pi + subject_taxes + subject_heat + subject_condo * 0.5) / monthly_income * 100
+        tds = (subject_pi + subject_taxes + subject_heat + subject_condo * 0.5 + total_monthly_debt) / monthly_income * 100
     else:
         gds = None
         tds = None
@@ -1046,7 +1203,7 @@ def render_debts():
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
         if st.button("← Back", use_container_width=True, key="p4_back"):
-            st.session_state.step = 2
+            st.session_state.step = 3
             st.rerun()
     with refresh_col:
         if st.button("Refresh", use_container_width=True, key="p4_refresh"):
@@ -1068,7 +1225,7 @@ def render_debts():
     with continue_col:
         if st.button("Continue →", type="primary", use_container_width=True, key="p4_continue"):
             if is_valid:
-                st.session_state.step = 4
+                st.session_state.step = 5
                 st.rerun()
             else:
                 st.error("Please resolve the issues above before continuing.")
@@ -1080,26 +1237,6 @@ def render_debts():
 
 STRESS_TEST_ADDON = 2.0  # commonly: contract rate + 2%, per public stress-test convention
 DEFAULT_BENCHMARK_RATE = 5.25  # a commonly cited public benchmark qualifying rate; editable below
-DEFAULT_AMORTIZATION_YEARS = 25
-
-
-def monthly_mortgage_payment(principal, annual_rate_percent, amortization_years):
-    if principal <= 0 or amortization_years <= 0:
-        return 0.0
-    r = (annual_rate_percent / 100.0) / 12.0
-    n = amortization_years * 12
-    if r == 0:
-        return principal / n
-    return principal * (r * (1 + r) ** n) / ((1 + r) ** n - 1)
-
-
-def get_primary_property():
-    for prop in st.session_state.properties:
-        if prop.get("prop_type") == "Primary Residence":
-            return prop
-    if st.session_state.properties:
-        return st.session_state.properties[0]
-    return None
 
 
 def compute_gds_tds(pi_payment, taxes, heat, condo, other_debt_monthly, annual_income):
@@ -1165,6 +1302,13 @@ def refresh_all():
     st.session_state.debt_amounts = {}
     st.session_state.debt_other_desc = ""
     st.session_state.debt_errors = {}
+    st.session_state.subject_address = ""
+    st.session_state.subject_taxes_raw = ""
+    st.session_state.subject_condo_raw = ""
+    st.session_state.subject_heat_raw = ""
+    st.session_state.contract_rate = 5.0
+    st.session_state.amortization_years = 25
+    st.session_state.benchmark_rate = 5.25
 
 
 def render_analysis():
@@ -1178,25 +1322,15 @@ def render_analysis():
     loan_amount = max(purchase_price - down_payment, 0.0)
     ltv = (loan_amount / purchase_price * 100) if purchase_price else None
 
-    primary_property = get_primary_property()
-    pi_payment = parse_money(primary_property.get("mortgage_payment", "")) if primary_property else 0.0
-    taxes = parse_money(primary_property.get("property_taxes", "")) if primary_property else 0.0
-    heat = parse_money(primary_property.get("heating", "")) if primary_property else 0.0
-    condo = parse_money(primary_property.get("condo_fees", "")) if primary_property else 0.0
-    pi_payment = pi_payment or 0.0
-    taxes = taxes or 0.0
-    heat = heat or 0.0
-    condo = condo or 0.0
+    pi_payment, taxes, condo, heat, _ = get_subject_property_costs()
 
     other_debt_monthly = 0.0
     for dkey in st.session_state.debt_selected:
         dt = get_debt_type(dkey)
         amounts = st.session_state.debt_amounts.get(dkey, {})
         other_debt_monthly += compute_debt_payment(dt, amounts)
-    # Add any additional (non-primary) properties' full carrying costs into other debt for TDS
+    # All properties listed in the Debts step are treated as additional (non-subject) properties
     for prop in st.session_state.properties:
-        if prop is primary_property:
-            continue
         p_total, _, _, _, _ = compute_property_total(prop)
         other_debt_monthly += p_total
 
@@ -1285,31 +1419,27 @@ def render_analysis():
     st.markdown("#### Stress Test")
     st.caption(
         "A common public convention: qualify at the greater of your contract rate + "
-        + str(int(STRESS_TEST_ADDON)) + "%, or a benchmark qualifying rate. Enter your figures below."
+        + str(int(STRESS_TEST_ADDON)) + "%, or a benchmark qualifying rate. "
+        "Contract rate and amortization are carried over from the Property Details step."
     )
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2 = st.columns(2)
     with c1:
-        contract_rate = st.number_input(
-            "Contract Rate (%)", min_value=0.0, max_value=25.0, value=st.session_state.get("contract_rate", 5.0),
-            step=0.05, key="contract_rate",
+        st.markdown(
+            "<div class='metric-card'><div class='metric-label'>Contract Rate (from Property Details)</div>"
+            "<div class='metric-value'>" + "{:.2f}%".format(st.session_state.contract_rate) + "</div></div>",
+            unsafe_allow_html=True,
         )
     with c2:
-        benchmark_rate = st.number_input(
+        st.session_state.benchmark_rate = st.number_input(
             "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
-            value=st.session_state.get("benchmark_rate", DEFAULT_BENCHMARK_RATE), step=0.05, key="benchmark_rate",
-        )
-    with c3:
-        amortization_years = st.number_input(
-            "Amortization (years)", min_value=1, max_value=35,
-            value=st.session_state.get("amortization_years", DEFAULT_AMORTIZATION_YEARS), step=1,
-            key="amortization_years",
+            value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
         )
 
-    qualifying_rate = max(contract_rate + STRESS_TEST_ADDON, benchmark_rate)
+    qualifying_rate = max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate)
     st.caption("Qualifying Rate Used: " + "{:.2f}%".format(qualifying_rate))
 
-    stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, amortization_years)
+    stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, st.session_state.amortization_years)
     stressed_gds, stressed_tds, _, _ = compute_gds_tds(
         stressed_pi, taxes, heat, condo, other_debt_monthly, total_income
     )
@@ -1352,7 +1482,7 @@ def render_analysis():
     back_col, refresh_col, submit_col = st.columns(3)
     with back_col:
         if st.button("← Back", use_container_width=True, key="p5_back"):
-            st.session_state.step = 3
+            st.session_state.step = 4
             st.rerun()
     with refresh_col:
         if st.button("Refresh", use_container_width=True, key="p5_refresh"):
@@ -1386,8 +1516,10 @@ if st.session_state.step == 0:
 elif st.session_state.step == 1:
     render_down_payment()
 elif st.session_state.step == 2:
-    render_income()
+    render_property_details()
 elif st.session_state.step == 3:
-    render_debts()
+    render_income()
 elif st.session_state.step == 4:
+    render_debts()
+elif st.session_state.step == 5:
     render_analysis()
