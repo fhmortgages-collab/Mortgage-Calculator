@@ -4,6 +4,7 @@ from datetime import date
 import streamlit as st
 
 from downpayment_sources import DOWN_PAYMENT_SOURCES
+from income_sources import INCOME_SOURCES
 
 # ---------------------------------------------------------------------------
 # Shared config
@@ -72,6 +73,16 @@ def init_state():
         st.session_state.other_source_desc = ""
     if "dp_errors" not in st.session_state:
         st.session_state.dp_errors = {}
+    if "income_selected" not in st.session_state:
+        st.session_state.income_selected = {}
+    if "income_amounts" not in st.session_state:
+        st.session_state.income_amounts = {}
+    if "income_special" not in st.session_state:
+        st.session_state.income_special = {}
+    if "income_other_desc" not in st.session_state:
+        st.session_state.income_other_desc = {}
+    if "income_errors" not in st.session_state:
+        st.session_state.income_errors = {}
 
 
 def render_stepper(active_index):
@@ -114,6 +125,9 @@ st.markdown(
     }
     .metric-label {font-size:12px; color:#6b7280; margin-bottom:4px;}
     .metric-value {font-size:20px; font-weight:700; color:#111827;}
+    .borrower-total {
+        font-weight:600; font-size:15px; margin: 10px 0 4px; color:#111827;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -487,6 +501,245 @@ def render_down_payment():
                 st.error("Please resolve the issues above before continuing.")
 
 
+def refresh_page3():
+    st.session_state.income_selected = {}
+    st.session_state.income_amounts = {}
+    st.session_state.income_special = {}
+    st.session_state.income_other_desc = {}
+    st.session_state.income_errors = {}
+
+
+def get_income_source(key):
+    for src in INCOME_SOURCES:
+        if src["key"] == key:
+            return src
+    return None
+
+
+def compute_borrower_income(borrower_idx):
+    bidx = str(borrower_idx)
+    selected_keys = st.session_state.income_selected.get(bidx, [])
+    total = 0.0
+    breakdown = {}
+
+    for key in selected_keys:
+        source = get_income_source(key)
+        special = source["special"]
+        amounts = st.session_state.income_amounts.get(bidx, {}).get(key, {})
+
+        if special == "two_year_avg":
+            year1 = parse_money(amounts.get("year1", "")) or 0.0
+            year2 = parse_money(amounts.get("year2", "")) or 0.0
+            avg = (year1 + year2) / 2
+            value = min(year1, avg) if year1 > 0 else avg
+        elif special == "self_employed":
+            gross = parse_money(amounts.get("gross", "")) or 0.0
+            expenses = parse_money(amounts.get("expenses", "")) or 0.0
+            value = max(gross - expenses, 0.0)
+        elif special == "rental":
+            gross_rent = parse_money(amounts.get("gross_rent", "")) or 0.0
+            expenses = parse_money(amounts.get("expenses", "")) or 0.0
+            value = max(gross_rent - expenses, 0.0)
+        else:
+            value = parse_money(amounts.get("amount", "")) or 0.0
+
+        breakdown[key] = value
+        total += value
+
+    return total, breakdown
+
+
+def render_income():
+    st.markdown("### Income Details")
+    st.write("Enter income information for each borrower on this application.")
+
+    borrower_count = st.session_state.borrower_count
+    borrowers = st.session_state.borrowers
+    all_valid = True
+    grand_total = 0.0
+
+    for idx in range(borrower_count):
+        bidx = str(idx)
+        borrower_name = borrowers[idx]["full_name"].strip() if idx < len(borrowers) else ""
+        header = "Borrower " + str(idx + 1)
+        if borrower_name:
+            header += ": " + borrower_name
+        header += " - Income Details"
+
+        if bidx not in st.session_state.income_selected:
+            st.session_state.income_selected[bidx] = []
+        if bidx not in st.session_state.income_amounts:
+            st.session_state.income_amounts[bidx] = {}
+        if bidx not in st.session_state.income_errors:
+            st.session_state.income_errors[bidx] = {}
+
+        with st.expander(header, expanded=True):
+            st.write("**Select Income Sources**")
+            selected = st.session_state.income_selected[bidx]
+
+            for source in INCOME_SOURCES:
+                skey = source["key"]
+                checked = skey in selected
+                new_checked = st.checkbox(
+                    source["label"], value=checked, key="inc_src_" + bidx + "_" + skey
+                )
+
+                if new_checked and skey not in selected:
+                    selected.append(skey)
+                elif not new_checked and skey in selected:
+                    selected.remove(skey)
+                    st.session_state.income_amounts[bidx].pop(skey, None)
+
+                if new_checked:
+                    if skey not in st.session_state.income_amounts[bidx]:
+                        st.session_state.income_amounts[bidx][skey] = {}
+                    amounts = st.session_state.income_amounts[bidx][skey]
+
+                    if source["special"] == "two_year_avg":
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            amounts["year1"] = st.text_input(
+                                "Most Recent Year Amount ($)",
+                                value=amounts.get("year1", ""),
+                                placeholder="Enter annual amount",
+                                key="inc_amt_" + bidx + "_" + skey + "_year1",
+                            )
+                        with c2:
+                            amounts["year2"] = st.text_input(
+                                "Prior Year Amount ($)",
+                                value=amounts.get("year2", ""),
+                                placeholder="Enter annual amount",
+                                key="inc_amt_" + bidx + "_" + skey + "_year2",
+                            )
+                    elif source["special"] == "self_employed":
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            amounts["gross"] = st.text_input(
+                                "Annual Gross Income ($)",
+                                value=amounts.get("gross", ""),
+                                placeholder="Enter annual amount",
+                                key="inc_amt_" + bidx + "_" + skey + "_gross",
+                            )
+                        with c2:
+                            amounts["expenses"] = st.text_input(
+                                "Annual Business Expenses ($)",
+                                value=amounts.get("expenses", ""),
+                                placeholder="Enter annual amount",
+                                key="inc_amt_" + bidx + "_" + skey + "_expenses",
+                            )
+                        gross_v = parse_money(amounts.get("gross", "")) or 0.0
+                        exp_v = parse_money(amounts.get("expenses", "")) or 0.0
+                        st.caption("Net Self-Employed Income: " + fmt_money(max(gross_v - exp_v, 0.0)))
+                    elif source["special"] == "rental":
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            amounts["gross_rent"] = st.text_input(
+                                "Gross Annual Rent ($)",
+                                value=amounts.get("gross_rent", ""),
+                                placeholder="Enter annual amount",
+                                key="inc_amt_" + bidx + "_" + skey + "_grossrent",
+                            )
+                        with c2:
+                            amounts["expenses"] = st.text_input(
+                                "Annual Property Expenses ($)",
+                                value=amounts.get("expenses", ""),
+                                placeholder="Enter annual amount",
+                                key="inc_amt_" + bidx + "_" + skey + "_propexp",
+                            )
+                        rent_v = parse_money(amounts.get("gross_rent", "")) or 0.0
+                        exp_v = parse_money(amounts.get("expenses", "")) or 0.0
+                        st.caption("Net Rental Income: " + fmt_money(max(rent_v - exp_v, 0.0)))
+                    else:
+                        amounts["amount"] = st.text_input(
+                            source["label"] + " Amount ($)",
+                            value=amounts.get("amount", ""),
+                            placeholder="Enter annual amount",
+                            key="inc_amt_" + bidx + "_" + skey + "_amount",
+                        )
+
+                    if skey == "other":
+                        if bidx not in st.session_state.income_other_desc:
+                            st.session_state.income_other_desc[bidx] = ""
+                        st.session_state.income_other_desc[bidx] = st.text_input(
+                            "Describe the other income source",
+                            value=st.session_state.income_other_desc[bidx],
+                            key="inc_other_desc_" + bidx,
+                        )
+
+                    docs_html = ""
+                    for d in source["documents"]:
+                        docs_html += "<li>" + d + "</li>"
+                    notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
+                    st.markdown(
+                        "<div class='doc-list'><b>Required Documentation</b>"
+                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                    st.session_state.income_amounts[bidx][skey] = amounts
+
+            st.session_state.income_selected[bidx] = selected
+
+            borrower_total, breakdown = compute_borrower_income(idx)
+            grand_total += borrower_total
+
+            label_name = borrower_name if borrower_name else ("Borrower " + str(idx + 1))
+            st.markdown(
+                "<div class='borrower-total'>" + label_name + " Total Income: " + fmt_money(borrower_total) + "</div>",
+                unsafe_allow_html=True,
+            )
+
+            errors = {}
+            if not selected:
+                errors["no_sources"] = "Please select at least one income source for " + label_name + "."
+            else:
+                for skey in selected:
+                    val = breakdown.get(skey, 0.0)
+                    if val <= 0:
+                        source = get_income_source(skey)
+                        errors[skey] = "Please enter an amount for " + source["label"] + " for " + label_name + "."
+
+            st.session_state.income_errors[bidx] = errors
+            if errors:
+                all_valid = False
+                for msg in errors.values():
+                    st.caption(":red[" + msg + "]")
+
+    st.divider()
+    st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
+    st.divider()
+
+    back_col, refresh_col, continue_col = st.columns(3)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p3_back"):
+            st.session_state.step = 1
+            st.rerun()
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p3_refresh"):
+            st.session_state["p3_show_refresh_confirm"] = True
+
+    if st.session_state.get("p3_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p3_confirm_refresh"):
+                refresh_page3()
+                st.session_state["p3_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p3_cancel_refresh"):
+                st.session_state["p3_show_refresh_confirm"] = False
+                st.rerun()
+
+    with continue_col:
+        if st.button("Continue →", type="primary", use_container_width=True, key="p3_continue"):
+            if all_valid:
+                st.session_state.step = 3
+                st.rerun()
+            else:
+                st.error("Please resolve the issues above before continuing.")
+
+
 def render_placeholder_step(step_name):
     st.markdown("### " + step_name)
     st.info("The '" + step_name + "' step is not yet built. Your data from previous steps has been saved.")
@@ -499,5 +752,7 @@ if st.session_state.step == 0:
     render_client_details()
 elif st.session_state.step == 1:
     render_down_payment()
+elif st.session_state.step == 2:
+    render_income()
 else:
     render_placeholder_step(STEPS[st.session_state.step])
