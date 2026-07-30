@@ -1790,6 +1790,33 @@ def render_analysis():
 # STEP 5 — Documents Checklist
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# STEP 5 — Documents Checklist
+# ---------------------------------------------------------------------------
+#
+# This step is a generic, data-driven checklist component. The renderer
+# (render_document_checklist) only knows the schema below — it has no idea
+# where the data came from. build_document_checklist_data() is the one
+# function that maps THIS app's session_state into that schema; a different
+# client/source could swap in a different builder (JSON file, API, DB) and
+# the renderer would still work unchanged.
+#
+# Schema:
+# {
+#   "categories": [
+#     {
+#       "name": "<category name>",
+#       "items": [
+#         {"text": "<description only>"},
+#         {"applicant": "<name>", "text": "<description>"},
+#         {"applicant": "<name>", "subcategory": "<sub-label>", "text": "<description>"},
+#         {"subcategory": "<sub-label>", "text": "<description>"},
+#       ]
+#     },
+#     ...
+#   ]
+# }
+
 GENERAL_APPLICATION_DOCS = [
     "Signed mortgage application form",
     "Signed consent for collection, use, and disclosure of personal information",
@@ -1808,118 +1835,173 @@ SUBJECT_PROPERTY_DOCS = [
     "Proof of property insurance (binder) naming the lender as loss payee, arranged prior to closing",
 ]
 
+OTHER_PROPERTY_DOC_LABELS = [
+    "Mortgage statement or loan agreement",
+    "Property tax assessment or bill",
+    "Condo fee statement (if applicable)",
+    "Heating bill or utility estimate",
+]
 
-def build_document_checklist():
-    """Aggregates all required documents from every step into a list of (category, [doc, ...]) tuples."""
-    checklist = []
 
-    checklist.append(("Application & Consent", list(GENERAL_APPLICATION_DOCS)))
+def borrower_display_name(idx):
+    borrowers = st.session_state.borrowers
+    if idx < len(borrowers) and borrowers[idx]["full_name"].strip():
+        return borrowers[idx]["full_name"].strip()
+    return "Borrower " + str(idx + 1)
 
-    # Per-borrower identification
-    borrower_section = []
+
+def build_document_checklist_data():
+    """
+    Maps this application's session_state into the generic checklist schema.
+    Swap this function out (JSON file, API call, DB query) to drive the same
+    render_document_checklist() component from a different data source.
+    """
+    categories = []
+
+    categories.append({
+        "name": "Application & Consent",
+        "items": [{"text": d} for d in GENERAL_APPLICATION_DOCS],
+    })
+
+    # Identification — one item per borrower per required ID document
+    id_items = []
     for idx in range(st.session_state.borrower_count):
-        borrowers = st.session_state.borrowers
-        name = borrowers[idx]["full_name"].strip() if idx < len(borrowers) and borrowers[idx]["full_name"].strip() else "Borrower " + str(idx + 1)
+        name = borrower_display_name(idx)
         for doc in PER_BORROWER_ID_DOCS:
-            borrower_section.append(name + " — " + doc)
-    if borrower_section:
-        checklist.append(("Identification", borrower_section))
+            id_items.append({"applicant": name, "text": doc})
+    if id_items:
+        categories.append({"name": "Identification", "items": id_items})
 
-    # Down payment sources
-    dp_section = []
+    # Down Payment — one item per selected source per its required document
+    dp_items = []
     for key in st.session_state.selected_sources:
         src = next((s for s in DOWN_PAYMENT_SOURCES if s["key"] == key), None)
         if src:
             for doc in src["documents"]:
-                dp_section.append(src["label"] + " — " + doc)
-    if dp_section:
-        checklist.append(("Down Payment", dp_section))
+                dp_items.append({"subcategory": src["label"], "text": doc})
+    if dp_items:
+        categories.append({"name": "Down Payment", "items": dp_items})
 
-    # Income, per borrower
-    income_section = []
+    # Income — one item per borrower per selected income source per document
+    income_items = []
     for idx in range(st.session_state.borrower_count):
         bidx = str(idx)
-        borrowers = st.session_state.borrowers
-        name = borrowers[idx]["full_name"].strip() if idx < len(borrowers) and borrowers[idx]["full_name"].strip() else "Borrower " + str(idx + 1)
+        name = borrower_display_name(idx)
         for key in st.session_state.income_selected.get(bidx, []):
             src = get_income_source(key)
             if src:
                 for doc in src["documents"]:
-                    income_section.append(name + " — " + src["label"] + " — " + doc)
-    if income_section:
-        checklist.append(("Income", income_section))
+                    income_items.append({"applicant": name, "subcategory": src["label"], "text": doc})
+    if income_items:
+        categories.append({"name": "Income", "items": income_items})
 
-    # Subject property being purchased
-    checklist.append(("Property Being Purchased", list(SUBJECT_PROPERTY_DOCS)))
+    categories.append({
+        "name": "Property Being Purchased",
+        "items": [{"text": d} for d in SUBJECT_PROPERTY_DOCS],
+    })
 
-    # Other properties owned (from Debts step)
-    other_prop_section = []
+    # Other Properties Owned — one item per property per standard doc label
+    other_prop_items = []
     for pidx, prop in enumerate(st.session_state.properties):
         label = prop["address"].strip() if prop["address"].strip() else "Property " + str(pidx + 1)
-        other_prop_section.append(label + " — Mortgage statement or loan agreement")
-        other_prop_section.append(label + " — Property tax assessment or bill")
-        other_prop_section.append(label + " — Condo fee statement (if applicable)")
-        other_prop_section.append(label + " — Heating bill or utility estimate")
-    if other_prop_section:
-        checklist.append(("Other Properties Owned", other_prop_section))
+        for doc in OTHER_PROPERTY_DOC_LABELS:
+            other_prop_items.append({"subcategory": label, "text": doc})
+    if other_prop_items:
+        categories.append({"name": "Other Properties Owned", "items": other_prop_items})
 
-    # Other debts
-    debt_section = []
+    # Other Debts & Liabilities — one item per selected debt type per document
+    debt_items = []
     for key in st.session_state.debt_selected:
         dt = get_debt_type(key)
         if dt:
             for doc in dt["documents"]:
-                debt_section.append(dt["label"] + " — " + doc)
-    if debt_section:
-        checklist.append(("Other Debts & Liabilities", debt_section))
+                debt_items.append({"subcategory": dt["label"], "text": doc})
+    if debt_items:
+        categories.append({"name": "Other Debts & Liabilities", "items": debt_items})
 
-    return checklist
+    return {"categories": categories}
+
+
+def format_checklist_item(item):
+    """Builds the label line for one item: [applicant] — [subcategory] — text, bolding only the applicant."""
+    parts = []
+    if item.get("applicant"):
+        parts.append("**" + item["applicant"] + "**")
+    if item.get("subcategory"):
+        parts.append(item["subcategory"])
+    parts.append(item["text"])
+    return " — ".join(parts)
+
+
+def format_checklist_item_plain(item):
+    """Same as format_checklist_item but with no markdown, for plain-text export."""
+    parts = []
+    if item.get("applicant"):
+        parts.append(item["applicant"])
+    if item.get("subcategory"):
+        parts.append(item["subcategory"])
+    parts.append(item["text"])
+    return " — ".join(parts)
+
+
+def render_document_checklist(data):
+    """
+    Generic renderer for the checklist schema described above. Doesn't know
+    or care where `data` came from — any dict matching the schema renders
+    the same way. Returns the total item count.
+    """
+    st.markdown("### Required Documentation")
+
+    total_count = 0
+    categories = data.get("categories", [])
+    for category in categories:
+        items = category.get("items", [])
+        if not items:
+            continue
+        total_count += len(items)
+        st.markdown("**" + category.get("name", "") + " (" + str(len(items)) + ")**")
+        for item in items:
+            st.markdown("- [ ] " + format_checklist_item(item))
+        st.markdown("---")
+
+    return total_count
+
+
+def serialize_checklist_text(data):
+    """Plain-text version of the same schema, for the .txt download."""
+    lines = ["REQUIRED DOCUMENTATION", ""]
+    for category in data.get("categories", []):
+        items = category.get("items", [])
+        if not items:
+            continue
+        lines.append(category.get("name", "").upper() + " (" + str(len(items)) + ")")
+        for item in items:
+            lines.append("  [ ] " + format_checklist_item_plain(item))
+        lines.append("")
+    return "\n".join(lines)
 
 
 def render_documents():
-    st.markdown("### Required Documents")
-    st.write(
-        "Based on everything entered across this application — borrowers, income sources, down payment "
-        "sources, the property being purchased, and other debts/properties — here's the consolidated list "
-        "of documents the bank will need to review the deal."
+    checklist_data = build_document_checklist_data()
+
+    always_present = ("Application & Consent", "Property Being Purchased")
+    has_client_specific_items = any(
+        cat.get("items") for cat in checklist_data["categories"] if cat.get("name") not in always_present
     )
-
-    checklist = build_document_checklist()
-
-    if not any(items for _, items in checklist if _ not in ("Application & Consent", "Property Being Purchased")):
+    if not has_client_specific_items:
         st.info(
             "This list will fill in as you complete the earlier steps — right now it only shows the "
             "documents that always apply (application/consent and the property being purchased)."
         )
 
-    st.divider()
-
-    total_count = 0
-    for category, items in checklist:
-        if not items:
-            continue
-        with st.expander(category + " (" + str(len(items)) + ")", expanded=True):
-            for doc in items:
-                st.markdown("- [ ] " + doc)
-        total_count += len(items)
+    total_count = render_document_checklist(checklist_data)
 
     st.divider()
     st.markdown("#### Total Documents Required: " + str(total_count))
 
-    # Plain-text export
-    lines = ["MORTGAGE APPLICATION — REQUIRED DOCUMENTS CHECKLIST", ""]
-    for category, items in checklist:
-        if not items:
-            continue
-        lines.append(category.upper())
-        for doc in items:
-            lines.append("  [ ] " + doc)
-        lines.append("")
-    checklist_text = "\n".join(lines)
-
     st.download_button(
         "Download Checklist (.txt)",
-        data=checklist_text,
+        data=serialize_checklist_text(checklist_data),
         file_name="required_documents_checklist.txt",
         mime="text/plain",
     )
