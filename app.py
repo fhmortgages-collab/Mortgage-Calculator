@@ -521,9 +521,11 @@ def render_stepper(active_index):
         cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
             btn_type = "primary" if i == active_index else "secondary"
-            if cols[i].button(label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
-                st.session_state.step = i
-                st.rerun()
+            with cols[i]:
+                with st.container(key="stepbtn_" + str(i)):
+                    if st.button(label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
+                        st.session_state.step = i
+                        st.rerun()
 
 
 st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout="centered")
@@ -549,12 +551,20 @@ st.markdown(
         flex: 1 1 0 !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 9px !important;
-        white-space: nowrap !important;
-        padding: 4px 0px !important;
-        letter-spacing: -0.4px !important;
+        font-size: 12px !important;
+        white-space: normal !important;
+        word-break: keep-all !important;
+        padding: 4px 2px !important;
+        letter-spacing: -0.1px !important;
         width: 100% !important;
         box-sizing: border-box !important;
+    }
+    div[class*="st-key-stepbtn_3"] button,
+    div[class*="st-key-stepbtn_4"] button,
+    div[class*="st-key-stepbtn_5"] button,
+    div[class*="st-key-stepbtn_6"] button,
+    div[class*="st-key-stepbtn_7"] button {
+        white-space: nowrap !important;
     }
     div[class*="st-key-fieldrow_"] div[data-testid="stHorizontalBlock"] {
         align-items: flex-end !important;
@@ -577,8 +587,9 @@ st.markdown(
         align-items: center !important;
         justify-content: center !important;
     }
+    div[class*="st-key-helpbtn_"] svg,
     div[class*="st-key-helpbtn_"] button svg {
-        display: none;
+        display: none !important;
     }
     section[data-testid="stFileUploaderDropzoneInstructions"] {
         display: none;
@@ -592,6 +603,12 @@ st.markdown(
     }
     [data-testid="stFileUploaderDropzone"] button {
         width: 100%;
+    }
+    [data-testid="stFileUploaderDropzone"] button svg {
+        display: none !important;
+    }
+    [data-testid="stFileUploaderDropzone"] button span::before {
+        content: "⬆️ ";
     }
     .stButton > button {
         min-height: 3.4em;
@@ -1294,6 +1311,28 @@ def get_income_source(key):
     return None
 
 
+VARIABLE_INCOME_KEYS = ("commission", "hourly", "bonus_overtime", "self_employed", "dividend")
+
+
+def compute_qualifying_variable_income(amounts):
+    """
+    Applies the standard 2-year variable-income rule: if the most recent
+    year is lower than the prior year, use the (lower) most recent year;
+    otherwise use the 2-year average.
+    """
+    recent_v = parse_money(amounts.get("recent_year", ""))
+    prior_v = parse_money(amounts.get("prior_year", ""))
+    if recent_v is None and prior_v is None:
+        return 0.0
+    if recent_v is None:
+        recent_v = 0.0
+    if prior_v is None:
+        prior_v = 0.0
+    if recent_v < prior_v:
+        return recent_v
+    return (recent_v + prior_v) / 2.0
+
+
 def compute_borrower_income(borrower_idx):
     bidx = str(borrower_idx)
     selected_keys = st.session_state.income_selected.get(bidx, [])
@@ -1307,6 +1346,8 @@ def compute_borrower_income(borrower_idx):
             gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
             carrying_costs = parse_money(amounts.get("carrying_costs", "")) or 0.0
             value = max(gross_rental - carrying_costs, 0.0)
+        elif key in VARIABLE_INCOME_KEYS:
+            value = compute_qualifying_variable_income(amounts)
         else:
             value = parse_money(amounts.get("amount", "")) or 0.0
 
@@ -1336,7 +1377,32 @@ def render_income_category_card(bidx, skey, source, amounts):
 
     needs_24mo_check = False
 
-    if skey in ("salaried", "commission"):
+    def render_two_year_income_fields(amounts, field_prefix, label="Annual Income"):
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["recent_year"] = st.text_input(
+                "Most Recent Year — " + label + " ($)", value=amounts.get("recent_year", ""),
+                placeholder="Enter amount", key=field_prefix + "recent_year",
+            )
+        with c2:
+            amounts["prior_year"] = st.text_input(
+                "Prior Year — " + label + " ($)", value=amounts.get("prior_year", ""),
+                placeholder="Enter amount", key=field_prefix + "prior_year",
+            )
+        recent_v = parse_money(amounts.get("recent_year", ""))
+        prior_v = parse_money(amounts.get("prior_year", ""))
+        if recent_v is not None and prior_v is not None:
+            if recent_v < prior_v:
+                qualifying = recent_v
+                rule_note = "most recent year is lower, so the most recent year's income is used."
+            else:
+                qualifying = (recent_v + prior_v) / 2.0
+                rule_note = "most recent year is higher (or equal), so the 2-year average is used."
+            st.caption("Qualifying Income (used for GDS/TDS): **" + fmt_money(qualifying) + "** — " + rule_note)
+        elif recent_v is not None or prior_v is not None:
+            st.caption("Enter both years to calculate qualifying income for GDS/TDS.")
+
+    if skey == "salaried":
         needs_24mo_check = True
         c1, c2 = st.columns(2)
         with c1:
@@ -1346,15 +1412,41 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c2:
             amounts["employer_address"] = st.text_input("Employer Address", value=amounts.get("employer_address", ""), key=prefix + "employer_address")
             amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
-        amount_label = "Gross Annual Base Income ($)" if skey == "salaried" else "Gross Annual Commission Income ($)"
-        amounts["amount"] = st.text_input(amount_label, value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        amounts["amount"] = st.text_input("Gross Annual Base Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    elif skey == "commission":
+        needs_24mo_check = True
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
+            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
+            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 06/2022", key=prefix + "start_date")
+        with c2:
+            amounts["employer_address"] = st.text_input("Employer Address", value=amounts.get("employer_address", ""), key=prefix + "employer_address")
+            amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
+        render_two_year_income_fields(amounts, prefix, "Commission Income")
+
+    elif skey == "hourly":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
+        with c2:
+            guaranteed_options = ["", "Guaranteed Hours", "Variable Hours"]
+            cur_g = amounts.get("hours_type", "")
+            amounts["hours_type"] = st.selectbox(
+                "Hours Type", guaranteed_options,
+                index=guaranteed_options.index(cur_g) if cur_g in guaranteed_options else 0,
+                key=prefix + "hours_type",
+            )
+        render_two_year_income_fields(amounts, prefix, "Hourly Income")
 
     elif skey == "bonus_overtime":
         c1, c2 = st.columns(2)
         with c1:
             amounts["employer_name"] = st.text_input("Primary Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
         with c2:
-            amounts["amount"] = st.text_input("Gross Annual Bonus/Overtime Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            st.write("")
+        render_two_year_income_fields(amounts, prefix, "Bonus/Overtime Income")
 
     elif skey == "self_employed":
         needs_24mo_check = True
@@ -1367,7 +1459,15 @@ def render_income_category_card(bidx, skey, source, amounts):
             amounts["business_address"] = st.text_input("Business Address", value=amounts.get("business_address", ""), key=prefix + "business_address")
             amounts["title"] = st.text_input("Role / Title", value=amounts.get("title", ""), key=prefix + "title")
             amounts["ownership_pct"] = st.text_input("Ownership Percentage (%)", value=amounts.get("ownership_pct", ""), key=prefix + "ownership_pct")
-        amounts["amount"] = st.text_input("Current Gross Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        render_two_year_income_fields(amounts, prefix, "Net Business Income")
+
+    elif skey == "dividend":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["institution_name"] = st.text_input("Financial Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
+        with c2:
+            amounts["account_number"] = st.text_input("Account Number", value=amounts.get("account_number", ""), key=prefix + "account_number")
+        render_two_year_income_fields(amounts, prefix, "Dividend Income")
 
     elif skey == "investment":
         c1, c2 = st.columns(2)
