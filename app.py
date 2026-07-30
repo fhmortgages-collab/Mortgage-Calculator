@@ -36,6 +36,45 @@ STEPS = ["Client Details", "Down Payment", "Property Details", "Income", "Debts"
 GDS_LIMIT = 32.0
 TDS_LIMIT = 40.0
 
+MORTGAGE_TERM_OPTIONS = ["1 Year", "2 Year", "3 Year", "4 Year", "5 Year"]
+RATE_TYPE_OPTIONS = ["Fixed", "Variable"]
+
+HELP_CONTRACT_RATE = (
+    "The interest rate your lender is actually charging you for this mortgage — your real payment is "
+    "calculated using this rate."
+)
+HELP_TERM = (
+    "How long you're locked into this rate and lender before you have to renew (commonly 1–5 years in "
+    "Canada). This is different from amortization — the term is just one chapter of the full payoff period; "
+    "at the end of it you renew, possibly at a new rate, even though the mortgage itself isn't paid off yet."
+)
+HELP_AMORTIZATION = (
+    "The total number of years it will take to pay the mortgage off completely, assuming payments stay the "
+    "same throughout. 25 years is the most common in Canada (up to 30 for some first-time buyers or new "
+    "construction)."
+)
+HELP_RATE_TYPE = (
+    "Fixed: your interest rate is locked for the whole term, so your payment doesn't change. Variable: your "
+    "rate moves with the lender's prime rate, so the interest portion of your payment can go up or down "
+    "during the term."
+)
+HELP_BENCHMARK = (
+    "Also called the mortgage 'stress test' rate. Regulated lenders must confirm you could still afford "
+    "payments at a higher rate — the greater of your contract rate + 2%, or a federal floor (5.25% as of "
+    "2026) — in case rates rise after you close."
+)
+HELP_GDS = (
+    "Gross Debt Service ratio: the share of your gross (pre-tax) household income that would go toward "
+    "housing costs — mortgage payment, property taxes, heat, and half of any condo fees. Lenders typically "
+    "want this at or under roughly 32–39%."
+)
+HELP_TDS = (
+    "Total Debt Service ratio: the same idea as GDS, but also adds in all your other monthly debt payments "
+    "(car loans, credit cards, other properties, etc.). Lenders typically want this at or under roughly "
+    "40–44%."
+)
+
+
 
 def fmt_money(value):
     try:
@@ -156,6 +195,10 @@ def init_state():
         st.session_state.broker_notes = ""
     if "combined_notes" not in st.session_state:
         st.session_state.combined_notes = ""
+    if "mortgage_term" not in st.session_state:
+        st.session_state.mortgage_term = "5 Year"
+    if "rate_type" not in st.session_state:
+        st.session_state.rate_type = "Fixed"
     if "borrower_count" not in st.session_state:
         st.session_state.borrower_count = 1
     if "borrowers" not in st.session_state:
@@ -256,7 +299,7 @@ SAVE_STATE_KEYS = [
     "subject_cooling", "subject_foundation", "subject_exterior_finish", "subject_sewer",
     "subject_water", "subject_parking_spaces", "subject_land_size", "subject_title_type",
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
-    "broker_notes", "combined_notes",
+    "broker_notes", "combined_notes", "mortgage_term", "rate_type",
 ]
 
 
@@ -314,6 +357,8 @@ def refresh_all():
     st.session_state.doc_edit_mode = False
     st.session_state.broker_notes = ""
     st.session_state.combined_notes = ""
+    st.session_state.mortgage_term = "5 Year"
+    st.session_state.rate_type = "Fixed"
     st.session_state.borrower_count = 1
     st.session_state.borrowers = [empty_borrower()]
     st.session_state.borrower_errors = [{}]
@@ -373,6 +418,19 @@ st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout
 st.markdown(
     """
     <style>
+    section[data-testid="stFileUploaderDropzoneInstructions"] {
+        display: none;
+    }
+    [data-testid="stFileUploaderDropzone"] {
+        background-color: transparent !important;
+        border: 1px solid rgba(250,250,250,0.2) !important;
+        border-radius: 8px !important;
+        padding: 2px !important;
+        min-height: 0 !important;
+    }
+    [data-testid="stFileUploaderDropzone"] button {
+        width: 100%;
+    }
     .stButton > button {
         min-height: 3.4em;
         white-space: normal;
@@ -1639,20 +1697,57 @@ def render_analysis():
 
     # --- Financing Terms (moved here from Property Details) ---
     st.markdown("#### Financing Terms")
+
+    def field_row(label_widget_fn, help_text, help_key):
+        c1, c2 = st.columns([10, 1])
+        with c1:
+            label_widget_fn()
+        with c2:
+            st.write("")
+            with st.popover("❓", key=help_key):
+                st.caption(help_text)
+
     fc1, fc2 = st.columns(2)
     with fc1:
-        st.session_state.contract_rate = st.number_input(
-            "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
-            value=st.session_state.contract_rate, step=0.05, key="analysis_contract_rate",
+        field_row(
+            lambda: st.session_state.__setitem__("contract_rate", st.number_input(
+                "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
+                value=st.session_state.contract_rate, step=0.05, key="analysis_contract_rate",
+            )),
+            HELP_CONTRACT_RATE, "help_contract_rate",
         )
-        st.session_state.benchmark_rate = st.number_input(
-            "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
-            value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
+        field_row(
+            lambda: st.session_state.__setitem__("mortgage_term", st.selectbox(
+                "Mortgage Term", MORTGAGE_TERM_OPTIONS,
+                index=MORTGAGE_TERM_OPTIONS.index(st.session_state.mortgage_term)
+                if st.session_state.mortgage_term in MORTGAGE_TERM_OPTIONS else 4,
+                key="mortgage_term_select",
+            )),
+            HELP_TERM, "help_term",
+        )
+        field_row(
+            lambda: st.session_state.__setitem__("benchmark_rate", st.number_input(
+                "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
+                value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
+            )),
+            HELP_BENCHMARK, "help_benchmark",
         )
     with fc2:
-        st.session_state.amortization_years = st.number_input(
-            "Amortization (years)", min_value=1, max_value=35,
-            value=st.session_state.amortization_years, step=1, key="analysis_amortization",
+        field_row(
+            lambda: st.session_state.__setitem__("amortization_years", st.number_input(
+                "Amortization (years)", min_value=1, max_value=35,
+                value=st.session_state.amortization_years, step=1, key="analysis_amortization",
+            )),
+            HELP_AMORTIZATION, "help_amortization",
+        )
+        field_row(
+            lambda: st.session_state.__setitem__("rate_type", st.selectbox(
+                "Rate Type", RATE_TYPE_OPTIONS,
+                index=RATE_TYPE_OPTIONS.index(st.session_state.rate_type)
+                if st.session_state.rate_type in RATE_TYPE_OPTIONS else 0,
+                key="rate_type_select",
+            )),
+            HELP_RATE_TYPE, "help_rate_type",
         )
     st.divider()
 
@@ -1707,7 +1802,14 @@ def render_analysis():
     stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, st.session_state.amortization_years)
 
     # --- GDS / TDS at contract terms AND stressed, side by side ---
-    st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
+    gds_header_col, gds_help_col = st.columns([10, 1])
+    with gds_header_col:
+        st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
+    with gds_help_col:
+        with st.popover("❓", key="help_gds_tds"):
+            st.caption(HELP_GDS)
+            st.divider()
+            st.caption(HELP_TDS)
 
     gds, tds, annual_housing, annual_other_debt = compute_gds_tds(
         pi_payment, taxes, heat, condo, other_debt_monthly, total_income
@@ -1751,6 +1853,7 @@ def render_analysis():
         head = "padding:4px 8px; color:#0f172a !important; background:#cbd5e1 !important; font-weight:700 !important;"
         total_cell = "padding:4px 8px; color:#78350f !important; background:#fde047 !important; font-weight:700 !important;"
 
+        # --- Row 1: both tables side by side ---
         gds_col, tds_col = st.columns(2)
 
         with gds_col:
@@ -1774,13 +1877,6 @@ def render_analysis():
                 "</table>",
                 unsafe_allow_html=True,
             )
-            st.markdown(
-                "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
-                "font-size:13px; color:#1e3a8a !important;'>"
-                "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
-                + " × 100 = <b>" + gds_disp + "</b></div>",
-                unsafe_allow_html=True,
-            )
 
         with tds_col:
             tds_rows_html = (
@@ -1801,6 +1897,18 @@ def render_analysis():
                 "</table>",
                 unsafe_allow_html=True,
             )
+
+        # --- Row 2: both formula results side by side, aligned at the same height ---
+        gds_formula_col, tds_formula_col = st.columns(2)
+        with gds_formula_col:
+            st.markdown(
+                "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
+                "font-size:13px; color:#1e3a8a !important;'>"
+                "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
+                + " × 100 = <b>" + gds_disp + "</b></div>",
+                unsafe_allow_html=True,
+            )
+        with tds_formula_col:
             st.markdown(
                 "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
                 "font-size:13px; color:#1e3a8a !important;'>"
