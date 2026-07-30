@@ -1922,26 +1922,22 @@ def build_document_checklist_data():
     return {"categories": categories}
 
 
-def format_checklist_item(item):
-    """Builds the label line for one item: [applicant] — [subcategory] — text, bolding only the applicant."""
-    parts = []
-    if item.get("applicant"):
-        parts.append("**" + item["applicant"] + "**")
-    if item.get("subcategory"):
-        parts.append(item["subcategory"])
-    parts.append(item["text"])
-    return " — ".join(parts)
-
-
-def format_checklist_item_plain(item):
-    """Same as format_checklist_item but with no markdown, for plain-text export."""
-    parts = []
-    if item.get("applicant"):
-        parts.append(item["applicant"])
-    if item.get("subcategory"):
-        parts.append(item["subcategory"])
-    parts.append(item["text"])
-    return " — ".join(parts)
+def group_checklist_items(items):
+    """
+    Groups a category's flat items by (applicant, subcategory), preserving
+    first-seen order. Items with neither field form their own group with
+    a None key, so they render directly under the category with no
+    sub-heading (e.g. the plain "Application & Consent" docs).
+    """
+    order = []
+    grouped = {}
+    for item in items:
+        key = (item.get("applicant"), item.get("subcategory"))
+        if key not in grouped:
+            grouped[key] = []
+            order.append(key)
+        grouped[key].append(item)
+    return [(key, grouped[key]) for key in order]
 
 
 def render_document_checklist(data):
@@ -1949,6 +1945,10 @@ def render_document_checklist(data):
     Generic renderer for the checklist schema described above. Doesn't know
     or care where `data` came from — any dict matching the schema renders
     the same way. Returns the total item count.
+
+    Hierarchy: Category (bold heading) -> applicant/subcategory (indented
+    sub-heading, when present) -> individual required documents (indented
+    further beneath their sub-heading).
     """
     st.markdown("### Required Documentation")
 
@@ -1959,24 +1959,59 @@ def render_document_checklist(data):
         if not items:
             continue
         total_count += len(items)
-        st.markdown("**" + category.get("name", "") + " (" + str(len(items)) + ")**")
-        for item in items:
-            st.markdown("- [ ] " + format_checklist_item(item))
+        st.markdown(
+            "<div style='font-size:18px; font-weight:700; margin-top:14px; margin-bottom:6px;'>"
+            + category.get("name", "") + " (" + str(len(items)) + ")</div>",
+            unsafe_allow_html=True,
+        )
+
+        for (applicant, subcategory), group_items in group_checklist_items(items):
+            if applicant or subcategory:
+                heading_parts = []
+                if applicant:
+                    heading_parts.append("<b>" + applicant + "</b>")
+                if subcategory:
+                    heading_parts.append(subcategory)
+                st.markdown(
+                    "<div style='margin-left:20px; font-weight:600; margin-top:8px; margin-bottom:2px;'>"
+                    + " — ".join(heading_parts) + "</div>",
+                    unsafe_allow_html=True,
+                )
+                item_indent = 40
+            else:
+                item_indent = 20
+
+            for item in group_items:
+                st.markdown(
+                    "<div style='margin-left:" + str(item_indent) + "px; margin-bottom:2px;'>"
+                    "☐ " + item["text"] + "</div>",
+                    unsafe_allow_html=True,
+                )
+
         st.markdown("---")
 
     return total_count
 
 
 def serialize_checklist_text(data):
-    """Plain-text version of the same schema, for the .txt download."""
+    """Plain-text version of the same hierarchy, for the .txt download."""
     lines = ["REQUIRED DOCUMENTATION", ""]
     for category in data.get("categories", []):
         items = category.get("items", [])
         if not items:
             continue
         lines.append(category.get("name", "").upper() + " (" + str(len(items)) + ")")
-        for item in items:
-            lines.append("  [ ] " + format_checklist_item_plain(item))
+
+        for (applicant, subcategory), group_items in group_checklist_items(items):
+            if applicant or subcategory:
+                heading_parts = [p for p in [applicant, subcategory] if p]
+                lines.append("  " + " — ".join(heading_parts))
+                item_prefix = "    [ ] "
+            else:
+                item_prefix = "  [ ] "
+            for item in group_items:
+                lines.append(item_prefix + item["text"])
+
         lines.append("")
     return "\n".join(lines)
 
