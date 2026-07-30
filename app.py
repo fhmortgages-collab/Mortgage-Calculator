@@ -1,4 +1,5 @@
 import re
+import json
 from datetime import date
 
 import streamlit as st
@@ -169,6 +170,69 @@ def init_state():
         st.session_state.subject_title_type = ""
 
 
+SAVE_STATE_KEYS = [
+    "step", "borrower_count", "borrowers", "consent", "borrower_errors",
+    "purchase_price_raw", "down_payment_raw", "selected_sources", "source_amounts",
+    "other_source_desc", "dp_errors",
+    "income_selected", "income_amounts", "income_special", "income_other_desc", "income_errors",
+    "properties", "debt_selected", "debt_amounts", "debt_other_desc", "debt_errors",
+    "subject_address", "subject_taxes_raw", "subject_condo_raw", "subject_heat_raw",
+    "subject_prop_type", "subject_prop_purpose", "subject_prop_age", "subject_garage",
+    "subject_rural_urban", "subject_sqft", "subject_storeys", "subject_heating_type",
+    "subject_cooling", "subject_foundation", "subject_exterior_finish", "subject_sewer",
+    "subject_water", "subject_parking_spaces", "subject_land_size", "subject_title_type",
+    "contract_rate", "amortization_years", "benchmark_rate",
+]
+
+
+def serialize_application():
+    """Builds a JSON-safe dict of the entire application for download."""
+    data = {}
+    for key in SAVE_STATE_KEYS:
+        value = st.session_state.get(key)
+        data[key] = value
+    # borrowers contains date objects (dob) which aren't natively JSON-serializable
+    borrowers_out = []
+    for b in data.get("borrowers", []):
+        b_copy = dict(b)
+        if isinstance(b_copy.get("dob"), date):
+            b_copy["dob"] = b_copy["dob"].isoformat()
+        borrowers_out.append(b_copy)
+    data["borrowers"] = borrowers_out
+    return json.dumps(data, indent=2)
+
+
+def load_application(json_text):
+    """Restores session_state from a previously downloaded application JSON. Returns (success, message)."""
+    try:
+        data = json.loads(json_text)
+    except (ValueError, TypeError):
+        return False, "That file doesn't look like a valid application JSON file."
+
+    if not isinstance(data, dict) or "borrowers" not in data:
+        return False, "That file doesn't look like a mortgage application save file."
+
+    for key in SAVE_STATE_KEYS:
+        if key not in data:
+            continue
+        value = data[key]
+        if key == "borrowers":
+            restored = []
+            for b in value:
+                b_copy = dict(b)
+                dob_raw = b_copy.get("dob")
+                if isinstance(dob_raw, str) and dob_raw:
+                    try:
+                        b_copy["dob"] = date.fromisoformat(dob_raw)
+                    except ValueError:
+                        b_copy["dob"] = None
+                restored.append(b_copy)
+            st.session_state[key] = restored
+        else:
+            st.session_state[key] = value
+    return True, "Application loaded successfully."
+
+
 def render_stepper(active_index):
     cols = st.columns(len(STEPS))
     for i, label in enumerate(STEPS):
@@ -225,6 +289,31 @@ st.markdown("## 🏠 Mortgage Loan Wizard")
 st.caption("Residential Mortgage Application")
 
 render_stepper(st.session_state.step)
+
+with st.expander("💾 Save or Load Application", expanded=False):
+    save_col, load_col = st.columns(2)
+    with save_col:
+        st.write("**Save**")
+        st.caption("Download everything entered so far as a file you keep — no account needed.")
+        st.download_button(
+            "Download Application (.json)",
+            data=serialize_application(),
+            file_name="mortgage_application.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+    with load_col:
+        st.write("**Load**")
+        st.caption("Upload a previously downloaded application file to pick up where you left off.")
+        uploaded = st.file_uploader("Choose a .json file", type=["json"], key="load_app_uploader", label_visibility="collapsed")
+        if uploaded is not None:
+            if st.button("Load this file", use_container_width=True, key="load_app_confirm"):
+                success, message = load_application(uploaded.read().decode("utf-8"))
+                if success:
+                    st.success(message)
+                    st.rerun()
+                else:
+                    st.error(message)
 
 
 # ---------------------------------------------------------------------------
@@ -786,20 +875,9 @@ def render_property_details():
             placeholder="Enter monthly heating amount",
         )
 
-    pi, taxes, condo, heat, housing_total = get_subject_property_costs()
-
-    st.divider()
-    st.markdown(
-        "<div class='metric-row'>"
-        "<div class='metric-card'><div class='metric-label'>Calculated Monthly Mortgage Payment (P&I)</div>"
-        "<div class='metric-value'>" + fmt_money(pi) + "</div></div>"
-        "<div class='metric-card'><div class='metric-label'>Total Monthly Housing Costs</div>"
-        "<div class='metric-value'>" + fmt_money(housing_total) + "</div></div>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
     st.caption(
-        "P&I is calculated from the loan amount, contract rate, and amortization above — no need to enter it manually."
+        "Monthly P&I and total housing costs will be calculated once you set the "
+        "contract rate and amortization on the Analysis step."
     )
 
     st.divider()
@@ -1319,44 +1397,7 @@ def render_debts():
     total_monthly_debt = total_property_debt + total_other_debt
     st.markdown("#### Total Monthly Debt Obligations (Other Properties + Debts): " + fmt_money(total_monthly_debt))
     st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
-
-    total_income = compute_total_income()
-    monthly_income = total_income / 12 if total_income else 0.0
-
-    subject_pi, subject_taxes, subject_condo, subject_heat, subject_housing_total = get_subject_property_costs()
-
-    if monthly_income > 0:
-        gds = (subject_pi + subject_taxes + subject_heat + subject_condo * 0.5) / monthly_income * 100
-        tds = (subject_pi + subject_taxes + subject_heat + subject_condo * 0.5 + total_monthly_debt) / monthly_income * 100
-    else:
-        gds = None
-        tds = None
-
-    def ratio_class(value, limit):
-        if value is None:
-            return "", "—"
-        display = "{:.2f}%".format(value)
-        if value <= limit * 0.9:
-            return "ratio-green", display
-        elif value <= limit:
-            return "ratio-yellow", display
-        else:
-            return "ratio-red", display
-
-    gds_class, gds_display = ratio_class(gds, GDS_LIMIT)
-    tds_class, tds_display = ratio_class(tds, TDS_LIMIT)
-
-    st.markdown(
-        "<div class='metric-row'>"
-        "<div class='metric-card'><div class='metric-label'>GDS Ratio (target ≤ " + str(int(GDS_LIMIT)) + "%)</div>"
-        "<div class='metric-value " + gds_class + "'>" + gds_display + "</div></div>"
-        "<div class='metric-card'><div class='metric-label'>TDS Ratio (target ≤ " + str(int(TDS_LIMIT)) + "%)</div>"
-        "<div class='metric-value " + tds_class + "'>" + tds_display + "</div></div>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-    if monthly_income == 0:
-        st.caption(":gray[Complete the Income step to calculate GDS/TDS ratios.]")
+    st.caption("Full GDS/TDS qualification is calculated on the Analysis step, after financing terms are set.")
 
     st.divider()
 
@@ -1676,19 +1717,14 @@ def render_analysis():
 
     st.divider()
 
-    # --- Stress test result ---
-    st.markdown("#### Stress Test Result")
+    # --- Stress test qualification (detail already shown above) ---
     stressed_qualified = (
         stressed_gds is not None and stressed_tds is not None
         and stressed_gds <= GDS_LIMIT and stressed_tds <= TDS_LIMIT
     )
     stress_result = "PASS ✓" if stressed_qualified else "FAIL ✗"
-    st.markdown(
-        "Stress Test (Qualifying Rate: " + "{:.2f}%".format(qualifying_rate) + "):\n\n"
-        "- Stressed Monthly P&I: " + fmt_money(stressed_pi) + "\n"
-        "- GDS: " + stressed_gds_display + "\n"
-        "- TDS: " + stressed_tds_display + "\n"
-        "- Result: **" + stress_result + "**"
+    st.caption(
+        "Stress Test Result (Qualifying Rate " + "{:.2f}%".format(qualifying_rate) + "): **" + stress_result + "**"
     )
 
     st.divider()
