@@ -753,31 +753,13 @@ def refresh_page1():
 
 
 def render_client_details():
-    spacer, back_col, refresh_col, continue_col = st.columns([2, 1, 1, 1])
+    spacer, back_col, continue_col = st.columns([3, 1, 1])
 
     with back_col:
         if st.button("← Back", use_container_width=True, key="p1_back_top"):
             st.info("This is the first screen.")
-    with refresh_col:
-        if st.button("🔄 Refresh", use_container_width=True, key="p1_refresh_top"):
-            st.session_state["p1_refresh_confirm"] = True
-            st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p1_continue_top")
-
-    if st.session_state.get("p1_refresh_confirm"):
-        st.warning("⚠️ All data on this page will be permanently deleted. This cannot be undone.")
-        rc1, rc2 = st.columns(2)
-        with rc1:
-            if st.button("Confirm Delete", type="primary", use_container_width=True, key="p1_refresh_confirm_yes"):
-                st.session_state.borrowers = [{"full_name": "", "phone": "", "gender": "", "dob": "", "marital_status": ""} for _ in range(st.session_state.borrower_count)]
-                st.session_state.borrower_errors = [{}] * st.session_state.borrower_count
-                st.session_state["p1_refresh_confirm"] = False
-                st.rerun()
-        with rc2:
-            if st.button("Cancel", use_container_width=True, key="p1_refresh_cancel"):
-                st.session_state["p1_refresh_confirm"] = False
-                st.rerun()
 
     st.markdown("### Client Details")
     st.write("Enter information for each borrower on this application.")
@@ -924,36 +906,14 @@ def refresh_page2():
 
 
 def render_down_payment():
-    spacer, back_col, refresh_col, continue_col = st.columns([2, 1, 1, 1])
+    spacer, back_col, continue_col = st.columns([3, 1, 1])
 
     with back_col:
         if st.button("← Back", use_container_width=True, key="p2_back_top"):
             st.session_state.step = 0
             st.rerun()
-    with refresh_col:
-        if st.button("🔄 Refresh", use_container_width=True, key="p2_refresh_top"):
-            st.session_state["p2_refresh_confirm"] = True
-            st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p2_continue_top")
-
-    if st.session_state.get("p2_refresh_confirm"):
-        st.warning("⚠️ All data on this page will be permanently deleted. This cannot be undone.")
-        rc1, rc2 = st.columns(2)
-        with rc1:
-            if st.button("Confirm Delete", type="primary", use_container_width=True, key="p2_refresh_confirm_yes"):
-                st.session_state.purchase_price_raw = ""
-                st.session_state.down_payment_raw = ""
-                st.session_state.selected_sources = []
-                st.session_state.source_amounts = {}
-                st.session_state.other_source_desc = ""
-                st.session_state.dp_errors = {}
-                st.session_state["p2_refresh_confirm"] = False
-                st.rerun()
-        with rc2:
-            if st.button("Cancel", use_container_width=True, key="p2_refresh_cancel"):
-                st.session_state["p2_refresh_confirm"] = False
-                st.rerun()
 
     st.markdown("### Down Payment")
     st.write("Enter property price, down payment, and the sources funding it.")
@@ -1178,31 +1138,14 @@ def get_subject_property_costs():
 
 
 def render_property_details():
-    spacer, back_col, refresh_col, continue_col = st.columns([2, 1, 1, 1])
+    spacer, back_col, continue_col = st.columns([3, 1, 1])
 
     with back_col:
         if st.button("← Back", use_container_width=True, key="p3_back_top"):
             st.session_state.step = 1
             st.rerun()
-    with refresh_col:
-        if st.button("🔄 Refresh", use_container_width=True, key="p3_refresh_top"):
-            st.session_state["p3_refresh_confirm"] = True
-            st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p3_continue_top")
-
-    if st.session_state.get("p3_refresh_confirm"):
-        st.warning("⚠️ All data on this page will be permanently deleted. This cannot be undone.")
-        rc1, rc2 = st.columns(2)
-        with rc1:
-            if st.button("Confirm Delete", type="primary", use_container_width=True, key="p3_refresh_confirm_yes"):
-                refresh_property_details()
-                st.session_state["p3_refresh_confirm"] = False
-                st.rerun()
-        with rc2:
-            if st.button("Cancel", use_container_width=True, key="p3_refresh_cancel"):
-                st.session_state["p3_refresh_confirm"] = False
-                st.rerun()
 
     st.markdown("### Property Details")
     st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
@@ -1707,31 +1650,14 @@ def render_income_category_card(bidx, skey, source, amounts):
 
 
 def render_income():
-    spacer, back_col, refresh_col, continue_col = st.columns([2, 1, 1, 1])
+    spacer, back_col, continue_col = st.columns([3, 1, 1])
 
     with back_col:
         if st.button("← Back", use_container_width=True, key="p4_back_top"):
             st.session_state.step = 2
             st.rerun()
-    with refresh_col:
-        if st.button("🔄 Refresh", use_container_width=True, key="p4_refresh_top"):
-            st.session_state["p4_refresh_confirm"] = True
-            st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p4_continue_top")
-
-    if st.session_state.get("p4_refresh_confirm"):
-        st.warning("⚠️ All data on this page will be permanently deleted. This cannot be undone.")
-        rc1, rc2 = st.columns(2)
-        with rc1:
-            if st.button("Confirm Delete", type="primary", use_container_width=True, key="p4_refresh_confirm_yes"):
-                refresh_page3()
-                st.session_state["p4_refresh_confirm"] = False
-                st.rerun()
-        with rc2:
-            if st.button("Cancel", use_container_width=True, key="p4_refresh_cancel"):
-                st.session_state["p4_refresh_confirm"] = False
-                st.rerun()
 
     st.markdown("### Income Details")
     st.write("Enter income information for each borrower on this application.")
@@ -1896,31 +1822,14 @@ def explain_debt_payment(debt_type, amounts):
 
 
 def render_debts():
-    spacer, back_col, refresh_col, continue_col = st.columns([2, 1, 1, 1])
+    spacer, back_col, continue_col = st.columns([3, 1, 1])
 
     with back_col:
         if st.button("← Back", use_container_width=True, key="p5_back_top"):
             st.session_state.step = 3
             st.rerun()
-    with refresh_col:
-        if st.button("🔄 Refresh", use_container_width=True, key="p5_refresh_top"):
-            st.session_state["p5_refresh_confirm"] = True
-            st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p5_continue_top")
-
-    if st.session_state.get("p5_refresh_confirm"):
-        st.warning("⚠️ All data on this page will be permanently deleted. This cannot be undone.")
-        rc1, rc2 = st.columns(2)
-        with rc1:
-            if st.button("Confirm Delete", type="primary", use_container_width=True, key="p5_refresh_confirm_yes"):
-                refresh_page4()
-                st.session_state["p5_refresh_confirm"] = False
-                st.rerun()
-        with rc2:
-            if st.button("Cancel", use_container_width=True, key="p5_refresh_cancel"):
-                st.session_state["p5_refresh_confirm"] = False
-                st.rerun()
 
     st.markdown("### Debts & Liabilities")
     st.write("Enter property debts and other liabilities for this application.")
@@ -2189,33 +2098,14 @@ def render_gauge(label, value, limit):
 
 
 def render_analysis():
-    spacer, back_col, refresh_col, continue_col = st.columns([2, 1, 1, 1])
+    spacer, back_col, continue_col = st.columns([3, 1, 1])
 
     with back_col:
         if st.button("← Back", use_container_width=True, key="p6_back_top"):
             st.session_state.step = 4
             st.rerun()
-    with refresh_col:
-        if st.button("🔄 Refresh", use_container_width=True, key="p6_refresh_top"):
-            st.session_state["p6_refresh_confirm"] = True
-            st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p6_continue_top")
-
-    if st.session_state.get("p6_refresh_confirm"):
-        st.warning("⚠️ All data on this page will be permanently deleted. This cannot be undone.")
-        rc1, rc2 = st.columns(2)
-        with rc1:
-            if st.button("Confirm Delete", type="primary", use_container_width=True, key="p6_refresh_confirm_yes"):
-                st.session_state.contract_rate = 5.0
-                st.session_state.amortization_years = 25
-                st.session_state.benchmark_rate = 5.25
-                st.session_state["p6_refresh_confirm"] = False
-                st.rerun()
-        with rc2:
-            if st.button("Cancel", use_container_width=True, key="p6_refresh_cancel"):
-                st.session_state["p6_refresh_confirm"] = False
-                st.rerun()
 
     st.markdown("### Qualification Summary")
     st.write("This page aggregates data from all previous steps — nothing to re-enter here.")
@@ -2815,31 +2705,14 @@ def render_document_checklist_editable(data):
 
 
 def render_documents():
-    spacer, back_col, refresh_col, continue_col = st.columns([2, 1, 1, 1])
+    spacer, back_col, continue_col = st.columns([3, 1, 1])
 
     with back_col:
         if st.button("← Back", use_container_width=True, key="p7_back_top"):
             st.session_state.step = 5
             st.rerun()
-    with refresh_col:
-        if st.button("🔄 Refresh", use_container_width=True, key="p7_refresh_top"):
-            st.session_state["p7_refresh_confirm"] = True
-            st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p7_continue_top")
-
-    if st.session_state.get("p7_refresh_confirm"):
-        st.warning("⚠️ All data on this page will be permanently deleted. This cannot be undone.")
-        rc1, rc2 = st.columns(2)
-        with rc1:
-            if st.button("Confirm Delete", type="primary", use_container_width=True, key="p7_refresh_confirm_yes"):
-                st.session_state.doc_removed_items = set()
-                st.session_state["p7_refresh_confirm"] = False
-                st.rerun()
-        with rc2:
-            if st.button("Cancel", use_container_width=True, key="p7_refresh_cancel"):
-                st.session_state["p7_refresh_confirm"] = False
-                st.rerun()
 
     render_calculator_popover("documents")
     raw_checklist_data = build_document_checklist_data()
@@ -3067,30 +2940,12 @@ def build_system_notes():
 
 
 def render_notes():
-    spacer, back_col, refresh_col = st.columns([3, 1, 1])
+    spacer, back_col = st.columns([4, 1])
 
     with back_col:
         if st.button("← Back", use_container_width=True, key="p8_back_top"):
             st.session_state.step = 6
             st.rerun()
-    with refresh_col:
-        if st.button("🔄 Refresh", use_container_width=True, key="p8_refresh_top"):
-            st.session_state["p8_refresh_confirm"] = True
-            st.rerun()
-
-    if st.session_state.get("p8_refresh_confirm"):
-        st.warning("⚠️ All data on this page will be permanently deleted. This cannot be undone.")
-        rc1, rc2 = st.columns(2)
-        with rc1:
-            if st.button("Confirm Delete", type="primary", use_container_width=True, key="p8_refresh_confirm_yes"):
-                st.session_state.broker_notes = ""
-                st.session_state.combined_notes = ""
-                st.session_state["p8_refresh_confirm"] = False
-                st.rerun()
-        with rc2:
-            if st.button("Cancel", use_container_width=True, key="p8_refresh_cancel"):
-                st.session_state["p8_refresh_confirm"] = False
-                st.rerun()
 
     st.markdown("### Notes for Underwriter")
     render_calculator_popover("notes")
