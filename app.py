@@ -31,7 +31,7 @@ SEWER_OPTIONS = ["", "Sanitary Sewer (Municipal)", "Septic System", "Other"]
 WATER_OPTIONS = ["", "Municipal Water", "Well", "Other"]
 TITLE_TYPE_OPTIONS = ["", "Freehold", "Condominium", "Leasehold", "Other"]
 
-STEPS = ["Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Documents"]
+STEPS = ["Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Documents", "Notes"]
 
 GDS_LIMIT = 32.0
 TDS_LIMIT = 40.0
@@ -108,7 +108,7 @@ def render_calculator_popover(key_prefix):
     visible on screen at all times regardless of scroll position.
     """
     with st.sidebar:
-        st.markdown("#### 🧮 Quick Calculator")
+        st.caption("🧮 Calculator (+ − × ÷)")
         expr = st.text_input(
             "Expression", key=key_prefix + "_calc_expr", placeholder="1200 + 350*12",
             label_visibility="collapsed",
@@ -119,7 +119,6 @@ def render_calculator_popover(key_prefix):
                 st.markdown("**= " + "{:,.2f}".format(result) + "**")
             except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
                 st.caption(":red[Invalid expression]")
-        st.divider()
 
 
 def empty_borrower():
@@ -153,6 +152,10 @@ def init_state():
         st.session_state.doc_removed_items = []
     if "doc_edit_mode" not in st.session_state:
         st.session_state.doc_edit_mode = False
+    if "broker_notes" not in st.session_state:
+        st.session_state.broker_notes = ""
+    if "combined_notes" not in st.session_state:
+        st.session_state.combined_notes = ""
     if "borrower_count" not in st.session_state:
         st.session_state.borrower_count = 1
     if "borrowers" not in st.session_state:
@@ -253,6 +256,7 @@ SAVE_STATE_KEYS = [
     "subject_cooling", "subject_foundation", "subject_exterior_finish", "subject_sewer",
     "subject_water", "subject_parking_spaces", "subject_land_size", "subject_title_type",
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
+    "broker_notes", "combined_notes",
 ]
 
 
@@ -308,6 +312,8 @@ def refresh_all():
     st.session_state.step = 0
     st.session_state.doc_removed_items = []
     st.session_state.doc_edit_mode = False
+    st.session_state.broker_notes = ""
+    st.session_state.combined_notes = ""
     st.session_state.borrower_count = 1
     st.session_state.borrowers = [empty_borrower()]
     st.session_state.borrower_errors = [{}]
@@ -419,16 +425,11 @@ st.caption("Residential Mortgage Application")
 render_stepper(st.session_state.step)
 
 with st.sidebar:
-    st.markdown("#### 💾 Save or Load Application")
-    st.caption("Download everything entered so far — no account needed.")
     st.download_button(
-        "Download (.json)",
-        data=serialize_application(),
-        file_name="mortgage_application.json",
-        mime="application/json",
-        use_container_width=True,
+        "⬇️ Download", data=serialize_application(), file_name="mortgage_application.json",
+        mime="application/json", use_container_width=True,
     )
-    uploaded = st.file_uploader("Load a .json file", type=["json"], key="load_app_uploader")
+    uploaded = st.file_uploader("⬆️ Load", type=["json"], key="load_app_uploader", label_visibility="collapsed")
     if uploaded is not None:
         if st.button("Load this file", use_container_width=True, key="load_app_confirm"):
             success, message = load_application(uploaded.read().decode("utf-8"))
@@ -438,12 +439,10 @@ with st.sidebar:
             else:
                 st.error(message)
 
-    st.divider()
-
-    if st.button("🔄 Refresh Application", use_container_width=True, key="sidebar_refresh"):
+    if st.button("🔄 Refresh", use_container_width=True, key="sidebar_refresh"):
         st.session_state["sidebar_show_refresh_confirm"] = True
     if st.session_state.get("sidebar_show_refresh_confirm"):
-        st.warning("Clear all entered data across every step? This cannot be undone.")
+        st.warning("Clear all data? Cannot be undone.")
         rc1, rc2 = st.columns(2)
         with rc1:
             if st.button("Confirm", type="primary", use_container_width=True, key="sidebar_confirm_refresh"):
@@ -454,8 +453,6 @@ with st.sidebar:
             if st.button("Cancel", use_container_width=True, key="sidebar_cancel_refresh"):
                 st.session_state["sidebar_show_refresh_confirm"] = False
                 st.rerun()
-
-    st.divider()
 
 
 # ---------------------------------------------------------------------------
@@ -514,6 +511,7 @@ def refresh_page1():
 def render_client_details():
     st.markdown("### Client Details")
     st.write("Enter information for each borrower on this application.")
+    render_calculator_popover("client")
 
     st.write("**Number of Borrowers**")
     cols = st.columns(4)
@@ -656,6 +654,7 @@ def refresh_page2():
 def render_down_payment():
     st.markdown("### Down Payment")
     st.write("Enter property price, down payment, and the sources funding it.")
+    render_calculator_popover("downpayment")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -1646,6 +1645,10 @@ def render_analysis():
             "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
             value=st.session_state.contract_rate, step=0.05, key="analysis_contract_rate",
         )
+        st.session_state.benchmark_rate = st.number_input(
+            "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
+            value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
+        )
     with fc2:
         st.session_state.amortization_years = st.number_input(
             "Amortization (years)", min_value=1, max_value=35,
@@ -1695,11 +1698,7 @@ def render_analysis():
 
     st.divider()
 
-    # --- Benchmark rate + stress test numbers (computed early so they can sit next to contract GDS/TDS) ---
-    st.session_state.benchmark_rate = st.number_input(
-        "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
-        value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
-    )
+    # --- Stress test numbers (computed early so they can sit next to contract GDS/TDS) ---
     qualifying_rate = max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate)
     st.caption(
         "Qualifying Rate Used for Stress Test: " + "{:.2f}%".format(qualifying_rate)
@@ -1749,61 +1748,66 @@ def render_analysis():
             ("50% Condo Fees (0.5 × C)", condo * 0.5, condo * 0.5 * 12),
         ]
         cell = "padding:4px 8px; border-bottom:1px solid #94a3b8 !important; color:#0f172a !important; background:#f1f5f9 !important;"
-        table_rows_html = "".join(
-            "<tr><td style='" + cell + "'>" + name + "</td>"
-            "<td style='" + cell + " text-align:right;'>" + fmt_money(monthly) + "</td>"
-            "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
-            for name, monthly, annual in rows
-        )
         head = "padding:4px 8px; color:#0f172a !important; background:#cbd5e1 !important; font-weight:700 !important;"
-        total_cell = "padding:4px 8px; color:#0f172a !important; background:#e2e8f0 !important; font-weight:700 !important;"
-        st.markdown(
-            "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;'>"
-            "<tr>"
-            "<th style='" + head + " text-align:left;'>Housing Cost Component</th>"
-            "<th style='" + head + " text-align:right;'>Monthly</th>"
-            "<th style='" + head + " text-align:right;'>Annual</th></tr>"
-            + table_rows_html +
-            "<tr>"
-            "<td style='" + total_cell + "'>Total Annual Housing Costs (PITH)</td>"
-            "<td style='" + total_cell + "'></td>"
-            "<td style='" + total_cell + " text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
-            "</table>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; margin-bottom:10px; "
-            "font-size:13px; color:#1e3a8a !important;'>"
-            "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
-            + " × 100 = <b>" + gds_disp + "</b></div>",
-            unsafe_allow_html=True,
-        )
+        total_cell = "padding:4px 8px; color:#78350f !important; background:#fde047 !important; font-weight:700 !important;"
 
-        tds_rows_html = (
-            "<tr><td style='" + cell + "'>Annual Housing Costs (PITH, from above)</td>"
-            "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
-            "<tr><td style='" + cell + "'>All Other Monthly Debt Payments × 12</td>"
-            "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
-        )
-        st.markdown(
-            "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;'>"
-            "<tr>"
-            "<th style='" + head + " text-align:left;'>Debt Obligation Component</th>"
-            "<th style='" + head + " text-align:right;'>Annual</th></tr>"
-            + tds_rows_html +
-            "<tr>"
-            "<td style='" + total_cell + "'>Total Annual Debt Obligations</td>"
-            "<td style='" + total_cell + " text-align:right;'>" + fmt_money(annual_housing_amount + annual_other_debt_amount) + "</td></tr>"
-            "</table>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
-            "font-size:13px; color:#1e3a8a !important;'>"
-            "<b>TDS</b> = " + fmt_money(annual_housing_amount + annual_other_debt_amount) + " ÷ " + fmt_money(total_income)
-            + " × 100 = <b>" + tds_disp + "</b></div>",
-            unsafe_allow_html=True,
-        )
+        gds_col, tds_col = st.columns(2)
+
+        with gds_col:
+            table_rows_html = "".join(
+                "<tr><td style='" + cell + "'>" + name + "</td>"
+                "<td style='" + cell + " text-align:right;'>" + fmt_money(monthly) + "</td>"
+                "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
+                for name, monthly, annual in rows
+            )
+            st.markdown(
+                "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;'>"
+                "<tr>"
+                "<th style='" + head + " text-align:left;'>Housing Cost Component</th>"
+                "<th style='" + head + " text-align:right;'>Monthly</th>"
+                "<th style='" + head + " text-align:right;'>Annual</th></tr>"
+                + table_rows_html +
+                "<tr>"
+                "<td style='" + total_cell + "'>Total Annual Housing Costs (PITH)</td>"
+                "<td style='" + total_cell + "'></td>"
+                "<td style='" + total_cell + " text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
+                "</table>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
+                "font-size:13px; color:#1e3a8a !important;'>"
+                "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
+                + " × 100 = <b>" + gds_disp + "</b></div>",
+                unsafe_allow_html=True,
+            )
+
+        with tds_col:
+            tds_rows_html = (
+                "<tr><td style='" + cell + "'>Annual Housing Costs (PITH, from left)</td>"
+                "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
+                "<tr><td style='" + cell + "'>All Other Monthly Debt Payments × 12</td>"
+                "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
+            )
+            st.markdown(
+                "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;'>"
+                "<tr>"
+                "<th style='" + head + " text-align:left;'>Debt Obligation Component</th>"
+                "<th style='" + head + " text-align:right;'>Annual</th></tr>"
+                + tds_rows_html +
+                "<tr>"
+                "<td style='" + total_cell + "'>Total Annual Debt Obligations</td>"
+                "<td style='" + total_cell + " text-align:right;'>" + fmt_money(annual_housing_amount + annual_other_debt_amount) + "</td></tr>"
+                "</table>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
+                "font-size:13px; color:#1e3a8a !important;'>"
+                "<b>TDS</b> = " + fmt_money(annual_housing_amount + annual_other_debt_amount) + " ÷ " + fmt_money(total_income)
+                + " × 100 = <b>" + tds_disp + "</b></div>",
+                unsafe_allow_html=True,
+            )
 
     with st.expander("Show calculation details (Contract Rate)", expanded=False):
         st.caption("Formula: GDS = (P + I + T + H + 0.5C) ÷ Gross Annual Income × 100  |  TDS adds all other monthly debts.")
@@ -1816,13 +1820,6 @@ def render_analysis():
             + "); taxes, heat, and condo fees are unchanged."
         )
         render_ratio_breakdown(stressed_pi, stressed_annual_housing, stressed_annual_other_debt, stressed_gds_display, stressed_tds_display, is_stressed=True)
-
-    st.divider()
-
-    # --- Visual gauges ---
-    st.markdown("#### Visual Indicators (Contract Rate)")
-    render_gauge("GDS", gds, GDS_LIMIT)
-    render_gauge("TDS", tds, TDS_LIMIT)
 
     st.divider()
 
@@ -2193,6 +2190,7 @@ def render_document_checklist_editable(data):
 
 
 def render_documents():
+    render_calculator_popover("documents")
     raw_checklist_data = build_document_checklist_data()
     checklist_data = filter_checklist_data(raw_checklist_data, st.session_state.doc_removed_items)
 
@@ -2268,7 +2266,7 @@ def render_documents():
 
     st.divider()
 
-    back_col, refresh_col = st.columns(2)
+    back_col, refresh_col, notes_col = st.columns(3)
     with back_col:
         if st.button("← Back to Analysis", use_container_width=True, key="p6_back"):
             st.session_state.step = 5
@@ -2276,6 +2274,10 @@ def render_documents():
     with refresh_col:
         if st.button("Refresh", use_container_width=True, key="p6_refresh"):
             st.session_state["p6_show_refresh_confirm"] = True
+    with notes_col:
+        if st.button("Notes →", use_container_width=True, key="p6_to_notes"):
+            st.session_state.step = 7
+            st.rerun()
 
     if st.session_state.get("p6_show_refresh_confirm"):
         st.warning("Are you sure you want to refresh? All entered data across all pages will be permanently cleared.")
@@ -2288,6 +2290,199 @@ def render_documents():
         with c2:
             if st.button("Cancel", use_container_width=True, key="p6_cancel_refresh"):
                 st.session_state["p6_show_refresh_confirm"] = False
+                st.rerun()
+
+
+def build_system_notes():
+    """
+    Compiles a structured, deterministic narrative summary from everything
+    entered in the application — personal details, down payment source,
+    income source, the property, and GDS/TDS — for the underwriter to read
+    alongside the broker's own notes. This is a rules-based compilation of
+    the application's own data, not a live AI model call (this app has no
+    LLM API connected) — it's built to read like a summary a broker would
+    write, sourced entirely from what's on file.
+    """
+    lines = []
+
+    # --- Borrowers ---
+    borrower_bits = []
+    for idx in range(st.session_state.borrower_count):
+        b = st.session_state.borrowers[idx]
+        name = b["full_name"].strip() if b["full_name"].strip() else "Borrower " + str(idx + 1)
+        details = []
+        if b.get("marital_status"):
+            details.append(b["marital_status"].lower())
+        if b.get("dob"):
+            age = (date.today() - b["dob"]).days // 365
+            details.append(str(age) + " years old")
+        detail_str = " (" + ", ".join(details) + ")" if details else ""
+        borrower_bits.append(name + detail_str)
+    if borrower_bits:
+        lines.append(
+            "APPLICANT(S): This application includes " + str(st.session_state.borrower_count)
+            + " borrower(s): " + "; ".join(borrower_bits) + "."
+        )
+
+    # --- Down payment source ---
+    dp_amount = parse_money(st.session_state.down_payment_raw) or 0.0
+    purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
+    dp_sources = []
+    for key in st.session_state.selected_sources:
+        src = next((s for s in DOWN_PAYMENT_SOURCES if s["key"] == key), None)
+        if src:
+            amt = parse_money(st.session_state.source_amounts.get(key, "")) or 0.0
+            dp_sources.append(src["label"] + " (" + fmt_money(amt) + ")")
+    if purchase_price or dp_sources:
+        dp_pct = (dp_amount / purchase_price * 100) if purchase_price else None
+        pct_str = " ({:.1f}% of purchase price)".format(dp_pct) if dp_pct is not None else ""
+        source_str = ", ".join(dp_sources) if dp_sources else "not yet specified"
+        lines.append(
+            "DOWN PAYMENT: " + fmt_money(dp_amount) + pct_str + " on a purchase price of " + fmt_money(purchase_price)
+            + ". Source(s): " + source_str + "."
+        )
+
+    # --- Income ---
+    income_bits = []
+    for idx in range(st.session_state.borrower_count):
+        name = borrower_display_name(idx)
+        bidx = str(idx)
+        sources_for_borrower = []
+        for key in st.session_state.income_selected.get(bidx, []):
+            src = get_income_source(key)
+            if src:
+                sources_for_borrower.append(src["label"])
+        if sources_for_borrower:
+            income_bits.append(name + ": " + ", ".join(sources_for_borrower))
+    total_income = compute_total_income()
+    if income_bits:
+        lines.append(
+            "INCOME: Combined gross annual income of " + fmt_money(total_income) + ". "
+            + " | ".join(income_bits) + "."
+        )
+
+    # --- Property ---
+    prop_bits = []
+    if st.session_state.subject_address.strip():
+        prop_bits.append(st.session_state.subject_address.strip())
+    if st.session_state.subject_prop_type:
+        prop_bits.append(st.session_state.subject_prop_type)
+    if st.session_state.subject_prop_purpose:
+        prop_bits.append(st.session_state.subject_prop_purpose)
+    if st.session_state.subject_prop_age:
+        prop_bits.append("age: " + st.session_state.subject_prop_age)
+    if st.session_state.subject_sqft:
+        prop_bits.append(st.session_state.subject_sqft + " sqft")
+    if prop_bits:
+        lines.append("SUBJECT PROPERTY: " + ", ".join(prop_bits) + ".")
+
+    # --- GDS/TDS ---
+    pi_payment, taxes, condo, heat, _ = get_subject_property_costs()
+    other_debt_monthly = 0.0
+    for dkey in st.session_state.debt_selected:
+        dt = get_debt_type(dkey)
+        amounts = st.session_state.debt_amounts.get(dkey, {})
+        other_debt_monthly += compute_debt_payment(dt, amounts)
+    for prop in st.session_state.properties:
+        p_total, _, _, _, _ = compute_property_total(prop)
+        other_debt_monthly += p_total
+
+    gds, tds, _, _ = compute_gds_tds(pi_payment, taxes, heat, condo, other_debt_monthly, total_income)
+    qualifying_rate = max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate)
+    purchase_price_v = parse_money(st.session_state.purchase_price_raw) or 0.0
+    down_payment_v = parse_money(st.session_state.down_payment_raw) or 0.0
+    loan_amount = max(purchase_price_v - down_payment_v, 0.0)
+    stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, st.session_state.amortization_years)
+    stressed_gds, stressed_tds, _, _ = compute_gds_tds(stressed_pi, taxes, heat, condo, other_debt_monthly, total_income)
+
+    if gds is not None and tds is not None:
+        qualifies = gds <= GDS_LIMIT and tds <= TDS_LIMIT
+        stress_qualifies = stressed_gds is not None and stressed_tds is not None and stressed_gds <= GDS_LIMIT and stressed_tds <= TDS_LIMIT
+        lines.append(
+            "GDS/TDS: At the contract rate of {:.2f}%, GDS is {:.2f}% and TDS is {:.2f}% (limits: {:.0f}%/{:.0f}%) — {}. "
+            "Stressed at the qualifying rate of {:.2f}%, GDS is {} and TDS is {} — {}.".format(
+                st.session_state.contract_rate, gds, tds, GDS_LIMIT, TDS_LIMIT,
+                "within limits" if qualifies else "exceeds limits",
+                qualifying_rate,
+                "{:.2f}%".format(stressed_gds) if stressed_gds is not None else "—",
+                "{:.2f}%".format(stressed_tds) if stressed_tds is not None else "—",
+                "within limits" if stress_qualifies else "exceeds limits",
+            )
+        )
+
+    if not lines:
+        return "No application data entered yet — complete the earlier steps to generate a summary."
+    return "\n\n".join(lines)
+
+
+def render_notes():
+    st.markdown("### Notes for Underwriter")
+    render_calculator_popover("notes")
+    st.write(
+        "A system-compiled summary of the application below, plus space for the broker's own notes. "
+        "Combine them into one final note for the file."
+    )
+
+    with st.expander("System-Generated Summary (from application data)", expanded=True):
+        system_notes = build_system_notes()
+        st.markdown(system_notes.replace("\n", "  \n"))
+
+    st.divider()
+
+    st.markdown("#### Broker's Notes")
+    st.session_state.broker_notes = st.text_area(
+        "Add any context the system can't infer — client's story, special circumstances, verbal explanations, etc.",
+        value=st.session_state.broker_notes, height=150, key="broker_notes_input",
+    )
+
+    st.caption(
+        "Note: this app isn't connected to a live AI model — \"Combine Notes\" below merges the system "
+        "summary and your notes into one clean file note using a fixed format, not generative rewriting."
+    )
+    if st.button("🧩 Combine Notes", type="primary", use_container_width=True, key="combine_notes_btn"):
+        combined = "UNDERWRITER FILE NOTE\n" + "=" * 40 + "\n\n"
+        combined += "SYSTEM-GENERATED SUMMARY\n" + "-" * 40 + "\n" + system_notes + "\n\n"
+        combined += "BROKER'S NOTES\n" + "-" * 40 + "\n"
+        combined += st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)"
+        st.session_state.combined_notes = combined
+        st.success("Notes combined below — feel free to edit before downloading.")
+
+    if st.session_state.combined_notes:
+        st.divider()
+        st.markdown("#### Combined File Note")
+        st.session_state.combined_notes = st.text_area(
+            "Final note (editable)", value=st.session_state.combined_notes, height=300, key="combined_notes_editor",
+            label_visibility="collapsed",
+        )
+        st.download_button(
+            "Download File Note (.txt)",
+            data=st.session_state.combined_notes,
+            file_name="underwriter_file_note.txt",
+            mime="text/plain",
+        )
+
+    st.divider()
+
+    back_col, refresh_col = st.columns(2)
+    with back_col:
+        if st.button("← Back to Documents", use_container_width=True, key="p7_back"):
+            st.session_state.step = 6
+            st.rerun()
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p7_refresh"):
+            st.session_state["p7_show_refresh_confirm"] = True
+
+    if st.session_state.get("p7_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data across all pages will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p7_confirm_refresh"):
+                refresh_all()
+                st.session_state["p7_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p7_cancel_refresh"):
+                st.session_state["p7_show_refresh_confirm"] = False
                 st.rerun()
 
 
@@ -2309,3 +2504,5 @@ elif st.session_state.step == 5:
     render_analysis()
 elif st.session_state.step == 6:
     render_documents()
+elif st.session_state.step == 7:
+    render_notes()
