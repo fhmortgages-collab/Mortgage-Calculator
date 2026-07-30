@@ -860,22 +860,6 @@ def render_client_details():
 
     st.divider()
 
-    if st.button("🔄 Refresh Page", use_container_width=False, key="p1_refresh"):
-        st.session_state["p1_show_refresh_confirm"] = True
-
-    if st.session_state.get("p1_show_refresh_confirm"):
-        st.warning("Are you sure you want to refresh? All entered data will be permanently cleared.")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Confirm", type="primary", use_container_width=True, key="p1_confirm_refresh"):
-                refresh_page1()
-                st.session_state["p1_show_refresh_confirm"] = False
-                st.rerun()
-        with c2:
-            if st.button("Cancel", use_container_width=True, key="p1_cancel_refresh"):
-                st.session_state["p1_show_refresh_confirm"] = False
-                st.rerun()
-
     # Handle Continue button from top
     if continue_top:
         all_errors = [validate_borrower(b) for b in st.session_state.borrowers]
@@ -1050,22 +1034,6 @@ def render_down_payment():
             )
 
     st.divider()
-
-    if st.button("🔄 Refresh Page", use_container_width=False, key="p2_refresh"):
-        st.session_state["p2_show_refresh_confirm"] = True
-
-    if st.session_state.get("p2_show_refresh_confirm"):
-        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Confirm", type="primary", use_container_width=True, key="p2_confirm_refresh"):
-                refresh_page2()
-                st.session_state["p2_show_refresh_confirm"] = False
-                st.rerun()
-        with c2:
-            if st.button("Cancel", use_container_width=True, key="p2_cancel_refresh"):
-                st.session_state["p2_show_refresh_confirm"] = False
-                st.rerun()
 
     if continue_top:
         valid = (
@@ -1284,22 +1252,6 @@ def render_property_details():
     )
 
     st.divider()
-
-    if st.button("🔄 Refresh Page", use_container_width=False, key="p3_refresh"):
-        st.session_state["p3_show_refresh_confirm"] = True
-
-    if st.session_state.get("p3_show_refresh_confirm"):
-        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Confirm", type="primary", use_container_width=True, key="p3_confirm_refresh"):
-                refresh_property_details()
-                st.session_state["p3_show_refresh_confirm"] = False
-                st.rerun()
-        with c2:
-            if st.button("Cancel", use_container_width=True, key="p3_cancel_refresh"):
-                st.session_state["p3_show_refresh_confirm"] = False
-                st.rerun()
 
     if continue_top:
         if st.session_state.subject_address.strip():
@@ -1745,22 +1697,6 @@ def render_income():
     st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
     st.divider()
 
-    if st.button("🔄 Refresh Page", use_container_width=False, key="p4_refresh"):
-        st.session_state["p4_show_refresh_confirm"] = True
-
-    if st.session_state.get("p4_show_refresh_confirm"):
-        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Confirm", type="primary", use_container_width=True, key="p4_confirm_refresh"):
-                refresh_page3()
-                st.session_state["p4_show_refresh_confirm"] = False
-                st.rerun()
-        with c2:
-            if st.button("Cancel", use_container_width=True, key="p4_cancel_refresh"):
-                st.session_state["p4_show_refresh_confirm"] = False
-                st.rerun()
-
     if continue_top:
         if all_valid:
             st.session_state.step = 4
@@ -2023,22 +1959,6 @@ def render_debts():
         st.caption(":red[Please add at least one property or select at least one debt type.]")
 
     st.divider()
-
-    if st.button("🔄 Refresh Page", use_container_width=False, key="p5_refresh"):
-        st.session_state["p5_show_refresh_confirm"] = True
-
-    if st.session_state.get("p5_show_refresh_confirm"):
-        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Confirm", type="primary", use_container_width=True, key="p5_confirm_refresh"):
-                refresh_page4()
-                st.session_state["p5_show_refresh_confirm"] = False
-                st.rerun()
-        with c2:
-            if st.button("Cancel", use_container_width=True, key="p5_cancel_refresh"):
-                st.session_state["p5_show_refresh_confirm"] = False
-                st.rerun()
 
     if continue_top:
         if is_valid:
@@ -2389,23 +2309,6 @@ def render_analysis():
     )
 
     st.divider()
-
-    # --- Navigation ---
-    if st.button("🔄 Refresh Page", use_container_width=False, key="p6_refresh"):
-        st.session_state["p6_show_refresh_confirm"] = True
-
-    if st.session_state.get("p6_show_refresh_confirm"):
-        st.warning("Are you sure you want to refresh? All entered data across all pages will be permanently cleared.")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Confirm", type="primary", use_container_width=True, key="p6_confirm_refresh"):
-                refresh_all()
-                st.session_state["p6_show_refresh_confirm"] = False
-                st.rerun()
-        with c2:
-            if st.button("Cancel", use_container_width=True, key="p6_cancel_refresh"):
-                st.session_state["p6_show_refresh_confirm"] = False
-                st.rerun()
 
     submit_col, docs_col = st.columns(2)
     with submit_col:
@@ -2790,27 +2693,11 @@ def render_documents():
 
     st.divider()
 
-    if st.button("🔄 Refresh Page", use_container_width=False, key="p7_refresh"):
-        st.session_state["p7_show_refresh_confirm"] = True
-
     notes_col = st.columns([1])[0]
     with notes_col:
         if st.button("Notes →", use_container_width=True, key="p7_to_notes"):
             st.session_state.step = 7
             st.rerun()
-
-    if st.session_state.get("p7_show_refresh_confirm"):
-        st.warning("Are you sure you want to refresh? All entered data across all pages will be permanently cleared.")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Confirm", type="primary", use_container_width=True, key="p7_confirm_refresh"):
-                refresh_all()
-                st.session_state["p7_show_refresh_confirm"] = False
-                st.rerun()
-        with c2:
-            if st.button("Cancel", use_container_width=True, key="p7_cancel_refresh"):
-                st.session_state["p7_show_refresh_confirm"] = False
-                st.rerun()
 
     if continue_top:
         st.session_state.step = 7
@@ -2994,22 +2881,6 @@ def render_notes():
             )
 
     st.divider()
-
-    if st.button("🔄 Refresh Page", use_container_width=False, key="p8_refresh"):
-        st.session_state["p8_show_refresh_confirm"] = True
-
-    if st.session_state.get("p8_show_refresh_confirm"):
-        st.warning("Are you sure you want to refresh? All entered data across all pages will be permanently cleared.")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Confirm", type="primary", use_container_width=True, key="p8_confirm_refresh"):
-                refresh_all()
-                st.session_state["p8_show_refresh_confirm"] = False
-                st.rerun()
-        with c2:
-            if st.button("Cancel", use_container_width=True, key="p8_cancel_refresh"):
-                st.session_state["p8_show_refresh_confirm"] = False
-                st.rerun()
 
 
 # ---------------------------------------------------------------------------
