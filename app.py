@@ -42,77 +42,81 @@ RATE_TYPE_OPTIONS = ["Fixed", "Variable"]
 
 def help_contract_rate_text(rate):
     return (
-        "This is the actual interest rate the lender charges on this mortgage — it's what the real monthly "
-        "payment is calculated from. It's not the same as the stress-test/benchmark rate, which is only "
-        "used to check affordability on paper and never changes what the borrower actually pays.\n\n"
-        "**Example from this file:** the contract rate entered is **{:.2f}%**, so this borrower's real "
-        "monthly mortgage payment is calculated using {:.2f}% interest — not the higher stress-test rate.\n\n"
-        "**Generic example:** say a different borrower is offered a 5-year fixed rate of 4.5% on a "
-        "$400,000 mortgage. Their actual monthly payment is calculated using that 4.5% rate — the bank "
-        "will separately check they could still afford payments at a higher rate (the stress test), but "
-        "4.5% is what they're billed every month.".format(rate, rate)
+        "This is the actual interest rate the lender charges on this mortgage — it's the number your real "
+        "monthly payment is calculated from. It's set by the lender based on the borrower's credit profile, "
+        "the product chosen, and current market conditions, and it stays fixed for the length of the term "
+        "(unless it's a variable-rate product, in which case it can move with the lender's prime rate). "
+        "This is different from the stress-test/benchmark rate elsewhere on this page — that rate is only "
+        "used to check affordability on paper and never appears on the borrower's actual statement or "
+        "changes what they're billed.\n\n"
+        "**Example from this file:** the contract rate entered is **{:.2f}%**. That means this borrower's "
+        "real monthly mortgage payment — the Principal + Interest figure shown further down this page — is "
+        "calculated using {:.2f}% interest, not the higher stress-test rate the lender also has to check "
+        "against.".format(rate, rate)
     )
 
 
 def help_term_text(term):
     return (
-        "The mortgage term is how long the borrower is locked into this rate and lender before having to "
-        "renew — usually 1 to 5 years in Canada. It's different from amortization (the full payoff "
-        "timeline, often 25–30 years) — the term is just one chapter of that timeline. When the term "
-        "ends, the borrower renews, possibly at a new rate or even a new lender, even though the mortgage "
-        "itself isn't fully paid off yet.\n\n"
+        "The mortgage term is how long the borrower is locked into this specific rate and lender before "
+        "having to renew — commonly 1 to 5 years in Canada, though some lenders offer up to 10. It's easy "
+        "to confuse with amortization, but they're different things: amortization (usually 25–30 years) is "
+        "the full timeline to pay the mortgage down to zero, while the term is just one chapter of that "
+        "timeline. When the term ends, the borrower must renew — either with the same lender or by "
+        "switching to a new one — and the rate they get at renewal depends on market conditions at that "
+        "time, which may be higher or lower than what they have now.\n\n"
         "**Example from this file:** the term selected is **{}**, meaning this rate and lender commitment "
-        "lasts {} before the borrower needs to renew.\n\n"
-        "**Generic example:** a borrower with a 25-year amortization who picks a 3-year term will renew "
-        "roughly 8 times before the mortgage is fully paid off — each time potentially at a different "
-        "rate depending on the market.".format(term, term.lower())
+        "lasts {} before the borrower needs to renew — at which point the rate could change even though "
+        "the mortgage balance still has years left on its amortization schedule.".format(term, term.lower())
     )
 
 
 def help_amortization_text(years):
     return (
         "Amortization is the total number of years it will take to pay the mortgage off completely, "
-        "assuming payments stay the same the whole time. 25 years is the most common in Canada (up to 30 "
-        "for some first-time buyers or new construction). A longer amortization lowers the monthly "
-        "payment but increases total interest paid over the life of the loan.\n\n"
-        "**Example from this file:** amortization is set to **{} years**, so at the current rate, this "
-        "mortgage would be fully paid off in {} years if payments never change.\n\n"
-        "**Generic example:** a $400,000 mortgage at 5% over 25 years costs noticeably less in monthly "
-        "payments than the same loan over 15 years — but the 25-year version pays significantly more "
-        "total interest by the time it's paid off.".format(years, years)
+        "assuming payments stay the same the whole time and nothing extra is paid down early. 25 years is "
+        "the most common choice in Canada (up to 30 for some first-time buyers or new construction). The "
+        "length chosen here directly trades off monthly affordability against total interest paid: a "
+        "longer amortization spreads the same loan over more payments, so each one is smaller, but the "
+        "lender collects interest for longer, so the total cost of borrowing goes up. A shorter "
+        "amortization does the opposite — higher payments now, but the loan is paid off faster and costs "
+        "less in interest overall.\n\n"
+        "**Example from this file:** amortization is set to **{} years**, so at the current contract rate, "
+        "this mortgage is scheduled to be fully paid off in {} years, assuming payments never change and "
+        "no lump-sum prepayments are made along the way.".format(years, years)
     )
 
 
 def help_rate_type_text(rate_type):
     if rate_type == "Fixed":
-        detail = "the rate is locked for the whole term, so the payment amount won't change even if market rates move."
+        detail = "the rate is locked for the whole term, so the payment amount won't change even if market rates move up or down."
     else:
         detail = "the rate moves with the lender's prime rate, so the interest portion of the payment can rise or fall during the term."
     return (
-        "Fixed means the interest rate is locked for the whole term, so the payment stays the same no "
-        "matter what happens in the market. Variable means the rate moves with the lender's prime rate, "
-        "so the interest portion of the payment can rise or fall during the term (the total payment may "
-        "stay level with more/less going to principal, or it may change, depending on the lender's product).\n\n"
-        "**Example from this file:** the rate type selected is **" + rate_type + "**, so " + detail + "\n\n"
-        "**Generic example:** two borrowers each take a $350,000 mortgage. One picks Fixed at 4.8% — their "
-        "payment is the same every month for the full term. The other picks Variable starting at 4.3% — "
-        "if prime rate rises 0.5% partway through the term, more of their payment goes to interest (or "
-        "their payment increases, depending on the lender)."
+        "Fixed means the interest rate is locked in for the entire term, so the payment amount stays "
+        "exactly the same every month, regardless of what happens to interest rates in the broader market. "
+        "It offers certainty but usually starts slightly higher than a variable rate. Variable means the "
+        "rate is tied to the lender's prime rate and moves when the Bank of Canada changes its policy rate "
+        "— when prime goes up, more of the payment goes to interest (and less to principal); when it goes "
+        "down, the opposite happens. Some variable products keep the payment amount fixed and just shift "
+        "the principal/interest split, while others adjust the payment itself — it depends on the lender's "
+        "specific product.\n\n"
+        "**Example from this file:** the rate type selected is **" + rate_type + "**, so " + detail
     )
 
 
 def help_benchmark_text(contract_rate, benchmark_rate, qualifying_rate):
     return (
-        "Also called the mortgage 'stress test' rate. Regulated lenders must confirm the borrower could "
-        "still afford payments at a higher rate — the greater of the contract rate + 2%, or a federal "
-        "floor (5.25% as of 2026) — in case rates rise after closing. It doesn't change the real payment, "
-        "only what's used to check affordability on paper.\n\n"
-        "**Example from this file:** contract rate + 2% = **{:.2f}%**, and the benchmark floor entered is "
-        "**{:.2f}%** — so the qualifying rate used for the stress test is the higher of the two: "
-        "**{:.2f}%**.\n\n"
-        "**Generic example:** a borrower is offered 4.0% on their mortgage. 4.0% + 2% = 6.0%, which is "
-        "higher than the 5.25% federal floor — so the lender stress-tests them at 6.0%, not 4.0%, even "
-        "though 4.0% is the rate they'll actually pay.".format(
+        "Also called the mortgage 'stress test' rate. Since 2018, Canada's banking regulator (OSFI) has "
+        "required federally regulated lenders to confirm a borrower could still afford their payments at a "
+        "rate higher than what they're actually being offered — specifically, the greater of the contract "
+        "rate plus 2%, or a fixed federal floor (5.25% as of 2026). This exists to build in a safety margin "
+        "in case rates rise after closing, or the borrower's circumstances tighten. Critically, the "
+        "qualifying rate never appears on the borrower's actual bill — it's purely a math exercise the "
+        "lender runs behind the scenes to decide how much they're willing to lend.\n\n"
+        "**Example from this file:** contract rate + 2% = **{:.2f}%**, and the benchmark floor entered here "
+        "is **{:.2f}%** — since the lender must use whichever of those two numbers is higher, the qualifying "
+        "rate actually used for this file's stress test is **{:.2f}%**.".format(
             contract_rate + 2.0, benchmark_rate, qualifying_rate
         )
     )
@@ -121,20 +125,21 @@ def help_benchmark_text(contract_rate, benchmark_rate, qualifying_rate):
 def help_gds_text(total_income_val, annual_housing_val, gds_val):
     if gds_val is not None:
         file_example = (
-            "**Example from this file:** combined gross annual income is **" + fmt_money(total_income_val)
-            + "**, and annual housing costs (mortgage + taxes + heat + half of condo fees) are **"
-            + fmt_money(annual_housing_val) + "** — " + fmt_money(annual_housing_val) + " ÷ "
+            "**Example from this file:** combined gross annual income across all borrowers is **"
+            + fmt_money(total_income_val) + "**, and annual housing costs (mortgage principal + interest, "
+            "property taxes, heat, and half of any condo fees) come to **" + fmt_money(annual_housing_val)
+            + "**. Dividing one by the other: " + fmt_money(annual_housing_val) + " ÷ "
             + fmt_money(total_income_val) + " × 100 = **{:.2f}%**.".format(gds_val)
         )
     else:
-        file_example = "**Example from this file:** income hasn't been entered yet, so GDS can't be calculated."
+        file_example = "**Example from this file:** income hasn't been entered yet, so GDS can't be calculated for this file."
     return (
         "Gross Debt Service ratio: the share of gross (pre-tax) household income that would go toward "
-        "housing costs — mortgage payment, property taxes, heat, and half of any condo fees. Lenders "
-        "typically want this at or under roughly 32–39%; a lower GDS means more breathing room in the "
-        "budget for housing costs relative to income.\n\n" + file_example + "\n\n"
-        "**Generic example:** a household earning $90,000/year with $2,000/month in total housing costs "
-        "has a GDS of ($2,000 × 12) ÷ $90,000 × 100 = 26.7% — comfortably under the typical 32% guideline."
+        "housing costs alone — the mortgage payment, property taxes, heating, and half of any condo fees "
+        "(the other half is assumed to be a discretionary living cost, not a housing carrying cost). "
+        "Lenders typically want this at or under roughly 32%, though insured mortgages can sometimes stretch "
+        "to 39%. A lower GDS means more of the household's income is left over after housing is covered, "
+        "which lenders read as lower risk.\n\n" + file_example
     )
 
 
@@ -143,20 +148,20 @@ def help_tds_text(total_income_val, annual_housing_val, annual_other_debt_val, t
         total_debt = annual_housing_val + annual_other_debt_val
         file_example = (
             "**Example from this file:** annual housing costs are **" + fmt_money(annual_housing_val)
-            + "**, plus other annual debt payments of **" + fmt_money(annual_other_debt_val)
-            + "**, for total debt obligations of **" + fmt_money(total_debt) + "** — " + fmt_money(total_debt)
+            + "**, plus other annual debt payments (car loans, credit cards, other properties, etc.) of **"
+            + fmt_money(annual_other_debt_val) + "**, giving total annual debt obligations of **"
+            + fmt_money(total_debt) + "**. Dividing by combined gross annual income: " + fmt_money(total_debt)
             + " ÷ " + fmt_money(total_income_val) + " × 100 = **{:.2f}%**.".format(tds_val)
         )
     else:
-        file_example = "**Example from this file:** income hasn't been entered yet, so TDS can't be calculated."
+        file_example = "**Example from this file:** income hasn't been entered yet, so TDS can't be calculated for this file."
     return (
-        "Total Debt Service ratio: the same idea as GDS, but also adds in all other monthly debt payments "
-        "(car loans, credit cards, other properties, etc.). Lenders typically want this at or under "
-        "roughly 40–44%. A borrower can have a healthy GDS but still fail TDS if they're carrying a lot "
-        "of other debt.\n\n" + file_example + "\n\n"
-        "**Generic example:** that same $90,000/year household from the GDS example also pays $500/month "
-        "on a car loan and credit cards. Their TDS is ($2,000 + $500) × 12 ÷ $90,000 × 100 = 33.3% — still "
-        "comfortably under the typical 40% guideline, but noticeably higher than their GDS alone."
+        "Total Debt Service ratio: builds on GDS by adding in every other debt obligation the borrower is "
+        "carrying — car loans, credit cards, lines of credit, other properties, student loans, and so on — "
+        "on top of the housing costs already counted in GDS. Lenders typically want this at or under "
+        "roughly 40%, sometimes up to 44% for insured mortgages. It's possible for a borrower to have a "
+        "perfectly healthy GDS but still fail TDS if they're carrying significant debt outside of housing, "
+        "which is why lenders check both ratios rather than just one.\n\n" + file_example
     )
 
 
@@ -178,6 +183,28 @@ def parse_money(raw):
         return float(cleaned)
     except ValueError:
         return None
+
+
+def parse_month_year(text):
+    """Parses a 'MM/YYYY' string into a date (first of that month). Returns None if invalid/empty."""
+    if not text:
+        return None
+    match = re.match(r"^\s*(\d{1,2})\s*/\s*(\d{4})\s*$", text)
+    if not match:
+        return None
+    month, year = int(match.group(1)), int(match.group(2))
+    if month < 1 or month > 12:
+        return None
+    try:
+        return date(year, month, 1)
+    except ValueError:
+        return None
+
+
+def months_elapsed_since(start):
+    """Whole months between `start` (a date) and today."""
+    today = date.today()
+    return (today.year - start.year) * 12 + (today.month - start.month)
 
 
 _CALC_ALLOWED_BINOPS = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod, ast.FloorDiv)
@@ -491,7 +518,7 @@ def refresh_all():
 
 def render_stepper(active_index):
     with st.container(key="stepper_row"):
-        cols = st.columns(len(STEPS))
+        cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
             btn_type = "primary" if i == active_index else "secondary"
             if cols[i].button(label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
@@ -517,12 +544,17 @@ st.markdown(
     div[class*="st-key-notes_font_scope"] strong {
         font-weight: 400 !important;
     }
+    div[class*="st-key-stepper_row"] div[data-testid="column"] {
+        min-width: 0 !important;
+        flex: 1 1 0 !important;
+    }
     div[class*="st-key-stepper_row"] button {
-        font-size: 11px !important;
+        font-size: 9px !important;
         white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: clip !important;
-        padding: 4px 2px !important;
+        padding: 4px 0px !important;
+        letter-spacing: -0.4px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
     }
     div[class*="st-key-fieldrow_"] div[data-testid="stHorizontalBlock"] {
         align-items: flex-end !important;
@@ -533,14 +565,17 @@ st.markdown(
         margin-bottom: 2px;
     }
     div[class*="st-key-helpbtn_"] button {
-        min-height: 1.7em !important;
-        height: 1.7em !important;
-        width: 1.7em !important;
-        min-width: 1.7em !important;
+        min-height: 1.4em !important;
+        height: 1.4em !important;
+        width: 1.4em !important;
+        min-width: 1.4em !important;
         padding: 0 !important;
-        font-size: 11px !important;
+        font-size: 9px !important;
         line-height: 1 !important;
         border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
     div[class*="st-key-helpbtn_"] button svg {
         display: none;
@@ -1266,23 +1301,12 @@ def compute_borrower_income(borrower_idx):
     breakdown = {}
 
     for key in selected_keys:
-        source = get_income_source(key)
-        special = source["special"]
         amounts = st.session_state.income_amounts.get(bidx, {}).get(key, {})
 
-        if special == "two_year_avg":
-            year1 = parse_money(amounts.get("year1", "")) or 0.0
-            year2 = parse_money(amounts.get("year2", "")) or 0.0
-            avg = (year1 + year2) / 2
-            value = min(year1, avg) if year1 > 0 else avg
-        elif special == "self_employed":
-            gross = parse_money(amounts.get("gross", "")) or 0.0
-            expenses = parse_money(amounts.get("expenses", "")) or 0.0
-            value = max(gross - expenses, 0.0)
-        elif special == "rental":
-            gross_rent = parse_money(amounts.get("gross_rent", "")) or 0.0
-            expenses = parse_money(amounts.get("expenses", "")) or 0.0
-            value = max(gross_rent - expenses, 0.0)
+        if key == "rental":
+            gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
+            carrying_costs = parse_money(amounts.get("carrying_costs", "")) or 0.0
+            value = max(gross_rental - carrying_costs, 0.0)
         else:
             value = parse_money(amounts.get("amount", "")) or 0.0
 
@@ -1298,6 +1322,143 @@ def compute_total_income():
         total, _ = compute_borrower_income(idx)
         grand_total += total
     return grand_total
+
+
+def render_income_category_card(bidx, skey, source, amounts):
+    """
+    Renders the detailed input card for one selected income category, per the
+    field mapping. Mutates `amounts` in place (caller persists it back to
+    session_state). Also handles the 24-month previous-employer rule for
+    salaried/commission/self-employed, and the alimony disclaimer.
+    """
+    st.markdown("**" + source["label"] + "**")
+    prefix = "inc_" + bidx + "_" + skey + "_"
+
+    needs_24mo_check = False
+
+    if skey in ("salaried", "commission"):
+        needs_24mo_check = True
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
+            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
+            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 06/2022", key=prefix + "start_date")
+        with c2:
+            amounts["employer_address"] = st.text_input("Employer Address", value=amounts.get("employer_address", ""), key=prefix + "employer_address")
+            amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
+        amount_label = "Gross Annual Base Income ($)" if skey == "salaried" else "Gross Annual Commission Income ($)"
+        amounts["amount"] = st.text_input(amount_label, value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    elif skey == "bonus_overtime":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["employer_name"] = st.text_input("Primary Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
+        with c2:
+            amounts["amount"] = st.text_input("Gross Annual Bonus/Overtime Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    elif skey == "self_employed":
+        needs_24mo_check = True
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["business_name"] = st.text_input("Business Name", value=amounts.get("business_name", ""), key=prefix + "business_name")
+            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
+            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 03/2019", key=prefix + "start_date")
+        with c2:
+            amounts["business_address"] = st.text_input("Business Address", value=amounts.get("business_address", ""), key=prefix + "business_address")
+            amounts["title"] = st.text_input("Role / Title", value=amounts.get("title", ""), key=prefix + "title")
+            amounts["ownership_pct"] = st.text_input("Ownership Percentage (%)", value=amounts.get("ownership_pct", ""), key=prefix + "ownership_pct")
+        amounts["amount"] = st.text_input("Current Gross Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    elif skey == "investment":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["institution_name"] = st.text_input("Financial Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
+            amounts["account_number"] = st.text_input("Account Number", value=amounts.get("account_number", ""), key=prefix + "account_number")
+        with c2:
+            amounts["amount"] = st.text_input("Average Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    elif skey == "rental":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["property_address"] = st.text_input("Property Address", value=amounts.get("property_address", ""), key=prefix + "property_address")
+            amounts["property_value"] = st.text_input("Property Value ($)", value=amounts.get("property_value", ""), key=prefix + "property_value")
+            occ_options = ["", "Primary", "Secondary", "Investment"]
+            cur_occ = amounts.get("occupancy", "")
+            amounts["occupancy"] = st.selectbox(
+                "Intended Occupancy", occ_options,
+                index=occ_options.index(cur_occ) if cur_occ in occ_options else 0,
+                key=prefix + "occupancy",
+            )
+        with c2:
+            amounts["gross_rental"] = st.text_input("Gross Annual Rental Income ($)", value=amounts.get("gross_rental", ""), placeholder="Enter annual amount", key=prefix + "gross_rental")
+            amounts["carrying_costs"] = st.text_input("Annual Mortgage/Tax/HOA Dues ($)", value=amounts.get("carrying_costs", ""), key=prefix + "carrying_costs")
+        gross_v = parse_money(amounts.get("gross_rental", "")) or 0.0
+        carry_v = parse_money(amounts.get("carrying_costs", "")) or 0.0
+        st.caption("Net Rental Income (used for qualification): " + fmt_money(max(gross_v - carry_v, 0.0)))
+
+    elif skey == "pension":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["institution_name"] = st.text_input("Provider / Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
+        with c2:
+            amounts["amount"] = st.text_input("Gross Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    elif skey == "government_benefits":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["benefit_type"] = st.text_input("Benefit Type", value=amounts.get("benefit_type", ""), key=prefix + "benefit_type")
+        with c2:
+            amounts["amount"] = st.text_input("Gross Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    elif skey == "alimony":
+        st.caption(
+            "Notice: You do not have to disclose alimony, child support, or separate maintenance income if "
+            "you do not wish to have it considered as a basis for repaying this obligation."
+        )
+        amounts["amount"] = st.text_input("Gross Annual Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    elif skey == "trust_inheritance":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["institution_name"] = st.text_input("Trust / Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
+            amounts["amount"] = st.text_input("Gross Annual Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        with c2:
+            amounts["duration"] = st.text_input("Expected Duration of Continued Payments (Months/Years)", value=amounts.get("duration", ""), key=prefix + "duration")
+
+    else:  # "other"
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["source_desc"] = st.text_input("Source Description", value=amounts.get("source_desc", ""), key=prefix + "source_desc")
+        with c2:
+            amounts["amount"] = st.text_input("Gross Annual Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    # --- 24-month rule: salaried, commission, self-employed only ---
+    if needs_24mo_check:
+        parsed_start = parse_month_year(amounts.get("start_date", ""))
+        if parsed_start is not None and months_elapsed_since(parsed_start) < 24:
+            st.markdown(
+                "<div style='margin-top:10px; font-weight:600;'>Previous Employer / Business Details "
+                "(less than 24 months at current)</div>",
+                unsafe_allow_html=True,
+            )
+            pc1, pc2 = st.columns(2)
+            with pc1:
+                amounts["prev_employer_name"] = st.text_input("Employer Name", value=amounts.get("prev_employer_name", ""), key=prefix + "prev_employer_name")
+                amounts["prev_phone"] = st.text_input("Phone", value=amounts.get("prev_phone", ""), key=prefix + "prev_phone")
+                amounts["prev_start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("prev_start_date", ""), key=prefix + "prev_start_date")
+            with pc2:
+                amounts["prev_employer_address"] = st.text_input("Address", value=amounts.get("prev_employer_address", ""), key=prefix + "prev_employer_address")
+                amounts["prev_title"] = st.text_input("Title", value=amounts.get("prev_title", ""), key=prefix + "prev_title")
+                amounts["prev_end_date"] = st.text_input("End Date (MM/YYYY)", value=amounts.get("prev_end_date", ""), key=prefix + "prev_end_date")
+
+    # --- Required documentation (unchanged from before) ---
+    docs_html = "".join("<li>" + d + "</li>" for d in source["documents"])
+    notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
+    st.markdown(
+        "<div class='doc-list'><b>Required Documentation</b>"
+        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def render_income():
@@ -1330,6 +1491,7 @@ def render_income():
             st.write("**Select Income Sources**")
             selected = st.session_state.income_selected[bidx]
 
+            # --- Phase 1: plain checkbox list only (unchanged layout) ---
             for source in INCOME_SOURCES:
                 skey = source["key"]
                 checked = skey in selected
@@ -1343,95 +1505,19 @@ def render_income():
                     selected.remove(skey)
                     st.session_state.income_amounts[bidx].pop(skey, None)
 
-                if new_checked:
-                    if skey not in st.session_state.income_amounts[bidx]:
-                        st.session_state.income_amounts[bidx][skey] = {}
-                    amounts = st.session_state.income_amounts[bidx][skey]
-
-                    if source["special"] == "two_year_avg":
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            amounts["year1"] = st.text_input(
-                                "Most Recent Year — Annual Amount ($)",
-                                value=amounts.get("year1", ""),
-                                placeholder="Enter annual amount",
-                                key="inc_amt_" + bidx + "_" + skey + "_year1",
-                            )
-                        with c2:
-                            amounts["year2"] = st.text_input(
-                                "Prior Year — Annual Amount ($)",
-                                value=amounts.get("year2", ""),
-                                placeholder="Enter annual amount",
-                                key="inc_amt_" + bidx + "_" + skey + "_year2",
-                            )
-                    elif source["special"] == "self_employed":
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            amounts["gross"] = st.text_input(
-                                "Annual Gross Income ($)",
-                                value=amounts.get("gross", ""),
-                                placeholder="Enter annual amount",
-                                key="inc_amt_" + bidx + "_" + skey + "_gross",
-                            )
-                        with c2:
-                            amounts["expenses"] = st.text_input(
-                                "Annual Business Expenses ($)",
-                                value=amounts.get("expenses", ""),
-                                placeholder="Enter annual amount",
-                                key="inc_amt_" + bidx + "_" + skey + "_expenses",
-                            )
-                        gross_v = parse_money(amounts.get("gross", "")) or 0.0
-                        exp_v = parse_money(amounts.get("expenses", "")) or 0.0
-                        st.caption("Net Self-Employed Income: " + fmt_money(max(gross_v - exp_v, 0.0)))
-                    elif source["special"] == "rental":
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            amounts["gross_rent"] = st.text_input(
-                                "Gross Annual Rent ($)",
-                                value=amounts.get("gross_rent", ""),
-                                placeholder="Enter annual amount",
-                                key="inc_amt_" + bidx + "_" + skey + "_grossrent",
-                            )
-                        with c2:
-                            amounts["expenses"] = st.text_input(
-                                "Annual Property Expenses ($)",
-                                value=amounts.get("expenses", ""),
-                                placeholder="Enter annual amount",
-                                key="inc_amt_" + bidx + "_" + skey + "_propexp",
-                            )
-                        rent_v = parse_money(amounts.get("gross_rent", "")) or 0.0
-                        exp_v = parse_money(amounts.get("expenses", "")) or 0.0
-                        st.caption("Net Rental Income: " + fmt_money(max(rent_v - exp_v, 0.0)))
-                    else:
-                        amounts["amount"] = st.text_input(
-                            source["label"] + " — Annual Amount ($)",
-                            value=amounts.get("amount", ""),
-                            placeholder="Enter annual amount",
-                            key="inc_amt_" + bidx + "_" + skey + "_amount",
-                        )
-
-                    if skey == "other":
-                        if bidx not in st.session_state.income_other_desc:
-                            st.session_state.income_other_desc[bidx] = ""
-                        st.session_state.income_other_desc[bidx] = st.text_input(
-                            "Describe the other income source",
-                            value=st.session_state.income_other_desc[bidx],
-                            key="inc_other_desc_" + bidx,
-                        )
-
-                    docs_html = ""
-                    for d in source["documents"]:
-                        docs_html += "<li>" + d + "</li>"
-                    notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
-                    st.markdown(
-                        "<div class='doc-list'><b>Required Documentation</b>"
-                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
-                        unsafe_allow_html=True,
-                    )
-
-                    st.session_state.income_amounts[bidx][skey] = amounts
-
             st.session_state.income_selected[bidx] = selected
+
+            # --- Phase 2: detail card for every selected source, injected here, sequentially ---
+            for source in INCOME_SOURCES:
+                skey = source["key"]
+                if skey not in selected:
+                    continue
+                if skey not in st.session_state.income_amounts[bidx]:
+                    st.session_state.income_amounts[bidx][skey] = {}
+                amounts = st.session_state.income_amounts[bidx][skey]
+                st.markdown("---")
+                render_income_category_card(bidx, skey, source, amounts)
+                st.session_state.income_amounts[bidx][skey] = amounts
 
             borrower_total, breakdown = compute_borrower_income(idx)
             grand_total += borrower_total
@@ -1832,7 +1918,7 @@ def render_analysis():
                 label_widget_fn()
             with c2:
                 with st.container(key="helpbtn_" + help_key):
-                    with st.popover("❓", key=help_key):
+                    with st.popover("?", key=help_key):
                         st.caption(help_text_fn())
 
     fc1, fc2 = st.columns(2)
@@ -1950,7 +2036,7 @@ def render_analysis():
         st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
     with gds_help_col:
         with st.container(key="helpbtn_help_gds_tds"):
-            with st.popover("❓", key="help_gds_tds"):
+            with st.popover("?", key="help_gds_tds"):
                 st.caption(help_gds_text(total_income, annual_housing, gds))
                 st.divider()
                 st.caption(help_tds_text(total_income, annual_housing, annual_other_debt, tds))
