@@ -580,9 +580,13 @@ st.markdown(
         width: 1.4em !important;
         min-width: 1.4em !important;
         padding: 0 !important;
-        font-size: 9px !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
         line-height: 1 !important;
-        border-radius: 50% !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -659,7 +663,7 @@ with st.sidebar:
         "⬇️ Download", data=serialize_application(), file_name="mortgage_application.json",
         mime="application/json", use_container_width=True,
     )
-    uploaded = st.file_uploader("⬆️ Load", type=["json"], key="load_app_uploader", label_visibility="collapsed")
+    uploaded = st.file_uploader("⬆️ Upload", type=["json"], key="load_app_uploader")
     if uploaded is not None:
         if st.button("📂 Load this file", use_container_width=True, key="load_app_confirm"):
             success, message = load_application(uploaded.read().decode("utf-8"))
