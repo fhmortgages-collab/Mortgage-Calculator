@@ -597,15 +597,23 @@ st.markdown(
     div[class*="st-key-helpbtn_"] [data-testid*="Icon"] {
         display: none !important;
     }
-    section[data-testid="stFileUploaderDropzoneInstructions"] {
-        display: none;
+    [data-testid="stFileUploaderDropzoneInstructions"] {
+        display: none !important;
+    }
+    [data-testid="stFileUploaderDropzone"] small {
+        display: none !important;
     }
     [data-testid="stFileUploaderDropzone"] {
         background-color: transparent !important;
-        border: 1px solid rgba(250,250,250,0.2) !important;
+        border: none !important;
         border-radius: 8px !important;
-        padding: 2px !important;
+        padding: 0 !important;
         min-height: 0 !important;
+    }
+    [data-testid="stFileUploaderDropzone"] button {
+        width: 100% !important;
+        min-height: 3.4em !important;
+        border-radius: 8px !important;
     }
     .stButton > button {
         min-height: 3.4em;
@@ -663,7 +671,7 @@ with st.sidebar:
         "⬇️ Download", data=serialize_application(), file_name="mortgage_application.json",
         mime="application/json", use_container_width=True,
     )
-    uploaded = st.file_uploader("⬆️ Upload", type=["json"], key="load_app_uploader")
+    uploaded = st.file_uploader("Upload", type=["json"], key="load_app_uploader", label_visibility="collapsed")
     if uploaded is not None:
         if st.button("📂 Load this file", use_container_width=True, key="load_app_confirm"):
             success, message = load_application(uploaded.read().decode("utf-8"))
@@ -1156,6 +1164,40 @@ def render_property_details():
     )
     c1, c2 = st.columns(2)
     with c1:
+        st.session_state.subject_prop_purpose = st.selectbox(
+            "Property Purpose", PROPERTY_PURPOSE_OPTIONS,
+            index=PROPERTY_PURPOSE_OPTIONS.index(st.session_state.subject_prop_purpose)
+            if st.session_state.subject_prop_purpose in PROPERTY_PURPOSE_OPTIONS else 0,
+        )
+        st.session_state.subject_title_type = st.selectbox(
+            "Title", TITLE_TYPE_OPTIONS,
+            index=TITLE_TYPE_OPTIONS.index(st.session_state.subject_title_type)
+            if st.session_state.subject_title_type in TITLE_TYPE_OPTIONS else 0,
+        )
+        st.session_state.subject_sqft = st.text_input(
+            "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
+        )
+        st.session_state.subject_storeys = st.text_input(
+            "Number of Storeys", value=st.session_state.subject_storeys, placeholder="e.g. 2",
+        )
+        st.session_state.subject_parking_spaces = st.text_input(
+            "Total Parking Spaces", value=st.session_state.subject_parking_spaces, placeholder="e.g. 4",
+        )
+        st.session_state.subject_cooling = st.selectbox(
+            "Cooling", COOLING_OPTIONS,
+            index=COOLING_OPTIONS.index(st.session_state.subject_cooling)
+            if st.session_state.subject_cooling in COOLING_OPTIONS else 0,
+        )
+        st.session_state.subject_exterior_finish = st.text_input(
+            "Exterior Finish", value=st.session_state.subject_exterior_finish,
+            placeholder="e.g. Brick, Stone, Vinyl Siding",
+        )
+        st.session_state.subject_water = st.selectbox(
+            "Water", WATER_OPTIONS,
+            index=WATER_OPTIONS.index(st.session_state.subject_water)
+            if st.session_state.subject_water in WATER_OPTIONS else 0,
+        )
+    with c2:
         st.session_state.subject_prop_type = st.selectbox(
             "Property Type", PROPERTY_STYLE_TYPES,
             index=PROPERTY_STYLE_TYPES.index(st.session_state.subject_prop_type)
@@ -1166,71 +1208,33 @@ def render_property_details():
             "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
             placeholder="e.g. 15 years or Built 2011",
         )
-        st.session_state.subject_rural_urban = st.selectbox(
-            "Rural / Urban / Agricultural",
-            RURAL_URBAN_OPTIONS,
-            index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
-            if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
-        )
-    with c2:
-        st.session_state.subject_prop_purpose = st.selectbox(
-            "Property Purpose", PROPERTY_PURPOSE_OPTIONS,
-            index=PROPERTY_PURPOSE_OPTIONS.index(st.session_state.subject_prop_purpose)
-            if st.session_state.subject_prop_purpose in PROPERTY_PURPOSE_OPTIONS else 0,
+        st.session_state.subject_land_size = st.text_input(
+            "Land Size", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
         )
         st.session_state.subject_garage = st.selectbox(
             "Garage", ["", "None", "Attached", "Detached", "Carport"],
             index=["", "None", "Attached", "Detached", "Carport"].index(st.session_state.subject_garage)
             if st.session_state.subject_garage in ["", "None", "Attached", "Detached", "Carport"] else 0,
         )
-        st.session_state.subject_sqft = st.text_input(
-            "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
-        )
-
-    c3, c4 = st.columns(2)
-    with c3:
-        st.session_state.subject_storeys = st.text_input(
-            "Number of Storeys", value=st.session_state.subject_storeys, placeholder="e.g. 2",
-        )
         st.session_state.subject_heating_type = st.selectbox(
             "Heating Type", HEATING_TYPE_OPTIONS,
             index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
             if st.session_state.subject_heating_type in HEATING_TYPE_OPTIONS else 0,
         )
-        st.session_state.subject_cooling = st.selectbox(
-            "Cooling", COOLING_OPTIONS,
-            index=COOLING_OPTIONS.index(st.session_state.subject_cooling)
-            if st.session_state.subject_cooling in COOLING_OPTIONS else 0,
-        )
         st.session_state.subject_foundation = st.text_input(
             "Foundation Type", value=st.session_state.subject_foundation,
             placeholder="e.g. Poured Concrete",
         )
-        st.session_state.subject_exterior_finish = st.text_input(
-            "Exterior Finish", value=st.session_state.subject_exterior_finish,
-            placeholder="e.g. Brick, Stone, Vinyl Siding",
-        )
-    with c4:
         st.session_state.subject_sewer = st.selectbox(
             "Utility Sewer", SEWER_OPTIONS,
             index=SEWER_OPTIONS.index(st.session_state.subject_sewer)
             if st.session_state.subject_sewer in SEWER_OPTIONS else 0,
         )
-        st.session_state.subject_water = st.selectbox(
-            "Water", WATER_OPTIONS,
-            index=WATER_OPTIONS.index(st.session_state.subject_water)
-            if st.session_state.subject_water in WATER_OPTIONS else 0,
-        )
-        st.session_state.subject_parking_spaces = st.text_input(
-            "Total Parking Spaces", value=st.session_state.subject_parking_spaces, placeholder="e.g. 4",
-        )
-        st.session_state.subject_land_size = st.text_input(
-            "Land Size", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
-        )
-        st.session_state.subject_title_type = st.selectbox(
-            "Title", TITLE_TYPE_OPTIONS,
-            index=TITLE_TYPE_OPTIONS.index(st.session_state.subject_title_type)
-            if st.session_state.subject_title_type in TITLE_TYPE_OPTIONS else 0,
+        st.session_state.subject_rural_urban = st.selectbox(
+            "Rural / Urban / Agricultural",
+            RURAL_URBAN_OPTIONS,
+            index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
+            if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
         )
 
     st.write("**Monthly Carrying Costs**")
@@ -2421,7 +2425,6 @@ def render_analysis():
 # }
 
 GENERAL_APPLICATION_DOCS = [
-    "Signed mortgage application form",
     "Signed consent for collection, use, and disclosure of personal information",
     "Void cheque or pre-authorized debit form for the account to be used",
 ]
@@ -2429,7 +2432,6 @@ GENERAL_APPLICATION_DOCS = [
 PER_BORROWER_ID_DOCS = [
     "Two pieces of government-issued photo ID (e.g. driver's licence, passport)",
     "Social Insurance Number (SIN)",
-    "Proof of current address (utility bill, lease, or bank statement, if not matching ID)",
 ]
 
 SUBJECT_PROPERTY_DOCS = [
