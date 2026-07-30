@@ -761,6 +761,13 @@ def render_client_details():
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p1_continue_top")
 
+    spacer2, empty_col, refresh_col = st.columns([3, 1, 1])
+    with refresh_col:
+        if st.button("🔄 Refresh", use_container_width=True, key="p1_refresh"):
+            st.session_state.borrowers = [{"full_name": "", "phone": "", "gender": "", "dob": "", "marital_status": ""} for _ in range(st.session_state.borrower_count)]
+            st.session_state.borrower_errors = [{}] * st.session_state.borrower_count
+            st.rerun()
+
     st.markdown("### Client Details")
     st.write("Enter information for each borrower on this application.")
     render_calculator_popover("client")
@@ -909,6 +916,15 @@ def render_down_payment():
             st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p2_continue_top")
+
+    spacer2, empty_col, refresh_col = st.columns([3, 1, 1])
+    with refresh_col:
+        if st.button("🔄 Refresh", use_container_width=True, key="p2_refresh"):
+            st.session_state.purchase_price_raw = ""
+            st.session_state.down_payment_raw = ""
+            st.session_state.down_payment_sources = []
+            st.session_state.down_payment_errors = {}
+            st.rerun()
 
     st.markdown("### Down Payment")
     st.write("Enter property price, down payment, and the sources funding it.")
@@ -1141,6 +1157,19 @@ def render_property_details():
             st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p3_continue_top")
+
+    spacer2, empty_col, refresh_col = st.columns([3, 1, 1])
+    with refresh_col:
+        if st.button("🔄 Refresh", use_container_width=True, key="p3_refresh"):
+            st.session_state.property_details = {
+                "type": "", "style": "", "purpose": "", "year_built_raw": "",
+                "square_footage_raw": "", "lot_size_raw": "", "rooms": "", "beds": "",
+                "baths": "", "parking_spots": "", "rural_urban": "", "heating": "",
+                "cooling": "", "sewer": "", "water": "", "title_type": "",
+                "restrictions": "", "zoning": "", "subdivision": ""
+            }
+            st.session_state.property_errors = {}
+            st.rerun()
 
     st.markdown("### Property Details")
     st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
@@ -1654,6 +1683,14 @@ def render_income():
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p4_continue_top")
 
+    spacer2, empty_col, refresh_col = st.columns([3, 1, 1])
+    with refresh_col:
+        if st.button("🔄 Refresh", use_container_width=True, key="p4_refresh"):
+            for borrower in st.session_state.borrowers:
+                borrower["income"] = {}
+            st.session_state.income_errors = [{}] * st.session_state.borrower_count
+            st.rerun()
+
     st.markdown("### Income Details")
     st.write("Enter income information for each borrower on this application.")
     st.info("💡 All income amounts below are **annual** figures, not monthly.")
@@ -1825,6 +1862,15 @@ def render_debts():
             st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p5_continue_top")
+
+    spacer2, empty_col, refresh_col = st.columns([3, 1, 1])
+    with refresh_col:
+        if st.button("🔄 Refresh", use_container_width=True, key="p5_refresh"):
+            st.session_state.properties = []
+            for borrower in st.session_state.borrowers:
+                borrower["liabilities"] = []
+            st.session_state.debt_errors = {}
+            st.rerun()
 
     st.markdown("### Debts & Liabilities")
     st.write("Enter property debts and other liabilities for this application.")
@@ -2101,6 +2147,14 @@ def render_analysis():
             st.rerun()
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p6_continue_top")
+
+    spacer2, empty_col, refresh_col = st.columns([3, 1, 1])
+    with refresh_col:
+        if st.button("🔄 Refresh", use_container_width=True, key="p6_refresh"):
+            st.session_state.financing_terms = {
+                "amortization_raw": "", "contract_rate_raw": "", "term": "", "rate_type": ""
+            }
+            st.rerun()
 
     st.markdown("### Qualification Summary")
     st.write("This page aggregates data from all previous steps — nothing to re-enter here.")
@@ -2709,6 +2763,12 @@ def render_documents():
     with continue_col:
         continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p7_continue_top")
 
+    spacer2, empty_col, refresh_col = st.columns([3, 1, 1])
+    with refresh_col:
+        if st.button("🔄 Refresh", use_container_width=True, key="p7_refresh"):
+            st.session_state.doc_removed_items = set()
+            st.rerun()
+
     render_calculator_popover("documents")
     raw_checklist_data = build_document_checklist_data()
     checklist_data = filter_checklist_data(raw_checklist_data, st.session_state.doc_removed_items)
@@ -2935,14 +2995,16 @@ def build_system_notes():
 
 
 def render_notes():
-    spacer, back_col, continue_col = st.columns([3, 1, 1])
+    spacer, back_col, refresh_col = st.columns([3, 1, 1])
 
     with back_col:
         if st.button("← Back", use_container_width=True, key="p8_back_top"):
             st.session_state.step = 6
             st.rerun()
-    with continue_col:
-        st.write("")  # No more pages, so no Continue button
+    with refresh_col:
+        if st.button("🔄 Refresh", use_container_width=True, key="p8_refresh"):
+            st.session_state.broker_notes = ""
+            st.rerun()
 
     st.markdown("### Notes for Underwriter")
     render_calculator_popover("notes")
