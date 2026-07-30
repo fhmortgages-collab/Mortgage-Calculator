@@ -860,8 +860,15 @@ def render_client_details():
 
     st.divider()
 
-    # Handle Continue button from top
-    if continue_top:
+    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
+    with back_col_bottom:
+        if st.button("← Back", use_container_width=True, key="p1_back_bottom"):
+            st.info("This is the first screen.")
+    with continue_col_bottom:
+        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p1_continue_bottom")
+
+    # Handle Continue button from top or bottom
+    if continue_top or continue_bottom:
         all_errors = [validate_borrower(b) for b in st.session_state.borrowers]
         st.session_state.borrower_errors = all_errors
         is_valid = all(len(e) == 0 for e in all_errors)
@@ -1035,7 +1042,15 @@ def render_down_payment():
 
     st.divider()
 
-    if continue_top:
+    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
+    with back_col_bottom:
+        if st.button("← Back", use_container_width=True, key="p2_back_bottom"):
+            st.session_state.step = 0
+            st.rerun()
+    with continue_col_bottom:
+        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p2_continue_bottom")
+
+    if continue_top or continue_bottom:
         valid = (
             purchase_price is not None and purchase_price > 0 and not price_error
             and down_payment is not None and not dp_error
@@ -1253,7 +1268,15 @@ def render_property_details():
 
     st.divider()
 
-    if continue_top:
+    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
+    with back_col_bottom:
+        if st.button("← Back", use_container_width=True, key="p3_back_bottom"):
+            st.session_state.step = 1
+            st.rerun()
+    with continue_col_bottom:
+        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p3_continue_bottom")
+
+    if continue_top or continue_bottom:
         if st.session_state.subject_address.strip():
             st.session_state.step = 3
             st.rerun()
@@ -1697,7 +1720,15 @@ def render_income():
     st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
     st.divider()
 
-    if continue_top:
+    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
+    with back_col_bottom:
+        if st.button("← Back", use_container_width=True, key="p4_back_bottom"):
+            st.session_state.step = 2
+            st.rerun()
+    with continue_col_bottom:
+        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p4_continue_bottom")
+
+    if continue_top or continue_bottom:
         if all_valid:
             st.session_state.step = 4
             st.rerun()
@@ -1960,7 +1991,15 @@ def render_debts():
 
     st.divider()
 
-    if continue_top:
+    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
+    with back_col_bottom:
+        if st.button("← Back", use_container_width=True, key="p5_back_bottom"):
+            st.session_state.step = 3
+            st.rerun()
+    with continue_col_bottom:
+        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p5_continue_bottom")
+
+    if continue_top or continue_bottom:
         if is_valid:
             st.session_state.step = 5
             st.rerun()
@@ -2321,7 +2360,17 @@ def render_analysis():
             st.session_state.step = 6
             st.rerun()
 
-    if continue_top:
+    st.divider()
+
+    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
+    with back_col_bottom:
+        if st.button("← Back", use_container_width=True, key="p6_back_bottom"):
+            st.session_state.step = 4
+            st.rerun()
+    with continue_col_bottom:
+        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p6_continue_bottom")
+
+    if continue_top or continue_bottom:
         st.session_state.step = 6
         st.rerun()
 
@@ -2699,7 +2748,17 @@ def render_documents():
             st.session_state.step = 7
             st.rerun()
 
-    if continue_top:
+    st.divider()
+
+    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
+    with back_col_bottom:
+        if st.button("← Back", use_container_width=True, key="p7_back_bottom"):
+            st.session_state.step = 5
+            st.rerun()
+    with continue_col_bottom:
+        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p7_continue_bottom")
+
+    if continue_top or continue_bottom:
         st.session_state.step = 7
         st.rerun()
 
@@ -2881,6 +2940,16 @@ def render_notes():
             )
 
     st.divider()
+
+    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
+    with back_col_bottom:
+        if st.button("← Back", use_container_width=True, key="p8_back_bottom"):
+            st.session_state.step = 6
+            st.rerun()
+    with continue_col_bottom:
+        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p8_continue_bottom")
+        if continue_bottom:
+            st.success("Application complete! All notes have been prepared.")
 
 
 # ---------------------------------------------------------------------------
