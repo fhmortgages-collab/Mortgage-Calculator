@@ -588,7 +588,9 @@ st.markdown(
         justify-content: center !important;
     }
     div[class*="st-key-helpbtn_"] svg,
-    div[class*="st-key-helpbtn_"] button svg {
+    div[class*="st-key-helpbtn_"] button svg,
+    div[class*="st-key-helpbtn_"] [data-testid="stIconMaterial"],
+    div[class*="st-key-helpbtn_"] [data-testid*="Icon"] {
         display: none !important;
     }
     section[data-testid="stFileUploaderDropzoneInstructions"] {
@@ -600,15 +602,6 @@ st.markdown(
         border-radius: 8px !important;
         padding: 2px !important;
         min-height: 0 !important;
-    }
-    [data-testid="stFileUploaderDropzone"] button {
-        width: 100%;
-    }
-    [data-testid="stFileUploaderDropzone"] button svg {
-        display: none !important;
-    }
-    [data-testid="stFileUploaderDropzone"] button span::before {
-        content: "⬆️ ";
     }
     .stButton > button {
         min-height: 3.4em;
