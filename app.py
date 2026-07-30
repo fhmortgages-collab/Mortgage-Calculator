@@ -100,19 +100,19 @@ def safe_calculate(expression):
 
 
 def render_calculator_popover(key_prefix):
-    """A small floating calculator, opened via a button, for quick scratch math on this page."""
-    with st.popover("🧮 Calculator"):
-        st.caption("Quick math — supports + − × ÷ ( ) — e.g. 1200 + 350*12")
-        expr = st.text_input(
-            "Expression", key=key_prefix + "_calc_expr", placeholder="e.g. 2500 + 1800 - 400",
-            label_visibility="collapsed",
-        )
-        if expr.strip():
-            try:
-                result = safe_calculate(expr)
-                st.markdown("**= " + "{:,.2f}".format(result) + "**")
-            except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
-                st.caption(":red[Enter a valid expression using numbers and + − * / ( )]")
+    """A compact calculator fixed to the viewport (stays visible while scrolling), opened via a small round button."""
+    with st.container(key="floatcalc_" + key_prefix):
+        with st.popover("🧮", use_container_width=False):
+            expr = st.text_input(
+                "Expression", key=key_prefix + "_calc_expr", placeholder="1200 + 350*12",
+                label_visibility="collapsed",
+            )
+            if expr.strip():
+                try:
+                    result = safe_calculate(expr)
+                    st.markdown("**= " + "{:,.2f}".format(result) + "**")
+                except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
+                    st.caption(":red[Invalid expression]")
 
 
 def empty_borrower():
@@ -307,6 +307,26 @@ st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout
 st.markdown(
     """
     <style>
+    div[class*="st-key-floatcalc_"] {
+        position: fixed;
+        bottom: 22px;
+        right: 22px;
+        z-index: 9999;
+        width: auto;
+    }
+    div[class*="st-key-floatcalc_"] > div {
+        width: auto;
+    }
+    div[class*="st-key-floatcalc_"] button {
+        border-radius: 50%;
+        width: 46px;
+        height: 46px;
+        min-height: 46px;
+        padding: 0;
+        font-size: 18px;
+        line-height: 1;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
     .stButton > button {
         min-height: 3.4em;
         white-space: normal;
