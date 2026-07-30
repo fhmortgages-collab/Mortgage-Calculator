@@ -1,5 +1,6 @@
 import re
 import json
+import ast
 from datetime import date
 
 import streamlit as st
@@ -53,6 +54,65 @@ def parse_money(raw):
         return float(cleaned)
     except ValueError:
         return None
+
+
+_CALC_ALLOWED_BINOPS = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod, ast.FloorDiv)
+_CALC_ALLOWED_UNARYOPS = (ast.UAdd, ast.USub)
+
+
+def safe_calculate(expression):
+    """
+    Safely evaluates a basic arithmetic expression (+ - * / ** % parentheses)
+    without using eval(). Raises ValueError on anything unsupported.
+    """
+    def _eval(node):
+        if isinstance(node, ast.Expression):
+            return _eval(node.body)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, _CALC_ALLOWED_BINOPS):
+            left = _eval(node.left)
+            right = _eval(node.right)
+            if isinstance(node.op, ast.Add):
+                return left + right
+            if isinstance(node.op, ast.Sub):
+                return left - right
+            if isinstance(node.op, ast.Mult):
+                return left * right
+            if isinstance(node.op, ast.Div):
+                return left / right
+            if isinstance(node.op, ast.Pow):
+                return left ** right
+            if isinstance(node.op, ast.Mod):
+                return left % right
+            if isinstance(node.op, ast.FloorDiv):
+                return left // right
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, _CALC_ALLOWED_UNARYOPS):
+            value = _eval(node.operand)
+            return value if isinstance(node.op, ast.UAdd) else -value
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
+        raise ValueError("Unsupported expression")
+
+    cleaned = expression.replace(",", "").replace("$", "").strip()
+    if not cleaned:
+        raise ValueError("Empty expression")
+    parsed = ast.parse(cleaned, mode="eval")
+    return _eval(parsed)
+
+
+def render_calculator_popover(key_prefix):
+    """A small floating calculator, opened via a button, for quick scratch math on this page."""
+    with st.popover("🧮 Calculator"):
+        st.caption("Quick math — supports + − × ÷ ( ) — e.g. 1200 + 350*12")
+        expr = st.text_input(
+            "Expression", key=key_prefix + "_calc_expr", placeholder="e.g. 2500 + 1800 - 400",
+            label_visibility="collapsed",
+        )
+        if expr.strip():
+            try:
+                result = safe_calculate(expr)
+                st.markdown("**= " + "{:,.2f}".format(result) + "**")
+            except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
+                st.caption(":red[Enter a valid expression using numbers and + − * / ( )]")
 
 
 def empty_borrower():
@@ -270,12 +330,13 @@ st.markdown(
         background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
         padding: 10px 14px; margin-top: 6px; font-size: 13px; color:#374151;
     }
-    .metric-row {display:flex; gap: 16px; margin: 10px 0 4px;}
+    .metric-row {display:flex; gap: 16px; margin: 10px 0 4px; align-items: stretch;}
     .metric-card {
         flex:1; border:1px solid #e5e7eb; border-radius:10px; padding: 14px 16px; background:#f9fafb;
+        min-height: 78px; box-sizing: border-box; display:flex; flex-direction:column; justify-content:center;
     }
     .metric-label {font-size:12px; color:#6b7280; margin-bottom:4px;}
-    .metric-value {font-size:20px; font-weight:700; color:#111827;}
+    .metric-value {font-size:20px; font-weight:700; color:#111827; word-break:break-word;}
     .borrower-total {
         font-weight:600; font-size:15px; margin: 10px 0 4px; color:#111827;
     }
@@ -750,6 +811,7 @@ def get_subject_property_costs():
 def render_property_details():
     st.markdown("### Property Details")
     st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
+    render_calculator_popover("property")
 
     purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
     down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
@@ -983,6 +1045,8 @@ def compute_total_income():
 def render_income():
     st.markdown("### Income Details")
     st.write("Enter income information for each borrower on this application.")
+    st.info("💡 All income amounts below are **annual** figures, not monthly.")
+    render_calculator_popover("income")
 
     borrower_count = st.session_state.borrower_count
     borrowers = st.session_state.borrowers
@@ -1030,14 +1094,14 @@ def render_income():
                         c1, c2 = st.columns(2)
                         with c1:
                             amounts["year1"] = st.text_input(
-                                "Most Recent Year Amount ($)",
+                                "Most Recent Year — Annual Amount ($)",
                                 value=amounts.get("year1", ""),
                                 placeholder="Enter annual amount",
                                 key="inc_amt_" + bidx + "_" + skey + "_year1",
                             )
                         with c2:
                             amounts["year2"] = st.text_input(
-                                "Prior Year Amount ($)",
+                                "Prior Year — Annual Amount ($)",
                                 value=amounts.get("year2", ""),
                                 placeholder="Enter annual amount",
                                 key="inc_amt_" + bidx + "_" + skey + "_year2",
@@ -1082,7 +1146,7 @@ def render_income():
                         st.caption("Net Rental Income: " + fmt_money(max(rent_v - exp_v, 0.0)))
                     else:
                         amounts["amount"] = st.text_input(
-                            source["label"] + " Amount ($)",
+                            source["label"] + " — Annual Amount ($)",
                             value=amounts.get("amount", ""),
                             placeholder="Enter annual amount",
                             key="inc_amt_" + bidx + "_" + skey + "_amount",
@@ -1226,6 +1290,7 @@ def explain_debt_payment(debt_type, amounts):
 def render_debts():
     st.markdown("### Debts & Liabilities")
     st.write("Enter property debts and other liabilities for this application.")
+    render_calculator_popover("debts")
 
     st.write("**Property Debts**")
 
@@ -1544,6 +1609,7 @@ def refresh_all():
 def render_analysis():
     st.markdown("### Qualification Summary")
     st.write("This page aggregates data from all previous steps — nothing to re-enter here.")
+    render_calculator_popover("analysis")
 
     # --- Financing Terms (moved here from Property Details) ---
     st.markdown("#### Financing Terms")
@@ -1648,51 +1714,76 @@ def render_analysis():
         unsafe_allow_html=True,
     )
 
-    with st.expander("Show calculation details (Contract Rate)", expanded=False):
-        st.markdown("**Formula:** GDS = (P + I + T + H + 0.5C) ÷ Gross Annual Income × 100")
-        calc_text = (
-            "- Principal + Interest (P + I): " + fmt_money(pi_payment) + "/month × 12 = " + fmt_money(pi_payment * 12) + "\n"
-            "- Property Taxes (T): " + fmt_money(taxes) + "/month × 12 = " + fmt_money(taxes * 12) + "\n"
-            "- Heating (H): " + fmt_money(heat) + "/month × 12 = " + fmt_money(heat * 12) + "\n"
-            "- 50% Condo Fees (0.5C): " + fmt_money(condo) + "/month × 12 × 0.5 = " + fmt_money(condo * 12 * 0.5) + "\n\n"
-            "**Total Annual Housing Costs (PITH) = " + fmt_money(annual_housing) + "**\n\n"
-            "GDS = " + fmt_money(annual_housing) + " ÷ " + fmt_money(total_income) + " × 100 = " + gds_display
+    def render_ratio_breakdown(pi_amount, annual_housing_amount, annual_other_debt_amount, gds_disp, tds_disp, is_stressed):
+        rows = [
+            ("Principal + Interest (P + I)", pi_amount, pi_amount * 12),
+            ("Property Taxes (T)", taxes, taxes * 12),
+            ("Heating (H)", heat, heat * 12),
+            ("50% Condo Fees (0.5 × C)", condo * 0.5, condo * 0.5 * 12),
+        ]
+        table_rows_html = "".join(
+            "<tr><td style='padding:6px 10px; border-bottom:1px solid #e5e7eb;'>" + name + "</td>"
+            "<td style='padding:6px 10px; border-bottom:1px solid #e5e7eb; text-align:right;'>" + fmt_money(monthly) + "</td>"
+            "<td style='padding:6px 10px; border-bottom:1px solid #e5e7eb; text-align:right;'>" + fmt_money(annual) + "</td></tr>"
+            for name, monthly, annual in rows
         )
-        st.markdown(calc_text)
-
-        st.markdown("**Formula:** TDS = (PITH + All Other Monthly Debt Payments × 12) ÷ Gross Annual Income × 100")
         st.markdown(
-            "- Annual Housing Costs (PITH, from GDS above): " + fmt_money(annual_housing) + "\n"
-            "- All Other Monthly Debt Payments × 12: " + fmt_money(annual_other_debt) + "\n\n"
-            "**Total Annual Debt Obligations = " + fmt_money(annual_housing + annual_other_debt) + "**\n\n"
-            "TDS = " + fmt_money(annual_housing + annual_other_debt) + " ÷ " + fmt_money(total_income) + " × 100 = " + tds_display
+            "<table style='width:100%; border-collapse:collapse; font-size:14px; margin-bottom:8px;'>"
+            "<tr style='background:#f3f4f6;'>"
+            "<th style='padding:6px 10px; text-align:left;'>Housing Cost Component</th>"
+            "<th style='padding:6px 10px; text-align:right;'>Monthly</th>"
+            "<th style='padding:6px 10px; text-align:right;'>Annual</th></tr>"
+            + table_rows_html +
+            "<tr style='font-weight:700; background:#f9fafb;'>"
+            "<td style='padding:6px 10px;'>Total Annual Housing Costs (PITH)</td>"
+            "<td style='padding:6px 10px;'></td>"
+            "<td style='padding:6px 10px; text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
+            "</table>",
+            unsafe_allow_html=True,
         )
+        st.markdown(
+            "<div style='background:#eff6ff; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:14px;'>"
+            "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
+            + " × 100 = <b>" + gds_disp + "</b></div>",
+            unsafe_allow_html=True,
+        )
+
+        tds_rows_html = (
+            "<tr><td style='padding:6px 10px; border-bottom:1px solid #e5e7eb;'>Annual Housing Costs (PITH, from above)</td>"
+            "<td style='padding:6px 10px; border-bottom:1px solid #e5e7eb; text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
+            "<tr><td style='padding:6px 10px; border-bottom:1px solid #e5e7eb;'>All Other Monthly Debt Payments × 12</td>"
+            "<td style='padding:6px 10px; border-bottom:1px solid #e5e7eb; text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
+        )
+        st.markdown(
+            "<table style='width:100%; border-collapse:collapse; font-size:14px; margin-bottom:8px;'>"
+            "<tr style='background:#f3f4f6;'>"
+            "<th style='padding:6px 10px; text-align:left;'>Debt Obligation Component</th>"
+            "<th style='padding:6px 10px; text-align:right;'>Annual</th></tr>"
+            + tds_rows_html +
+            "<tr style='font-weight:700; background:#f9fafb;'>"
+            "<td style='padding:6px 10px;'>Total Annual Debt Obligations</td>"
+            "<td style='padding:6px 10px; text-align:right;'>" + fmt_money(annual_housing_amount + annual_other_debt_amount) + "</td></tr>"
+            "</table>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div style='background:#eff6ff; border-radius:8px; padding:10px 14px; font-size:14px;'>"
+            "<b>TDS</b> = " + fmt_money(annual_housing_amount + annual_other_debt_amount) + " ÷ " + fmt_money(total_income)
+            + " × 100 = <b>" + tds_disp + "</b></div>",
+            unsafe_allow_html=True,
+        )
+
+    with st.expander("Show calculation details (Contract Rate)", expanded=False):
+        st.caption("Formula: GDS = (P + I + T + H + 0.5C) ÷ Gross Annual Income × 100  |  TDS adds all other monthly debts.")
+        render_ratio_breakdown(pi_payment, annual_housing, annual_other_debt, gds_display, tds_display, is_stressed=False)
 
     with st.expander("Show calculation details (Stressed, at " + "{:.2f}%".format(qualifying_rate) + ")", expanded=False):
-        st.markdown(
+        st.caption(
             "Stressed P&I substitutes the qualifying rate (" + "{:.2f}%".format(qualifying_rate)
             + ") in place of the contract rate (" + "{:.2f}%".format(st.session_state.contract_rate)
             + "); taxes, heat, and condo fees are unchanged."
         )
-        st.markdown("**Formula:** GDS = (Stressed P&I + T + H + 0.5C) ÷ Gross Annual Income × 100")
-        stressed_calc_text = (
-            "- Stressed Principal + Interest: " + fmt_money(stressed_pi) + "/month × 12 = " + fmt_money(stressed_pi * 12) + "\n"
-            "- Property Taxes (T): " + fmt_money(taxes) + "/month × 12 = " + fmt_money(taxes * 12) + "\n"
-            "- Heating (H): " + fmt_money(heat) + "/month × 12 = " + fmt_money(heat * 12) + "\n"
-            "- 50% Condo Fees (0.5C): " + fmt_money(condo) + "/month × 12 × 0.5 = " + fmt_money(condo * 12 * 0.5) + "\n\n"
-            "**Total Stressed Annual Housing Costs (PITH) = " + fmt_money(stressed_annual_housing) + "**\n\n"
-            "GDS = " + fmt_money(stressed_annual_housing) + " ÷ " + fmt_money(total_income) + " × 100 = " + stressed_gds_display
-        )
-        st.markdown(stressed_calc_text)
-
-        st.markdown("**Formula:** TDS = (Stressed PITH + All Other Monthly Debt Payments × 12) ÷ Gross Annual Income × 100")
-        st.markdown(
-            "- Stressed Annual Housing Costs (PITH, from GDS above): " + fmt_money(stressed_annual_housing) + "\n"
-            "- All Other Monthly Debt Payments × 12: " + fmt_money(stressed_annual_other_debt) + "\n\n"
-            "**Total Stressed Annual Debt Obligations = " + fmt_money(stressed_annual_housing + stressed_annual_other_debt) + "**\n\n"
-            "TDS = " + fmt_money(stressed_annual_housing + stressed_annual_other_debt) + " ÷ " + fmt_money(total_income)
-            + " × 100 = " + stressed_tds_display
-        )
+        render_ratio_breakdown(stressed_pi, stressed_annual_housing, stressed_annual_other_debt, stressed_gds_display, stressed_tds_display, is_stressed=True)
 
     st.divider()
 
