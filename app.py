@@ -43,21 +43,29 @@ RATE_TYPE_OPTIONS = ["Fixed", "Variable"]
 def help_contract_rate_text(rate):
     return (
         "This is the actual interest rate the lender charges on this mortgage — it's what the real monthly "
-        "payment is calculated from. It's not the same as the stress-test rate below, which is only used to "
-        "check affordability, not to set the real payment.\n\n"
-        "**In this file:** the contract rate entered is **{:.2f}%**, so this borrower's payment is calculated "
-        "using {:.2f}% interest.".format(rate, rate)
+        "payment is calculated from. It's not the same as the stress-test/benchmark rate, which is only "
+        "used to check affordability on paper and never changes what the borrower actually pays.\n\n"
+        "**Example from this file:** the contract rate entered is **{:.2f}%**, so this borrower's real "
+        "monthly mortgage payment is calculated using {:.2f}% interest — not the higher stress-test rate.\n\n"
+        "**Generic example:** say a different borrower is offered a 5-year fixed rate of 4.5% on a "
+        "$400,000 mortgage. Their actual monthly payment is calculated using that 4.5% rate — the bank "
+        "will separately check they could still afford payments at a higher rate (the stress test), but "
+        "4.5% is what they're billed every month.".format(rate, rate)
     )
 
 
 def help_term_text(term):
     return (
         "The mortgage term is how long the borrower is locked into this rate and lender before having to "
-        "renew — usually 1 to 5 years in Canada. It's different from amortization (the full payoff timeline) "
-        "— the term is just one chapter of it. When the term ends, the borrower renews, possibly at a new "
-        "rate, even though the mortgage itself isn't fully paid off yet.\n\n"
-        "**In this file:** the term selected is **{}**, meaning this rate and lender commitment lasts {} "
-        "before renewal is required.".format(term, term.lower())
+        "renew — usually 1 to 5 years in Canada. It's different from amortization (the full payoff "
+        "timeline, often 25–30 years) — the term is just one chapter of that timeline. When the term "
+        "ends, the borrower renews, possibly at a new rate or even a new lender, even though the mortgage "
+        "itself isn't fully paid off yet.\n\n"
+        "**Example from this file:** the term selected is **{}**, meaning this rate and lender commitment "
+        "lasts {} before the borrower needs to renew.\n\n"
+        "**Generic example:** a borrower with a 25-year amortization who picks a 3-year term will renew "
+        "roughly 8 times before the mortgage is fully paid off — each time potentially at a different "
+        "rate depending on the market.".format(term, term.lower())
     )
 
 
@@ -65,9 +73,13 @@ def help_amortization_text(years):
     return (
         "Amortization is the total number of years it will take to pay the mortgage off completely, "
         "assuming payments stay the same the whole time. 25 years is the most common in Canada (up to 30 "
-        "for some first-time buyers or new construction).\n\n"
-        "**In this file:** amortization is set to **{} years**, so at the current rate this mortgage would "
-        "be fully paid off in {} years.".format(years, years)
+        "for some first-time buyers or new construction). A longer amortization lowers the monthly "
+        "payment but increases total interest paid over the life of the loan.\n\n"
+        "**Example from this file:** amortization is set to **{} years**, so at the current rate, this "
+        "mortgage would be fully paid off in {} years if payments never change.\n\n"
+        "**Generic example:** a $400,000 mortgage at 5% over 25 years costs noticeably less in monthly "
+        "payments than the same loan over 15 years — but the 25-year version pays significantly more "
+        "total interest by the time it's paid off.".format(years, years)
     )
 
 
@@ -77,21 +89,30 @@ def help_rate_type_text(rate_type):
     else:
         detail = "the rate moves with the lender's prime rate, so the interest portion of the payment can rise or fall during the term."
     return (
-        "Fixed means the interest rate is locked for the whole term, so the payment stays the same. "
-        "Variable means the rate moves with the lender's prime rate, so the interest portion of the payment "
-        "can rise or fall during the term.\n\n"
-        "**In this file:** the rate type selected is **" + rate_type + "**, so " + detail
+        "Fixed means the interest rate is locked for the whole term, so the payment stays the same no "
+        "matter what happens in the market. Variable means the rate moves with the lender's prime rate, "
+        "so the interest portion of the payment can rise or fall during the term (the total payment may "
+        "stay level with more/less going to principal, or it may change, depending on the lender's product).\n\n"
+        "**Example from this file:** the rate type selected is **" + rate_type + "**, so " + detail + "\n\n"
+        "**Generic example:** two borrowers each take a $350,000 mortgage. One picks Fixed at 4.8% — their "
+        "payment is the same every month for the full term. The other picks Variable starting at 4.3% — "
+        "if prime rate rises 0.5% partway through the term, more of their payment goes to interest (or "
+        "their payment increases, depending on the lender)."
     )
 
 
 def help_benchmark_text(contract_rate, benchmark_rate, qualifying_rate):
     return (
         "Also called the mortgage 'stress test' rate. Regulated lenders must confirm the borrower could "
-        "still afford payments at a higher rate — the greater of the contract rate + 2%, or a federal floor "
-        "(5.25% as of 2026) — in case rates rise after closing. It doesn't change the real payment, only "
-        "what's used to check affordability.\n\n"
-        "**In this file:** contract rate + 2% = **{:.2f}%**, and the benchmark floor entered is **{:.2f}%** "
-        "— so the qualifying rate used for the stress test is the higher of the two: **{:.2f}%**.".format(
+        "still afford payments at a higher rate — the greater of the contract rate + 2%, or a federal "
+        "floor (5.25% as of 2026) — in case rates rise after closing. It doesn't change the real payment, "
+        "only what's used to check affordability on paper.\n\n"
+        "**Example from this file:** contract rate + 2% = **{:.2f}%**, and the benchmark floor entered is "
+        "**{:.2f}%** — so the qualifying rate used for the stress test is the higher of the two: "
+        "**{:.2f}%**.\n\n"
+        "**Generic example:** a borrower is offered 4.0% on their mortgage. 4.0% + 2% = 6.0%, which is "
+        "higher than the 5.25% federal floor — so the lender stress-tests them at 6.0%, not 4.0%, even "
+        "though 4.0% is the rate they'll actually pay.".format(
             contract_rate + 2.0, benchmark_rate, qualifying_rate
         )
     )
@@ -99,36 +120,43 @@ def help_benchmark_text(contract_rate, benchmark_rate, qualifying_rate):
 
 def help_gds_text(total_income_val, annual_housing_val, gds_val):
     if gds_val is not None:
-        example = (
-            "**In this file:** combined gross annual income is **" + fmt_money(total_income_val)
+        file_example = (
+            "**Example from this file:** combined gross annual income is **" + fmt_money(total_income_val)
             + "**, and annual housing costs (mortgage + taxes + heat + half of condo fees) are **"
             + fmt_money(annual_housing_val) + "** — " + fmt_money(annual_housing_val) + " ÷ "
             + fmt_money(total_income_val) + " × 100 = **{:.2f}%**.".format(gds_val)
         )
     else:
-        example = "**In this file:** income hasn't been entered yet, so GDS can't be calculated."
+        file_example = "**Example from this file:** income hasn't been entered yet, so GDS can't be calculated."
     return (
         "Gross Debt Service ratio: the share of gross (pre-tax) household income that would go toward "
         "housing costs — mortgage payment, property taxes, heat, and half of any condo fees. Lenders "
-        "typically want this at or under roughly 32–39%.\n\n" + example
+        "typically want this at or under roughly 32–39%; a lower GDS means more breathing room in the "
+        "budget for housing costs relative to income.\n\n" + file_example + "\n\n"
+        "**Generic example:** a household earning $90,000/year with $2,000/month in total housing costs "
+        "has a GDS of ($2,000 × 12) ÷ $90,000 × 100 = 26.7% — comfortably under the typical 32% guideline."
     )
 
 
 def help_tds_text(total_income_val, annual_housing_val, annual_other_debt_val, tds_val):
     if tds_val is not None:
         total_debt = annual_housing_val + annual_other_debt_val
-        example = (
-            "**In this file:** annual housing costs are **" + fmt_money(annual_housing_val)
+        file_example = (
+            "**Example from this file:** annual housing costs are **" + fmt_money(annual_housing_val)
             + "**, plus other annual debt payments of **" + fmt_money(annual_other_debt_val)
             + "**, for total debt obligations of **" + fmt_money(total_debt) + "** — " + fmt_money(total_debt)
             + " ÷ " + fmt_money(total_income_val) + " × 100 = **{:.2f}%**.".format(tds_val)
         )
     else:
-        example = "**In this file:** income hasn't been entered yet, so TDS can't be calculated."
+        file_example = "**Example from this file:** income hasn't been entered yet, so TDS can't be calculated."
     return (
         "Total Debt Service ratio: the same idea as GDS, but also adds in all other monthly debt payments "
-        "(car loans, credit cards, other properties, etc.). Lenders typically want this at or under roughly "
-        "40–44%.\n\n" + example
+        "(car loans, credit cards, other properties, etc.). Lenders typically want this at or under "
+        "roughly 40–44%. A borrower can have a healthy GDS but still fail TDS if they're carrying a lot "
+        "of other debt.\n\n" + file_example + "\n\n"
+        "**Generic example:** that same $90,000/year household from the GDS example also pays $500/month "
+        "on a car loan and credit cards. Their TDS is ($2,000 + $500) × 12 ÷ $90,000 × 100 = 33.3% — still "
+        "comfortably under the typical 40% guideline, but noticeably higher than their GDS alone."
     )
 
 
@@ -490,15 +518,19 @@ st.markdown(
         font-weight: 400 !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 12px !important;
-        white-space: normal !important;
-        word-break: keep-all !important;
-        overflow-wrap: normal !important;
-        padding: 4px 4px !important;
+        font-size: 11px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: clip !important;
+        padding: 4px 2px !important;
+    }
+    div[class*="st-key-fieldrow_"] div[data-testid="stHorizontalBlock"] {
+        align-items: flex-end !important;
     }
     div[class*="st-key-helpbtn_"] {
         display: flex;
         justify-content: center;
+        margin-bottom: 2px;
     }
     div[class*="st-key-helpbtn_"] button {
         min-height: 1.7em !important;
@@ -1794,14 +1826,14 @@ def render_analysis():
     st.markdown("#### Financing Terms")
 
     def field_row(label_widget_fn, help_text_fn, help_key):
-        c1, c2 = st.columns([12, 1])
-        with c1:
-            label_widget_fn()
-        with c2:
-            st.write("")
-            with st.container(key="helpbtn_" + help_key):
-                with st.popover("❓", key=help_key):
-                    st.caption(help_text_fn())
+        with st.container(key="fieldrow_" + help_key):
+            c1, c2 = st.columns([12, 1])
+            with c1:
+                label_widget_fn()
+            with c2:
+                with st.container(key="helpbtn_" + help_key):
+                    with st.popover("❓", key=help_key):
+                        st.caption(help_text_fn())
 
     fc1, fc2 = st.columns(2)
     with fc1:
