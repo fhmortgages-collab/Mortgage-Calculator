@@ -1311,7 +1311,11 @@ def get_income_source(key):
     return None
 
 
-VARIABLE_INCOME_KEYS = ("commission", "hourly", "bonus_overtime", "self_employed", "dividend")
+VARIABLE_INCOME_KEYS = (
+    "commission", "hourly", "bonus_overtime", "self_employed", "dividend",
+    "self_employed_incorporated", "self_employed_professional",
+)
+EXCLUDED_INCOME_KEYS = ("capital_gains",)
 
 
 def compute_qualifying_variable_income(amounts):
@@ -1342,7 +1346,9 @@ def compute_borrower_income(borrower_idx):
     for key in selected_keys:
         amounts = st.session_state.income_amounts.get(bidx, {}).get(key, {})
 
-        if key == "rental":
+        if key in EXCLUDED_INCOME_KEYS:
+            value = 0.0
+        elif key == "rental":
             gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
             carrying_costs = parse_money(amounts.get("carrying_costs", "")) or 0.0
             value = max(gross_rental - carrying_costs, 0.0)
@@ -1468,6 +1474,71 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c2:
             amounts["account_number"] = st.text_input("Account Number", value=amounts.get("account_number", ""), key=prefix + "account_number")
         render_two_year_income_fields(amounts, prefix, "Dividend Income")
+
+    elif skey == "parttime":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
+        with c2:
+            amounts["amount"] = st.text_input("Gross Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    elif skey in ("self_employed_incorporated", "self_employed_professional"):
+        needs_24mo_check = True
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["business_name"] = st.text_input("Business / Practice Name", value=amounts.get("business_name", ""), key=prefix + "business_name")
+            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
+            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 03/2019", key=prefix + "start_date")
+        with c2:
+            amounts["business_address"] = st.text_input("Business Address", value=amounts.get("business_address", ""), key=prefix + "business_address")
+            amounts["title"] = st.text_input("Role / Title", value=amounts.get("title", ""), key=prefix + "title")
+            amounts["ownership_pct"] = st.text_input("Ownership Percentage (%)", value=amounts.get("ownership_pct", ""), key=prefix + "ownership_pct")
+        render_two_year_income_fields(amounts, prefix, "Net Income")
+
+    elif skey == "disability":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["benefit_type"] = st.text_input("Benefit Type / Provider", value=amounts.get("benefit_type", ""), key=prefix + "benefit_type")
+            duration_options = ["", "Long-Term / Ongoing", "Temporary"]
+            cur_d = amounts.get("duration_type", "")
+            amounts["duration_type"] = st.selectbox(
+                "Expected Duration", duration_options,
+                index=duration_options.index(cur_d) if cur_d in duration_options else 0,
+                key=prefix + "duration_type",
+            )
+        with c2:
+            amounts["amount"] = st.text_input("Gross Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+
+    elif skey == "ei_parental_benefits":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["return_to_work_date"] = st.text_input("Expected Return-to-Work Date (MM/YYYY)", value=amounts.get("return_to_work_date", ""), key=prefix + "return_to_work_date")
+        with c2:
+            amounts["amount"] = st.text_input("Gross Annual Benefit Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        st.caption("Note: EI/maternity/parental benefits are usually weaker for qualification since they're temporary.")
+
+    elif skey == "foreign_income":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["country"] = st.text_input("Country of Income Source", value=amounts.get("country", ""), key=prefix + "country")
+        with c2:
+            amounts["amount"] = st.text_input("Gross Annual Income ($, CAD equivalent)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        st.caption("Note: lenders are usually conservative with foreign income due to currency and jurisdiction risk.")
+
+    elif skey == "capital_gains":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["description"] = st.text_input("Source / Description", value=amounts.get("description", ""), key=prefix + "description")
+        with c2:
+            amounts["amount"] = st.text_input("Amount ($, for reference only)", value=amounts.get("amount", ""), placeholder="Enter amount", key=prefix + "amount")
+        st.caption("⚠️ Capital gains are not recurring income — this amount is recorded for reference only and is excluded from GDS/TDS qualification.")
+
+    elif skey == "board_director_fees":
+        c1, c2 = st.columns(2)
+        with c1:
+            amounts["organization_name"] = st.text_input("Organization Name", value=amounts.get("organization_name", ""), key=prefix + "organization_name")
+        with c2:
+            amounts["amount"] = st.text_input("Gross Annual Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "investment":
         c1, c2 = st.columns(2)
