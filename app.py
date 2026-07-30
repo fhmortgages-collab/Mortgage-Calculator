@@ -1994,25 +1994,21 @@ def render_document_checklist(data):
 
 
 def serialize_checklist_text(data):
-    """Plain-text version of the same hierarchy, for the .txt download."""
-    lines = ["REQUIRED DOCUMENTATION", ""]
+    """Plain-text version of the same hierarchy, matching the on-screen format exactly."""
+    lines = ["Required Documentation"]
     for category in data.get("categories", []):
         items = category.get("items", [])
         if not items:
             continue
-        lines.append(category.get("name", "").upper() + " (" + str(len(items)) + ")")
+        lines.append(category.get("name", "") + " (" + str(len(items)) + ")")
 
         for (applicant, subcategory), group_items in group_checklist_items(items):
             if applicant or subcategory:
                 heading_parts = [p for p in [applicant, subcategory] if p]
-                lines.append("  " + " — ".join(heading_parts))
-                item_prefix = "    [ ] "
-            else:
-                item_prefix = "  [ ] "
+                lines.append(" — ".join(heading_parts))
             for item in group_items:
-                lines.append(item_prefix + item["text"])
+                lines.append("☐ " + item["text"])
 
-        lines.append("")
     return "\n".join(lines)
 
 
