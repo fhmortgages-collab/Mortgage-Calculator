@@ -100,19 +100,26 @@ def safe_calculate(expression):
 
 
 def render_calculator_popover(key_prefix):
-    """A compact calculator fixed to the viewport (stays visible while scrolling), opened via a small round button."""
-    with st.container(key="floatcalc_" + key_prefix):
-        with st.popover("🧮", use_container_width=False):
-            expr = st.text_input(
-                "Expression", key=key_prefix + "_calc_expr", placeholder="1200 + 350*12",
-                label_visibility="collapsed",
-            )
-            if expr.strip():
-                try:
-                    result = safe_calculate(expr)
-                    st.markdown("**= " + "{:,.2f}".format(result) + "**")
-                except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
-                    st.caption(":red[Invalid expression]")
+    """
+    A compact quick-calculator. Rendered in the sidebar rather than as a
+    CSS-pinned floating button — Streamlit's internal DOM structure can
+    silently break `position: fixed` (ancestor transforms change the
+    containing block), so the sidebar is the reliable way to keep this
+    visible on screen at all times regardless of scroll position.
+    """
+    with st.sidebar:
+        st.markdown("#### 🧮 Quick Calculator")
+        expr = st.text_input(
+            "Expression", key=key_prefix + "_calc_expr", placeholder="1200 + 350*12",
+            label_visibility="collapsed",
+        )
+        if expr.strip():
+            try:
+                result = safe_calculate(expr)
+                st.markdown("**= " + "{:,.2f}".format(result) + "**")
+            except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
+                st.caption(":red[Invalid expression]")
+        st.divider()
 
 
 def empty_borrower():
@@ -142,6 +149,10 @@ def empty_property():
 def init_state():
     if "step" not in st.session_state:
         st.session_state.step = 0
+    if "doc_removed_items" not in st.session_state:
+        st.session_state.doc_removed_items = []
+    if "doc_edit_mode" not in st.session_state:
+        st.session_state.doc_edit_mode = False
     if "borrower_count" not in st.session_state:
         st.session_state.borrower_count = 1
     if "borrowers" not in st.session_state:
@@ -241,7 +252,7 @@ SAVE_STATE_KEYS = [
     "subject_rural_urban", "subject_sqft", "subject_storeys", "subject_heating_type",
     "subject_cooling", "subject_foundation", "subject_exterior_finish", "subject_sewer",
     "subject_water", "subject_parking_spaces", "subject_land_size", "subject_title_type",
-    "contract_rate", "amortization_years", "benchmark_rate",
+    "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
 ]
 
 
@@ -297,7 +308,7 @@ def render_stepper(active_index):
     cols = st.columns(len(STEPS))
     for i, label in enumerate(STEPS):
         btn_type = "primary" if i == active_index else "secondary"
-        if cols[i].button(str(i + 1) + ". " + label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
+        if cols[i].button(label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
             st.session_state.step = i
             st.rerun()
 
@@ -307,26 +318,6 @@ st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout
 st.markdown(
     """
     <style>
-    div[class*="st-key-floatcalc_"] {
-        position: fixed;
-        bottom: 22px;
-        right: 22px;
-        z-index: 9999;
-        width: auto;
-    }
-    div[class*="st-key-floatcalc_"] > div {
-        width: auto;
-    }
-    div[class*="st-key-floatcalc_"] button {
-        border-radius: 50%;
-        width: 46px;
-        height: 46px;
-        min-height: 46px;
-        padding: 0;
-        font-size: 18px;
-        line-height: 1;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-    }
     .stButton > button {
         min-height: 3.4em;
         white-space: normal;
@@ -1581,6 +1572,8 @@ def render_gauge(label, value, limit):
 
 def refresh_all():
     st.session_state.step = 0
+    st.session_state.doc_removed_items = []
+    st.session_state.doc_edit_mode = False
     st.session_state.borrower_count = 1
     st.session_state.borrowers = [empty_borrower()]
     st.session_state.borrower_errors = [{}]
@@ -1741,53 +1734,54 @@ def render_analysis():
             ("Heating (H)", heat, heat * 12),
             ("50% Condo Fees (0.5 × C)", condo * 0.5, condo * 0.5 * 12),
         ]
+        cell = "padding:6px 10px; border-bottom:1px solid #d1d5db; color:#111827;"
         table_rows_html = "".join(
-            "<tr><td style='padding:6px 10px; border-bottom:1px solid #e5e7eb;'>" + name + "</td>"
-            "<td style='padding:6px 10px; border-bottom:1px solid #e5e7eb; text-align:right;'>" + fmt_money(monthly) + "</td>"
-            "<td style='padding:6px 10px; border-bottom:1px solid #e5e7eb; text-align:right;'>" + fmt_money(annual) + "</td></tr>"
+            "<tr><td style='" + cell + "'>" + name + "</td>"
+            "<td style='" + cell + " text-align:right;'>" + fmt_money(monthly) + "</td>"
+            "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
             for name, monthly, annual in rows
         )
         st.markdown(
-            "<table style='width:100%; border-collapse:collapse; font-size:14px; margin-bottom:8px;'>"
-            "<tr style='background:#f3f4f6;'>"
-            "<th style='padding:6px 10px; text-align:left;'>Housing Cost Component</th>"
-            "<th style='padding:6px 10px; text-align:right;'>Monthly</th>"
-            "<th style='padding:6px 10px; text-align:right;'>Annual</th></tr>"
+            "<table style='width:100%; border-collapse:collapse; font-size:14px; margin-bottom:8px; color:#111827;'>"
+            "<tr style='background:#e5e7eb;'>"
+            "<th style='padding:6px 10px; text-align:left; color:#111827;'>Housing Cost Component</th>"
+            "<th style='padding:6px 10px; text-align:right; color:#111827;'>Monthly</th>"
+            "<th style='padding:6px 10px; text-align:right; color:#111827;'>Annual</th></tr>"
             + table_rows_html +
-            "<tr style='font-weight:700; background:#f9fafb;'>"
-            "<td style='padding:6px 10px;'>Total Annual Housing Costs (PITH)</td>"
-            "<td style='padding:6px 10px;'></td>"
-            "<td style='padding:6px 10px; text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
+            "<tr style='font-weight:700; background:#f3f4f6;'>"
+            "<td style='padding:6px 10px; color:#111827;'>Total Annual Housing Costs (PITH)</td>"
+            "<td style='padding:6px 10px; color:#111827;'></td>"
+            "<td style='padding:6px 10px; text-align:right; color:#111827;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
             "</table>",
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<div style='background:#eff6ff; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:14px;'>"
+            "<div style='background:#dbeafe; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:14px; color:#1e3a8a;'>"
             "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
             + " × 100 = <b>" + gds_disp + "</b></div>",
             unsafe_allow_html=True,
         )
 
         tds_rows_html = (
-            "<tr><td style='padding:6px 10px; border-bottom:1px solid #e5e7eb;'>Annual Housing Costs (PITH, from above)</td>"
-            "<td style='padding:6px 10px; border-bottom:1px solid #e5e7eb; text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
-            "<tr><td style='padding:6px 10px; border-bottom:1px solid #e5e7eb;'>All Other Monthly Debt Payments × 12</td>"
-            "<td style='padding:6px 10px; border-bottom:1px solid #e5e7eb; text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
+            "<tr><td style='" + cell + "'>Annual Housing Costs (PITH, from above)</td>"
+            "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
+            "<tr><td style='" + cell + "'>All Other Monthly Debt Payments × 12</td>"
+            "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
         )
         st.markdown(
-            "<table style='width:100%; border-collapse:collapse; font-size:14px; margin-bottom:8px;'>"
-            "<tr style='background:#f3f4f6;'>"
-            "<th style='padding:6px 10px; text-align:left;'>Debt Obligation Component</th>"
-            "<th style='padding:6px 10px; text-align:right;'>Annual</th></tr>"
+            "<table style='width:100%; border-collapse:collapse; font-size:14px; margin-bottom:8px; color:#111827;'>"
+            "<tr style='background:#e5e7eb;'>"
+            "<th style='padding:6px 10px; text-align:left; color:#111827;'>Debt Obligation Component</th>"
+            "<th style='padding:6px 10px; text-align:right; color:#111827;'>Annual</th></tr>"
             + tds_rows_html +
-            "<tr style='font-weight:700; background:#f9fafb;'>"
-            "<td style='padding:6px 10px;'>Total Annual Debt Obligations</td>"
-            "<td style='padding:6px 10px; text-align:right;'>" + fmt_money(annual_housing_amount + annual_other_debt_amount) + "</td></tr>"
+            "<tr style='font-weight:700; background:#f3f4f6;'>"
+            "<td style='padding:6px 10px; color:#111827;'>Total Annual Debt Obligations</td>"
+            "<td style='padding:6px 10px; text-align:right; color:#111827;'>" + fmt_money(annual_housing_amount + annual_other_debt_amount) + "</td></tr>"
             "</table>",
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<div style='background:#eff6ff; border-radius:8px; padding:10px 14px; font-size:14px;'>"
+            "<div style='background:#dbeafe; border-radius:8px; padding:10px 14px; font-size:14px; color:#1e3a8a;'>"
             "<b>TDS</b> = " + fmt_money(annual_housing_amount + annual_other_debt_amount) + " ÷ " + fmt_money(total_income)
             + " × 100 = <b>" + tds_disp + "</b></div>",
             unsafe_allow_html=True,
@@ -2123,8 +2117,66 @@ def serialize_checklist_text(data):
     return "\n".join(lines)
 
 
+def checklist_item_key(category_name, item):
+    """Stable identifier for one checklist item, used to track removals across reruns/saves."""
+    return category_name + "||" + (item.get("applicant") or "") + "||" + (item.get("subcategory") or "") + "||" + item["text"]
+
+
+def filter_checklist_data(data, removed_keys):
+    """Returns a copy of the checklist data with any previously-removed items stripped out."""
+    removed_set = set(removed_keys)
+    filtered = []
+    for category in data.get("categories", []):
+        name = category.get("name", "")
+        kept_items = [it for it in category.get("items", []) if checklist_item_key(name, it) not in removed_set]
+        filtered.append({"name": name, "items": kept_items})
+    return {"categories": filtered}
+
+
+def render_document_checklist_editable(data):
+    """
+    Edit-mode view: every item gets a checkbox (checked = keep). Unchecking
+    and saving permanently removes that item from the checklist. Returns
+    the set of item-keys the user unchecked in this pass.
+    """
+    unchecked_keys = set()
+    for category in data.get("categories", []):
+        items = category.get("items", [])
+        if not items:
+            continue
+        st.markdown(
+            "<div style='font-size:18px; font-weight:700; margin-top:14px; margin-bottom:6px;'>"
+            + category.get("name", "") + " (" + str(len(items)) + ")</div>",
+            unsafe_allow_html=True,
+        )
+        for (applicant, subcategory), group_items in group_checklist_items(items):
+            if applicant or subcategory:
+                heading_parts = []
+                if applicant:
+                    heading_parts.append("<b>" + applicant + "</b>")
+                if subcategory:
+                    heading_parts.append(subcategory)
+                st.markdown(
+                    "<div style='margin-left:20px; font-weight:600; margin-top:8px; margin-bottom:2px;'>"
+                    + " — ".join(heading_parts) + "</div>",
+                    unsafe_allow_html=True,
+                )
+                indent_col = st.columns([1, 19])[1]
+            else:
+                indent_col = st.columns([1, 19])[1]
+
+            for item in group_items:
+                key = checklist_item_key(category.get("name", ""), item)
+                with indent_col:
+                    keep = st.checkbox(item["text"], value=True, key="doc_edit_" + key)
+                if not keep:
+                    unchecked_keys.add(key)
+    return unchecked_keys
+
+
 def render_documents():
-    checklist_data = build_document_checklist_data()
+    raw_checklist_data = build_document_checklist_data()
+    checklist_data = filter_checklist_data(raw_checklist_data, st.session_state.doc_removed_items)
 
     always_present = ("Application & Consent", "Property Being Purchased")
     has_client_specific_items = any(
@@ -2136,17 +2188,65 @@ def render_documents():
             "documents that always apply (application/consent and the property being purchased)."
         )
 
-    total_count = render_document_checklist(checklist_data)
+    if st.session_state.doc_removed_items:
+        st.caption(str(len(st.session_state.doc_removed_items)) + " item(s) manually removed from this checklist.")
 
-    st.divider()
-    st.markdown("#### Total Documents Required: " + str(total_count))
+    if not st.session_state.doc_edit_mode:
+        edit_col, _ = st.columns([1, 3])
+        with edit_col:
+            if st.button("✏️ Edit List", use_container_width=True, key="doc_edit_toggle_on"):
+                st.session_state.doc_edit_mode = True
+                st.rerun()
 
-    st.download_button(
-        "Download Checklist (.txt)",
-        data=serialize_checklist_text(checklist_data),
-        file_name="required_documents_checklist.txt",
-        mime="text/plain",
-    )
+        total_count = render_document_checklist(checklist_data)
+
+        st.divider()
+        st.markdown("#### Total Documents Required: " + str(total_count))
+
+        st.download_button(
+            "Download Checklist (.txt)",
+            data=serialize_checklist_text(checklist_data),
+            file_name="required_documents_checklist.txt",
+            mime="text/plain",
+        )
+    else:
+        st.warning("**Edit mode:** uncheck any item you want to permanently remove, then Save. This cannot be undone from within this page.")
+        unchecked_keys = render_document_checklist_editable(checklist_data)
+
+        st.divider()
+        save_col, cancel_col = st.columns(2)
+        with save_col:
+            if st.button("💾 Save Changes", type="primary", use_container_width=True, key="doc_save_edits"):
+                st.session_state["doc_pending_removal"] = list(unchecked_keys)
+                st.session_state["doc_show_save_confirm"] = True
+        with cancel_col:
+            if st.button("Cancel", use_container_width=True, key="doc_cancel_edits"):
+                st.session_state.doc_edit_mode = False
+                st.rerun()
+
+        if st.session_state.get("doc_show_save_confirm"):
+            pending = st.session_state.get("doc_pending_removal", [])
+            if pending:
+                st.warning(
+                    "Are you sure you want to permanently remove " + str(len(pending)) + " item(s) from this "
+                    "checklist? This cannot be undone (unless you re-check the item's original selection, which "
+                    "won't bring it back — you'd need to clear removals via a fresh Refresh)."
+                )
+            else:
+                st.info("No items were unchecked — nothing will be removed.")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("Confirm & Save", type="primary", use_container_width=True, key="doc_confirm_save"):
+                    existing = set(st.session_state.doc_removed_items)
+                    existing.update(pending)
+                    st.session_state.doc_removed_items = list(existing)
+                    st.session_state.doc_edit_mode = False
+                    st.session_state["doc_show_save_confirm"] = False
+                    st.rerun()
+            with c2:
+                if st.button("Cancel", use_container_width=True, key="doc_cancel_save"):
+                    st.session_state["doc_show_save_confirm"] = False
+                    st.rerun()
 
     st.divider()
 
