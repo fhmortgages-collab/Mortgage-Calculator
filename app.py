@@ -304,6 +304,55 @@ def load_application(json_text):
     return True, "Application loaded successfully."
 
 
+def refresh_all():
+    st.session_state.step = 0
+    st.session_state.doc_removed_items = []
+    st.session_state.doc_edit_mode = False
+    st.session_state.borrower_count = 1
+    st.session_state.borrowers = [empty_borrower()]
+    st.session_state.borrower_errors = [{}]
+    st.session_state.consent = False
+    st.session_state.purchase_price_raw = ""
+    st.session_state.down_payment_raw = ""
+    st.session_state.selected_sources = []
+    st.session_state.source_amounts = {}
+    st.session_state.other_source_desc = ""
+    st.session_state.dp_errors = {}
+    st.session_state.income_selected = {}
+    st.session_state.income_amounts = {}
+    st.session_state.income_special = {}
+    st.session_state.income_other_desc = {}
+    st.session_state.income_errors = {}
+    st.session_state.properties = []
+    st.session_state.debt_selected = []
+    st.session_state.debt_amounts = {}
+    st.session_state.debt_other_desc = ""
+    st.session_state.debt_errors = {}
+    st.session_state.subject_address = ""
+    st.session_state.subject_taxes_raw = ""
+    st.session_state.subject_condo_raw = ""
+    st.session_state.subject_heat_raw = ""
+    st.session_state.subject_prop_type = ""
+    st.session_state.subject_prop_purpose = ""
+    st.session_state.subject_prop_age = ""
+    st.session_state.subject_garage = ""
+    st.session_state.subject_rural_urban = ""
+    st.session_state.subject_sqft = ""
+    st.session_state.subject_storeys = ""
+    st.session_state.subject_heating_type = ""
+    st.session_state.subject_cooling = ""
+    st.session_state.subject_foundation = ""
+    st.session_state.subject_exterior_finish = ""
+    st.session_state.subject_sewer = ""
+    st.session_state.subject_water = ""
+    st.session_state.subject_parking_spaces = ""
+    st.session_state.subject_land_size = ""
+    st.session_state.subject_title_type = ""
+    st.session_state.contract_rate = 5.0
+    st.session_state.amortization_years = 25
+    st.session_state.benchmark_rate = 5.25
+
+
 def render_stepper(active_index):
     cols = st.columns(len(STEPS))
     for i, label in enumerate(STEPS):
@@ -369,30 +418,44 @@ st.caption("Residential Mortgage Application")
 
 render_stepper(st.session_state.step)
 
-with st.expander("💾 Save or Load Application", expanded=False):
-    save_col, load_col = st.columns(2)
-    with save_col:
-        st.write("**Save**")
-        st.caption("Download everything entered so far as a file you keep — no account needed.")
-        st.download_button(
-            "Download Application (.json)",
-            data=serialize_application(),
-            file_name="mortgage_application.json",
-            mime="application/json",
-            use_container_width=True,
-        )
-    with load_col:
-        st.write("**Load**")
-        st.caption("Upload a previously downloaded application file to pick up where you left off.")
-        uploaded = st.file_uploader("Choose a .json file", type=["json"], key="load_app_uploader", label_visibility="collapsed")
-        if uploaded is not None:
-            if st.button("Load this file", use_container_width=True, key="load_app_confirm"):
-                success, message = load_application(uploaded.read().decode("utf-8"))
-                if success:
-                    st.success(message)
-                    st.rerun()
-                else:
-                    st.error(message)
+with st.sidebar:
+    st.markdown("#### 💾 Save or Load Application")
+    st.caption("Download everything entered so far — no account needed.")
+    st.download_button(
+        "Download (.json)",
+        data=serialize_application(),
+        file_name="mortgage_application.json",
+        mime="application/json",
+        use_container_width=True,
+    )
+    uploaded = st.file_uploader("Load a .json file", type=["json"], key="load_app_uploader")
+    if uploaded is not None:
+        if st.button("Load this file", use_container_width=True, key="load_app_confirm"):
+            success, message = load_application(uploaded.read().decode("utf-8"))
+            if success:
+                st.success(message)
+                st.rerun()
+            else:
+                st.error(message)
+
+    st.divider()
+
+    if st.button("🔄 Refresh Application", use_container_width=True, key="sidebar_refresh"):
+        st.session_state["sidebar_show_refresh_confirm"] = True
+    if st.session_state.get("sidebar_show_refresh_confirm"):
+        st.warning("Clear all entered data across every step? This cannot be undone.")
+        rc1, rc2 = st.columns(2)
+        with rc1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="sidebar_confirm_refresh"):
+                refresh_all()
+                st.session_state["sidebar_show_refresh_confirm"] = False
+                st.rerun()
+        with rc2:
+            if st.button("Cancel", use_container_width=True, key="sidebar_cancel_refresh"):
+                st.session_state["sidebar_show_refresh_confirm"] = False
+                st.rerun()
+
+    st.divider()
 
 
 # ---------------------------------------------------------------------------
@@ -1570,55 +1633,6 @@ def render_gauge(label, value, limit):
     )
 
 
-def refresh_all():
-    st.session_state.step = 0
-    st.session_state.doc_removed_items = []
-    st.session_state.doc_edit_mode = False
-    st.session_state.borrower_count = 1
-    st.session_state.borrowers = [empty_borrower()]
-    st.session_state.borrower_errors = [{}]
-    st.session_state.consent = False
-    st.session_state.purchase_price_raw = ""
-    st.session_state.down_payment_raw = ""
-    st.session_state.selected_sources = []
-    st.session_state.source_amounts = {}
-    st.session_state.other_source_desc = ""
-    st.session_state.dp_errors = {}
-    st.session_state.income_selected = {}
-    st.session_state.income_amounts = {}
-    st.session_state.income_special = {}
-    st.session_state.income_other_desc = {}
-    st.session_state.income_errors = {}
-    st.session_state.properties = []
-    st.session_state.debt_selected = []
-    st.session_state.debt_amounts = {}
-    st.session_state.debt_other_desc = ""
-    st.session_state.debt_errors = {}
-    st.session_state.subject_address = ""
-    st.session_state.subject_taxes_raw = ""
-    st.session_state.subject_condo_raw = ""
-    st.session_state.subject_heat_raw = ""
-    st.session_state.subject_prop_type = ""
-    st.session_state.subject_prop_purpose = ""
-    st.session_state.subject_prop_age = ""
-    st.session_state.subject_garage = ""
-    st.session_state.subject_rural_urban = ""
-    st.session_state.subject_sqft = ""
-    st.session_state.subject_storeys = ""
-    st.session_state.subject_heating_type = ""
-    st.session_state.subject_cooling = ""
-    st.session_state.subject_foundation = ""
-    st.session_state.subject_exterior_finish = ""
-    st.session_state.subject_sewer = ""
-    st.session_state.subject_water = ""
-    st.session_state.subject_parking_spaces = ""
-    st.session_state.subject_land_size = ""
-    st.session_state.subject_title_type = ""
-    st.session_state.contract_rate = 5.0
-    st.session_state.amortization_years = 25
-    st.session_state.benchmark_rate = 5.25
-
-
 def render_analysis():
     st.markdown("### Qualification Summary")
     st.write("This page aggregates data from all previous steps — nothing to re-enter here.")
@@ -1734,29 +1748,32 @@ def render_analysis():
             ("Heating (H)", heat, heat * 12),
             ("50% Condo Fees (0.5 × C)", condo * 0.5, condo * 0.5 * 12),
         ]
-        cell = "padding:6px 10px; border-bottom:1px solid #d1d5db; color:#111827;"
+        cell = "padding:4px 8px; border-bottom:1px solid #94a3b8 !important; color:#0f172a !important; background:#f1f5f9 !important;"
         table_rows_html = "".join(
             "<tr><td style='" + cell + "'>" + name + "</td>"
             "<td style='" + cell + " text-align:right;'>" + fmt_money(monthly) + "</td>"
             "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
             for name, monthly, annual in rows
         )
+        head = "padding:4px 8px; color:#0f172a !important; background:#cbd5e1 !important; font-weight:700 !important;"
+        total_cell = "padding:4px 8px; color:#0f172a !important; background:#e2e8f0 !important; font-weight:700 !important;"
         st.markdown(
-            "<table style='width:100%; border-collapse:collapse; font-size:14px; margin-bottom:8px; color:#111827;'>"
-            "<tr style='background:#e5e7eb;'>"
-            "<th style='padding:6px 10px; text-align:left; color:#111827;'>Housing Cost Component</th>"
-            "<th style='padding:6px 10px; text-align:right; color:#111827;'>Monthly</th>"
-            "<th style='padding:6px 10px; text-align:right; color:#111827;'>Annual</th></tr>"
+            "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;'>"
+            "<tr>"
+            "<th style='" + head + " text-align:left;'>Housing Cost Component</th>"
+            "<th style='" + head + " text-align:right;'>Monthly</th>"
+            "<th style='" + head + " text-align:right;'>Annual</th></tr>"
             + table_rows_html +
-            "<tr style='font-weight:700; background:#f3f4f6;'>"
-            "<td style='padding:6px 10px; color:#111827;'>Total Annual Housing Costs (PITH)</td>"
-            "<td style='padding:6px 10px; color:#111827;'></td>"
-            "<td style='padding:6px 10px; text-align:right; color:#111827;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
+            "<tr>"
+            "<td style='" + total_cell + "'>Total Annual Housing Costs (PITH)</td>"
+            "<td style='" + total_cell + "'></td>"
+            "<td style='" + total_cell + " text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
             "</table>",
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<div style='background:#dbeafe; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:14px; color:#1e3a8a;'>"
+            "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; margin-bottom:10px; "
+            "font-size:13px; color:#1e3a8a !important;'>"
             "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
             + " × 100 = <b>" + gds_disp + "</b></div>",
             unsafe_allow_html=True,
@@ -1769,19 +1786,20 @@ def render_analysis():
             "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
         )
         st.markdown(
-            "<table style='width:100%; border-collapse:collapse; font-size:14px; margin-bottom:8px; color:#111827;'>"
-            "<tr style='background:#e5e7eb;'>"
-            "<th style='padding:6px 10px; text-align:left; color:#111827;'>Debt Obligation Component</th>"
-            "<th style='padding:6px 10px; text-align:right; color:#111827;'>Annual</th></tr>"
+            "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;'>"
+            "<tr>"
+            "<th style='" + head + " text-align:left;'>Debt Obligation Component</th>"
+            "<th style='" + head + " text-align:right;'>Annual</th></tr>"
             + tds_rows_html +
-            "<tr style='font-weight:700; background:#f3f4f6;'>"
-            "<td style='padding:6px 10px; color:#111827;'>Total Annual Debt Obligations</td>"
-            "<td style='padding:6px 10px; text-align:right; color:#111827;'>" + fmt_money(annual_housing_amount + annual_other_debt_amount) + "</td></tr>"
+            "<tr>"
+            "<td style='" + total_cell + "'>Total Annual Debt Obligations</td>"
+            "<td style='" + total_cell + " text-align:right;'>" + fmt_money(annual_housing_amount + annual_other_debt_amount) + "</td></tr>"
             "</table>",
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<div style='background:#dbeafe; border-radius:8px; padding:10px 14px; font-size:14px; color:#1e3a8a;'>"
+            "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
+            "font-size:13px; color:#1e3a8a !important;'>"
             "<b>TDS</b> = " + fmt_money(annual_housing_amount + annual_other_debt_amount) + " ÷ " + fmt_money(total_income)
             + " × 100 = <b>" + tds_disp + "</b></div>",
             unsafe_allow_html=True,
