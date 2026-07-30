@@ -242,11 +242,18 @@ def render_stepper(active_index):
             st.rerun()
 
 
-st.set_page_config(page_title="Mortgage Application Wizard", page_icon="🏠", layout="centered")
+st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout="centered")
 
 st.markdown(
     """
     <style>
+    .stButton > button {
+        min-height: 3.4em;
+        white-space: normal;
+        line-height: 1.2;
+        font-size: 13px;
+        padding: 4px 8px;
+    }
     .stepper-wrap {display:flex; justify-content:space-between; margin-bottom: 1.5rem;}
     .step {text-align:center; flex:1; font-size:13px; color:#9ca3af;}
     .step-active {color:#111827; font-weight:600;}
@@ -285,7 +292,7 @@ st.markdown(
 
 init_state()
 
-st.markdown("## 🏠 Mortgage Loan Wizard")
+st.markdown("## 🏠 FH.Mortgage Calculator")
 st.caption("Residential Mortgage Application")
 
 render_stepper(st.session_state.step)
