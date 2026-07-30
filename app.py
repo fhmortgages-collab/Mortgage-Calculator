@@ -30,7 +30,7 @@ SEWER_OPTIONS = ["", "Sanitary Sewer (Municipal)", "Septic System", "Other"]
 WATER_OPTIONS = ["", "Municipal Water", "Well", "Other"]
 TITLE_TYPE_OPTIONS = ["", "Freehold", "Condominium", "Leasehold", "Other"]
 
-STEPS = ["Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis"]
+STEPS = ["Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Documents"]
 
 GDS_LIMIT = 32.0
 TDS_LIMIT = 40.0
@@ -1746,7 +1746,7 @@ def render_analysis():
     st.divider()
 
     # --- Navigation ---
-    back_col, refresh_col, submit_col = st.columns(3)
+    back_col, refresh_col, submit_col, docs_col = st.columns(4)
     with back_col:
         if st.button("← Back", use_container_width=True, key="p5_back"):
             st.session_state.step = 4
@@ -1773,6 +1773,174 @@ def render_analysis():
         if st.button("Submit Application", type="primary", use_container_width=True, key="p5_submit", disabled=submit_disabled):
             st.success("Application submitted. (Connect this button to your backend to persist the data.)")
 
+    with docs_col:
+        if st.button("Required Documents →", use_container_width=True, key="p5_to_docs"):
+            st.session_state.step = 6
+            st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# STEP 5 — Documents Checklist
+# ---------------------------------------------------------------------------
+
+GENERAL_APPLICATION_DOCS = [
+    "Signed mortgage application form",
+    "Signed consent for collection, use, and disclosure of personal information",
+    "Void cheque or pre-authorized debit form for the account to be used",
+]
+
+PER_BORROWER_ID_DOCS = [
+    "Two pieces of government-issued photo ID (e.g. driver's licence, passport)",
+    "Social Insurance Number (SIN)",
+    "Proof of current address (utility bill, lease, or bank statement, if not matching ID)",
+]
+
+SUBJECT_PROPERTY_DOCS = [
+    "Signed Agreement of Purchase and Sale, including all schedules and amendments",
+    "MLS listing or property summary, if available",
+    "Proof of property insurance (binder) naming the lender as loss payee, arranged prior to closing",
+]
+
+
+def build_document_checklist():
+    """Aggregates all required documents from every step into a list of (category, [doc, ...]) tuples."""
+    checklist = []
+
+    checklist.append(("Application & Consent", list(GENERAL_APPLICATION_DOCS)))
+
+    # Per-borrower identification
+    borrower_section = []
+    for idx in range(st.session_state.borrower_count):
+        borrowers = st.session_state.borrowers
+        name = borrowers[idx]["full_name"].strip() if idx < len(borrowers) and borrowers[idx]["full_name"].strip() else "Borrower " + str(idx + 1)
+        for doc in PER_BORROWER_ID_DOCS:
+            borrower_section.append(name + " — " + doc)
+    if borrower_section:
+        checklist.append(("Identification", borrower_section))
+
+    # Down payment sources
+    dp_section = []
+    for key in st.session_state.selected_sources:
+        src = next((s for s in DOWN_PAYMENT_SOURCES if s["key"] == key), None)
+        if src:
+            for doc in src["documents"]:
+                dp_section.append(src["label"] + " — " + doc)
+    if dp_section:
+        checklist.append(("Down Payment", dp_section))
+
+    # Income, per borrower
+    income_section = []
+    for idx in range(st.session_state.borrower_count):
+        bidx = str(idx)
+        borrowers = st.session_state.borrowers
+        name = borrowers[idx]["full_name"].strip() if idx < len(borrowers) and borrowers[idx]["full_name"].strip() else "Borrower " + str(idx + 1)
+        for key in st.session_state.income_selected.get(bidx, []):
+            src = get_income_source(key)
+            if src:
+                for doc in src["documents"]:
+                    income_section.append(name + " — " + src["label"] + " — " + doc)
+    if income_section:
+        checklist.append(("Income", income_section))
+
+    # Subject property being purchased
+    checklist.append(("Property Being Purchased", list(SUBJECT_PROPERTY_DOCS)))
+
+    # Other properties owned (from Debts step)
+    other_prop_section = []
+    for pidx, prop in enumerate(st.session_state.properties):
+        label = prop["address"].strip() if prop["address"].strip() else "Property " + str(pidx + 1)
+        other_prop_section.append(label + " — Mortgage statement or loan agreement")
+        other_prop_section.append(label + " — Property tax assessment or bill")
+        other_prop_section.append(label + " — Condo fee statement (if applicable)")
+        other_prop_section.append(label + " — Heating bill or utility estimate")
+    if other_prop_section:
+        checklist.append(("Other Properties Owned", other_prop_section))
+
+    # Other debts
+    debt_section = []
+    for key in st.session_state.debt_selected:
+        dt = get_debt_type(key)
+        if dt:
+            for doc in dt["documents"]:
+                debt_section.append(dt["label"] + " — " + doc)
+    if debt_section:
+        checklist.append(("Other Debts & Liabilities", debt_section))
+
+    return checklist
+
+
+def render_documents():
+    st.markdown("### Required Documents")
+    st.write(
+        "Based on everything entered across this application — borrowers, income sources, down payment "
+        "sources, the property being purchased, and other debts/properties — here's the consolidated list "
+        "of documents the bank will need to review the deal."
+    )
+
+    checklist = build_document_checklist()
+
+    if not any(items for _, items in checklist if _ not in ("Application & Consent", "Property Being Purchased")):
+        st.info(
+            "This list will fill in as you complete the earlier steps — right now it only shows the "
+            "documents that always apply (application/consent and the property being purchased)."
+        )
+
+    st.divider()
+
+    total_count = 0
+    for category, items in checklist:
+        if not items:
+            continue
+        with st.expander(category + " (" + str(len(items)) + ")", expanded=True):
+            for doc in items:
+                st.markdown("- [ ] " + doc)
+        total_count += len(items)
+
+    st.divider()
+    st.markdown("#### Total Documents Required: " + str(total_count))
+
+    # Plain-text export
+    lines = ["MORTGAGE APPLICATION — REQUIRED DOCUMENTS CHECKLIST", ""]
+    for category, items in checklist:
+        if not items:
+            continue
+        lines.append(category.upper())
+        for doc in items:
+            lines.append("  [ ] " + doc)
+        lines.append("")
+    checklist_text = "\n".join(lines)
+
+    st.download_button(
+        "Download Checklist (.txt)",
+        data=checklist_text,
+        file_name="required_documents_checklist.txt",
+        mime="text/plain",
+    )
+
+    st.divider()
+
+    back_col, refresh_col = st.columns(2)
+    with back_col:
+        if st.button("← Back to Analysis", use_container_width=True, key="p6_back"):
+            st.session_state.step = 5
+            st.rerun()
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p6_refresh"):
+            st.session_state["p6_show_refresh_confirm"] = True
+
+    if st.session_state.get("p6_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data across all pages will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p6_confirm_refresh"):
+                refresh_all()
+                st.session_state["p6_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p6_cancel_refresh"):
+                st.session_state["p6_show_refresh_confirm"] = False
+                st.rerun()
+
 
 # ---------------------------------------------------------------------------
 # Router
@@ -1790,3 +1958,5 @@ elif st.session_state.step == 4:
     render_debts()
 elif st.session_state.step == 5:
     render_analysis()
+elif st.session_state.step == 6:
+    render_documents()
