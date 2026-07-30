@@ -39,40 +39,97 @@ TDS_LIMIT = 40.0
 MORTGAGE_TERM_OPTIONS = ["1 Year", "2 Year", "3 Year", "4 Year", "5 Year"]
 RATE_TYPE_OPTIONS = ["Fixed", "Variable"]
 
-HELP_CONTRACT_RATE = (
-    "The interest rate your lender is actually charging you for this mortgage — your real payment is "
-    "calculated using this rate."
-)
-HELP_TERM = (
-    "How long you're locked into this rate and lender before you have to renew (commonly 1–5 years in "
-    "Canada). This is different from amortization — the term is just one chapter of the full payoff period; "
-    "at the end of it you renew, possibly at a new rate, even though the mortgage itself isn't paid off yet."
-)
-HELP_AMORTIZATION = (
-    "The total number of years it will take to pay the mortgage off completely, assuming payments stay the "
-    "same throughout. 25 years is the most common in Canada (up to 30 for some first-time buyers or new "
-    "construction)."
-)
-HELP_RATE_TYPE = (
-    "Fixed: your interest rate is locked for the whole term, so your payment doesn't change. Variable: your "
-    "rate moves with the lender's prime rate, so the interest portion of your payment can go up or down "
-    "during the term."
-)
-HELP_BENCHMARK = (
-    "Also called the mortgage 'stress test' rate. Regulated lenders must confirm you could still afford "
-    "payments at a higher rate — the greater of your contract rate + 2%, or a federal floor (5.25% as of "
-    "2026) — in case rates rise after you close."
-)
-HELP_GDS = (
-    "Gross Debt Service ratio: the share of your gross (pre-tax) household income that would go toward "
-    "housing costs — mortgage payment, property taxes, heat, and half of any condo fees. Lenders typically "
-    "want this at or under roughly 32–39%."
-)
-HELP_TDS = (
-    "Total Debt Service ratio: the same idea as GDS, but also adds in all your other monthly debt payments "
-    "(car loans, credit cards, other properties, etc.). Lenders typically want this at or under roughly "
-    "40–44%."
-)
+
+def help_contract_rate_text(rate):
+    return (
+        "This is the actual interest rate the lender charges on this mortgage — it's what the real monthly "
+        "payment is calculated from. It's not the same as the stress-test rate below, which is only used to "
+        "check affordability, not to set the real payment.\n\n"
+        "**In this file:** the contract rate entered is **{:.2f}%**, so this borrower's payment is calculated "
+        "using {:.2f}% interest.".format(rate, rate)
+    )
+
+
+def help_term_text(term):
+    return (
+        "The mortgage term is how long the borrower is locked into this rate and lender before having to "
+        "renew — usually 1 to 5 years in Canada. It's different from amortization (the full payoff timeline) "
+        "— the term is just one chapter of it. When the term ends, the borrower renews, possibly at a new "
+        "rate, even though the mortgage itself isn't fully paid off yet.\n\n"
+        "**In this file:** the term selected is **{}**, meaning this rate and lender commitment lasts {} "
+        "before renewal is required.".format(term, term.lower())
+    )
+
+
+def help_amortization_text(years):
+    return (
+        "Amortization is the total number of years it will take to pay the mortgage off completely, "
+        "assuming payments stay the same the whole time. 25 years is the most common in Canada (up to 30 "
+        "for some first-time buyers or new construction).\n\n"
+        "**In this file:** amortization is set to **{} years**, so at the current rate this mortgage would "
+        "be fully paid off in {} years.".format(years, years)
+    )
+
+
+def help_rate_type_text(rate_type):
+    if rate_type == "Fixed":
+        detail = "the rate is locked for the whole term, so the payment amount won't change even if market rates move."
+    else:
+        detail = "the rate moves with the lender's prime rate, so the interest portion of the payment can rise or fall during the term."
+    return (
+        "Fixed means the interest rate is locked for the whole term, so the payment stays the same. "
+        "Variable means the rate moves with the lender's prime rate, so the interest portion of the payment "
+        "can rise or fall during the term.\n\n"
+        "**In this file:** the rate type selected is **" + rate_type + "**, so " + detail
+    )
+
+
+def help_benchmark_text(contract_rate, benchmark_rate, qualifying_rate):
+    return (
+        "Also called the mortgage 'stress test' rate. Regulated lenders must confirm the borrower could "
+        "still afford payments at a higher rate — the greater of the contract rate + 2%, or a federal floor "
+        "(5.25% as of 2026) — in case rates rise after closing. It doesn't change the real payment, only "
+        "what's used to check affordability.\n\n"
+        "**In this file:** contract rate + 2% = **{:.2f}%**, and the benchmark floor entered is **{:.2f}%** "
+        "— so the qualifying rate used for the stress test is the higher of the two: **{:.2f}%**.".format(
+            contract_rate + 2.0, benchmark_rate, qualifying_rate
+        )
+    )
+
+
+def help_gds_text(total_income_val, annual_housing_val, gds_val):
+    if gds_val is not None:
+        example = (
+            "**In this file:** combined gross annual income is **" + fmt_money(total_income_val)
+            + "**, and annual housing costs (mortgage + taxes + heat + half of condo fees) are **"
+            + fmt_money(annual_housing_val) + "** — " + fmt_money(annual_housing_val) + " ÷ "
+            + fmt_money(total_income_val) + " × 100 = **{:.2f}%**.".format(gds_val)
+        )
+    else:
+        example = "**In this file:** income hasn't been entered yet, so GDS can't be calculated."
+    return (
+        "Gross Debt Service ratio: the share of gross (pre-tax) household income that would go toward "
+        "housing costs — mortgage payment, property taxes, heat, and half of any condo fees. Lenders "
+        "typically want this at or under roughly 32–39%.\n\n" + example
+    )
+
+
+def help_tds_text(total_income_val, annual_housing_val, annual_other_debt_val, tds_val):
+    if tds_val is not None:
+        total_debt = annual_housing_val + annual_other_debt_val
+        example = (
+            "**In this file:** annual housing costs are **" + fmt_money(annual_housing_val)
+            + "**, plus other annual debt payments of **" + fmt_money(annual_other_debt_val)
+            + "**, for total debt obligations of **" + fmt_money(total_debt) + "** — " + fmt_money(total_debt)
+            + " ÷ " + fmt_money(total_income_val) + " × 100 = **{:.2f}%**.".format(tds_val)
+        )
+    else:
+        example = "**In this file:** income hasn't been entered yet, so TDS can't be calculated."
+    return (
+        "Total Debt Service ratio: the same idea as GDS, but also adds in all other monthly debt payments "
+        "(car loans, credit cards, other properties, etc.). Lenders typically want this at or under roughly "
+        "40–44%.\n\n" + example
+    )
 
 
 
@@ -405,12 +462,13 @@ def refresh_all():
 
 
 def render_stepper(active_index):
-    cols = st.columns(len(STEPS))
-    for i, label in enumerate(STEPS):
-        btn_type = "primary" if i == active_index else "secondary"
-        if cols[i].button(label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
-            st.session_state.step = i
-            st.rerun()
+    with st.container(key="stepper_row"):
+        cols = st.columns(len(STEPS))
+        for i, label in enumerate(STEPS):
+            btn_type = "primary" if i == active_index else "secondary"
+            if cols[i].button(label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
+                st.session_state.step = i
+                st.rerun()
 
 
 st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout="centered")
@@ -418,6 +476,43 @@ st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout
 st.markdown(
     """
     <style>
+    div[class*="st-key-notes_font_scope"],
+    div[class*="st-key-notes_font_scope"] p,
+    div[class*="st-key-notes_font_scope"] span,
+    div[class*="st-key-notes_font_scope"] li,
+    div[class*="st-key-notes_font_scope"] textarea {
+        font-family: "Times New Roman", Times, serif !important;
+        font-size: 11pt !important;
+        font-weight: 400 !important;
+    }
+    div[class*="st-key-notes_font_scope"] b,
+    div[class*="st-key-notes_font_scope"] strong {
+        font-weight: 400 !important;
+    }
+    div[class*="st-key-stepper_row"] button {
+        font-size: 12px !important;
+        white-space: normal !important;
+        word-break: keep-all !important;
+        overflow-wrap: normal !important;
+        padding: 4px 4px !important;
+    }
+    div[class*="st-key-helpbtn_"] {
+        display: flex;
+        justify-content: center;
+    }
+    div[class*="st-key-helpbtn_"] button {
+        min-height: 1.7em !important;
+        height: 1.7em !important;
+        width: 1.7em !important;
+        min-width: 1.7em !important;
+        padding: 0 !important;
+        font-size: 11px !important;
+        line-height: 1 !important;
+        border-radius: 50% !important;
+    }
+    div[class*="st-key-helpbtn_"] button svg {
+        display: none;
+    }
     section[data-testid="stFileUploaderDropzoneInstructions"] {
         display: none;
     }
@@ -489,7 +584,7 @@ with st.sidebar:
     )
     uploaded = st.file_uploader("⬆️ Load", type=["json"], key="load_app_uploader", label_visibility="collapsed")
     if uploaded is not None:
-        if st.button("Load this file", use_container_width=True, key="load_app_confirm"):
+        if st.button("📂 Load this file", use_container_width=True, key="load_app_confirm"):
             success, message = load_application(uploaded.read().decode("utf-8"))
             if success:
                 st.success(message)
@@ -1698,14 +1793,15 @@ def render_analysis():
     # --- Financing Terms (moved here from Property Details) ---
     st.markdown("#### Financing Terms")
 
-    def field_row(label_widget_fn, help_text, help_key):
-        c1, c2 = st.columns([10, 1])
+    def field_row(label_widget_fn, help_text_fn, help_key):
+        c1, c2 = st.columns([12, 1])
         with c1:
             label_widget_fn()
         with c2:
             st.write("")
-            with st.popover("❓", key=help_key):
-                st.caption(help_text)
+            with st.container(key="helpbtn_" + help_key):
+                with st.popover("❓", key=help_key):
+                    st.caption(help_text_fn())
 
     fc1, fc2 = st.columns(2)
     with fc1:
@@ -1714,7 +1810,8 @@ def render_analysis():
                 "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
                 value=st.session_state.contract_rate, step=0.05, key="analysis_contract_rate",
             )),
-            HELP_CONTRACT_RATE, "help_contract_rate",
+            lambda: help_contract_rate_text(st.session_state.contract_rate),
+            "help_contract_rate",
         )
         field_row(
             lambda: st.session_state.__setitem__("mortgage_term", st.selectbox(
@@ -1723,14 +1820,19 @@ def render_analysis():
                 if st.session_state.mortgage_term in MORTGAGE_TERM_OPTIONS else 4,
                 key="mortgage_term_select",
             )),
-            HELP_TERM, "help_term",
+            lambda: help_term_text(st.session_state.mortgage_term),
+            "help_term",
         )
         field_row(
             lambda: st.session_state.__setitem__("benchmark_rate", st.number_input(
                 "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
                 value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
             )),
-            HELP_BENCHMARK, "help_benchmark",
+            lambda: help_benchmark_text(
+                st.session_state.contract_rate, st.session_state.benchmark_rate,
+                max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate),
+            ),
+            "help_benchmark",
         )
     with fc2:
         field_row(
@@ -1738,7 +1840,8 @@ def render_analysis():
                 "Amortization (years)", min_value=1, max_value=35,
                 value=st.session_state.amortization_years, step=1, key="analysis_amortization",
             )),
-            HELP_AMORTIZATION, "help_amortization",
+            lambda: help_amortization_text(st.session_state.amortization_years),
+            "help_amortization",
         )
         field_row(
             lambda: st.session_state.__setitem__("rate_type", st.selectbox(
@@ -1747,7 +1850,8 @@ def render_analysis():
                 if st.session_state.rate_type in RATE_TYPE_OPTIONS else 0,
                 key="rate_type_select",
             )),
-            HELP_RATE_TYPE, "help_rate_type",
+            lambda: help_rate_type_text(st.session_state.rate_type),
+            "help_rate_type",
         )
     st.divider()
 
@@ -1802,21 +1906,22 @@ def render_analysis():
     stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, st.session_state.amortization_years)
 
     # --- GDS / TDS at contract terms AND stressed, side by side ---
-    gds_header_col, gds_help_col = st.columns([10, 1])
-    with gds_header_col:
-        st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
-    with gds_help_col:
-        with st.popover("❓", key="help_gds_tds"):
-            st.caption(HELP_GDS)
-            st.divider()
-            st.caption(HELP_TDS)
-
     gds, tds, annual_housing, annual_other_debt = compute_gds_tds(
         pi_payment, taxes, heat, condo, other_debt_monthly, total_income
     )
     stressed_gds, stressed_tds, stressed_annual_housing, stressed_annual_other_debt = compute_gds_tds(
         stressed_pi, taxes, heat, condo, other_debt_monthly, total_income
     )
+
+    gds_header_col, gds_help_col = st.columns([12, 1])
+    with gds_header_col:
+        st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
+    with gds_help_col:
+        with st.container(key="helpbtn_help_gds_tds"):
+            with st.popover("❓", key="help_gds_tds"):
+                st.caption(help_gds_text(total_income, annual_housing, gds))
+                st.divider()
+                st.caption(help_tds_text(total_income, annual_housing, annual_other_debt, tds))
 
     gds_display = "{:.2f}%".format(gds) if gds is not None else "—"
     tds_display = "{:.2f}%".format(tds) if tds is not None else "—"
@@ -1960,22 +2065,6 @@ def render_analysis():
     stress_result = "PASS ✓" if stressed_qualified else "FAIL ✗"
     st.caption(
         "Stress Test Result (Qualifying Rate " + "{:.2f}%".format(qualifying_rate) + "): **" + stress_result + "**"
-    )
-
-    st.divider()
-
-    # --- Summary table ---
-    st.markdown("#### Summary Table")
-    rows = "<tr><th>Metric</th><th>Contract Rate</th><th>Stress Test</th></tr>"
-    rows += "<tr><td>Gross Annual Income</td><td>" + fmt_money(total_income) + "</td><td>" + fmt_money(total_income) + "</td></tr>"
-    rows += "<tr><td>Monthly Housing Costs</td><td>" + fmt_money(pi_payment + taxes + heat + condo) + "</td><td>" + fmt_money(stressed_pi + taxes + heat + condo) + "</td></tr>"
-    rows += "<tr><td>Monthly Other Debt Payments</td><td>" + fmt_money(other_debt_monthly) + "</td><td>" + fmt_money(other_debt_monthly) + "</td></tr>"
-    rows += "<tr><td>GDS</td><td>" + ("{:.2f}%".format(gds) if gds is not None else "—") + "</td><td>" + stressed_gds_display + "</td></tr>"
-    rows += "<tr><td>TDS</td><td>" + ("{:.2f}%".format(tds) if tds is not None else "—") + "</td><td>" + stressed_tds_display + "</td></tr>"
-    rows += "<tr><td>Qualification</td><td>" + ("PASS ✓" if qualified else "FAIL ✗") + "</td><td>" + stress_result + "</td></tr>"
-    st.markdown(
-        "<table style='width:100%; border-collapse:collapse;' border='1' cellpadding='8'>" + rows + "</table>",
-        unsafe_allow_html=True,
     )
 
     st.divider()
@@ -2531,43 +2620,44 @@ def render_notes():
         "Combine them into one final note for the file."
     )
 
-    with st.expander("System-Generated Summary (from application data)", expanded=True):
-        system_notes = build_system_notes()
-        st.markdown(system_notes.replace("\n", "  \n"))
+    with st.container(key="notes_font_scope"):
+        with st.expander("System-Generated Summary (from application data)", expanded=True):
+            system_notes = build_system_notes()
+            st.markdown(system_notes.replace("\n", "  \n"))
 
-    st.divider()
-
-    st.markdown("#### Broker's Notes")
-    st.session_state.broker_notes = st.text_area(
-        "Add any context the system can't infer — client's story, special circumstances, verbal explanations, etc.",
-        value=st.session_state.broker_notes, height=150, key="broker_notes_input",
-    )
-
-    st.caption(
-        "Note: this app isn't connected to a live AI model — \"Combine Notes\" below merges the system "
-        "summary and your notes into one clean file note using a fixed format, not generative rewriting."
-    )
-    if st.button("🧩 Combine Notes", type="primary", use_container_width=True, key="combine_notes_btn"):
-        combined = "UNDERWRITER FILE NOTE\n" + "=" * 40 + "\n\n"
-        combined += "SYSTEM-GENERATED SUMMARY\n" + "-" * 40 + "\n" + system_notes + "\n\n"
-        combined += "BROKER'S NOTES\n" + "-" * 40 + "\n"
-        combined += st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)"
-        st.session_state.combined_notes = combined
-        st.success("Notes combined below — feel free to edit before downloading.")
-
-    if st.session_state.combined_notes:
         st.divider()
-        st.markdown("#### Combined File Note")
-        st.session_state.combined_notes = st.text_area(
-            "Final note (editable)", value=st.session_state.combined_notes, height=300, key="combined_notes_editor",
-            label_visibility="collapsed",
+
+        st.markdown("#### Broker's Notes")
+        st.session_state.broker_notes = st.text_area(
+            "Add any context the system can't infer — client's story, special circumstances, verbal explanations, etc.",
+            value=st.session_state.broker_notes, height=150, key="broker_notes_input",
         )
-        st.download_button(
-            "Download File Note (.txt)",
-            data=st.session_state.combined_notes,
-            file_name="underwriter_file_note.txt",
-            mime="text/plain",
+
+        st.caption(
+            "Note: this app isn't connected to a live AI model — \"Combine Notes\" below merges the system "
+            "summary and your notes into one clean file note using a fixed format, not generative rewriting."
         )
+        if st.button("🧩 Combine Notes", type="primary", use_container_width=True, key="combine_notes_btn"):
+            combined = "UNDERWRITER FILE NOTE\n" + "=" * 40 + "\n\n"
+            combined += "SYSTEM-GENERATED SUMMARY\n" + "-" * 40 + "\n" + system_notes + "\n\n"
+            combined += "BROKER'S NOTES\n" + "-" * 40 + "\n"
+            combined += st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)"
+            st.session_state.combined_notes = combined
+            st.success("Notes combined below — feel free to edit before downloading.")
+
+        if st.session_state.combined_notes:
+            st.divider()
+            st.markdown("#### Combined File Note")
+            st.session_state.combined_notes = st.text_area(
+                "Final note (editable)", value=st.session_state.combined_notes, height=300, key="combined_notes_editor",
+                label_visibility="collapsed",
+            )
+            st.download_button(
+                "Download File Note (.txt)",
+                data=st.session_state.combined_notes,
+                file_name="underwriter_file_note.txt",
+                mime="text/plain",
+            )
 
     st.divider()
 
