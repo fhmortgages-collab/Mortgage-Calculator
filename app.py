@@ -31,7 +31,7 @@ SEWER_OPTIONS = ["", "Sanitary Sewer (Municipal)", "Septic System", "Other"]
 WATER_OPTIONS = ["", "Municipal Water", "Well", "Other"]
 TITLE_TYPE_OPTIONS = ["", "Freehold", "Condominium", "Leasehold", "Other"]
 
-STEPS = ["Transaction Type", "Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Documents", "Notes"]
+STEPS = ["Deal", "Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Documents", "Notes"]
 
 TRANSACTION_TYPE_OPTIONS = [
     {
@@ -587,7 +587,14 @@ st.markdown(
         letter-spacing: -0.1px !important;
         width: 100% !important;
         box-sizing: border-box !important;
+        min-height: 3.4em !important;
+        height: 3.4em !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 1.2 !important;
     }
+    div[class*="st-key-stepbtn_0"] button,
     div[class*="st-key-stepbtn_4"] button,
     div[class*="st-key-stepbtn_5"] button,
     div[class*="st-key-stepbtn_6"] button,
