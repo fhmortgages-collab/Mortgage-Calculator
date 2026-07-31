@@ -1421,6 +1421,7 @@ VARIABLE_INCOME_KEYS = (
     "self_employed_incorporated", "self_employed_professional",
 )
 EXCLUDED_INCOME_KEYS = ("capital_gains",)
+RENTAL_INCLUSION_RATE_OPTIONS = ["50%", "80%"]
 
 
 def compute_qualifying_variable_income(amounts):
@@ -1455,8 +1456,9 @@ def compute_borrower_income(borrower_idx):
             value = 0.0
         elif key == "rental":
             gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
-            carrying_costs = parse_money(amounts.get("carrying_costs", "")) or 0.0
-            value = max(gross_rental - carrying_costs, 0.0)
+            rate_label = amounts.get("inclusion_rate", "50%")
+            rate = 0.80 if rate_label == "80%" else 0.50
+            value = gross_rental * rate
         elif key in VARIABLE_INCOME_KEYS:
             value = compute_qualifying_variable_income(amounts)
         else:
@@ -1667,10 +1669,23 @@ def render_income_category_card(bidx, skey, source, amounts):
             )
         with c2:
             amounts["gross_rental"] = st.text_input("Gross Annual Rental Income ($)", value=amounts.get("gross_rental", ""), placeholder="Enter annual amount", key=prefix + "gross_rental")
-            amounts["carrying_costs"] = st.text_input("Annual Mortgage/Tax/HOA Dues ($)", value=amounts.get("carrying_costs", ""), key=prefix + "carrying_costs")
+            cur_rate = amounts.get("inclusion_rate", "50%")
+            amounts["inclusion_rate"] = st.selectbox(
+                "Rental Income Inclusion Rate",
+                RENTAL_INCLUSION_RATE_OPTIONS,
+                index=RENTAL_INCLUSION_RATE_OPTIONS.index(cur_rate) if cur_rate in RENTAL_INCLUSION_RATE_OPTIONS else 0,
+                key=prefix + "inclusion_rate",
+            )
         gross_v = parse_money(amounts.get("gross_rental", "")) or 0.0
-        carry_v = parse_money(amounts.get("carrying_costs", "")) or 0.0
-        st.caption("Net Rental Income (used for qualification): " + fmt_money(max(gross_v - carry_v, 0.0)))
+        rate_v = 0.80 if amounts["inclusion_rate"] == "80%" else 0.50
+        st.caption(
+            "Qualifying Rental Income (" + amounts["inclusion_rate"] + " of gross rent): "
+            + fmt_money(gross_v * rate_v)
+        )
+        st.caption(
+            "This property's mortgage payment, taxes, condo fees, and heating should be entered "
+            "under Debts & Liabilities → Property Debts so they're included in the debt service calculation."
+        )
 
     elif skey == "pension":
         c1, c2 = st.columns(2)
