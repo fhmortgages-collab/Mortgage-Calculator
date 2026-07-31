@@ -397,18 +397,6 @@ def init_state():
         st.session_state.subject_land_size = ""
     if "subject_title_type" not in st.session_state:
         st.session_state.subject_title_type = ""
-    if "business_case" not in st.session_state:
-        st.session_state.business_case = {
-            "purpose_of_funds": "",
-            "down_payment_source_details": "",
-            "down_payment_history": "",
-            "income_derivation": "",
-            "debt_servicing_notes": "",
-            "ltv_appraisal_notes": "",
-            "credit_exception_notes": "",
-            "summary_recommendation": "",
-            "selected_narratives": [],
-        }
 
 
 SAVE_STATE_KEYS = [
@@ -423,7 +411,7 @@ SAVE_STATE_KEYS = [
     "subject_cooling", "subject_foundation", "subject_exterior_finish", "subject_sewer",
     "subject_water", "subject_parking_spaces", "subject_land_size", "subject_title_type",
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
-    "broker_notes", "combined_notes", "mortgage_term", "rate_type", "business_case",
+    "broker_notes", "combined_notes", "mortgage_term", "rate_type",
 ]
 
 
@@ -2905,306 +2893,47 @@ def render_notes():
             st.session_state.step = 6
             st.rerun()
 
-    st.markdown("### Notes for Underwriter - Professional Business Case")
-    st.write("Auto-generated professional business case notes from your application, plus your manual notes. Fill in the story sections and generate.")
+    st.markdown("### Notes for Underwriter")
     render_calculator_popover("notes")
-
-    # Initialize business case data if not exists
-    if "business_case_data" not in st.session_state:
-        st.session_state.business_case_data = {
-            "purpose_of_funds": "",
-            "down_payment_source_details": "",
-            "down_payment_history": "",
-            "income_derivation": "",
-            "debt_servicing_notes": "",
-            "ltv_appraisal_notes": "",
-            "credit_exception_notes": "",
-            "summary_recommendation": "",
-        }
-
-    bc = st.session_state.business_case_data
+    st.write(
+        "A system-compiled summary of the application below, plus space for the broker's own notes. "
+        "Combine them into one final note for the file."
+    )
 
     with st.container(key="notes_font_scope"):
-        st.markdown("---")
-        st.markdown("## 📋 BUSINESS CASE BUILDER")
-        st.markdown("Fill in the sections below - required fields marked with *")
-
-        # SECTION 1: PURPOSE OF FUNDS (REQUIRED)
-        st.markdown("### 1. Purpose of Funds *Required*")
-        st.caption("What are the mortgage funds being used for? (Regulatory requirement)")
-        bc["purpose_of_funds"] = st.text_area(
-            "Purpose of Funds",
-            value=bc["purpose_of_funds"],
-            height=80,
-            key="bc_purpose",
-            label_visibility="collapsed",
-            placeholder="e.g., Purchase of primary residence, renovation costs, debt consolidation"
-        )
-
-        # SECTION 2: DOWN PAYMENT / AML (REQUIRED)
-        st.markdown("### 2. Down Payment & AML Verification *Required*")
-        st.caption("Source of funds and 90-day history (Anti-money laundering requirement)")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Where did the down payment come from?**")
-            bc["down_payment_source_details"] = st.text_area(
-                "Down Payment Source",
-                value=bc["down_payment_source_details"],
-                height=80,
-                key="bc_dp_source",
-                label_visibility="collapsed",
-                placeholder="e.g., Savings account, inheritance, gift from family"
-            )
-        with col2:
-            st.markdown("**90-Day Fund History**")
-            bc["down_payment_history"] = st.text_area(
-                "90-Day History",
-                value=bc["down_payment_history"],
-                height=80,
-                key="bc_dp_history",
-                label_visibility="collapsed",
-                placeholder="Track where the funds came from over the last 90 days"
-            )
-
-        # SECTION 3: INCOME VERIFICATION
-        st.markdown("### 3. Income Verification")
-        st.caption("How income was verified and calculated")
-        total_income = 0.0
-        for bidx in range(st.session_state.borrower_count):
-            bidx_str = str(bidx)
-            if bidx_str in st.session_state.income_amounts:
-                for val in st.session_state.income_amounts[bidx_str].values():
-                    if isinstance(val, (int, float)):
-                        total_income += val
-        st.info(f"📊 Total Combined Annual Income: {fmt_money(total_income)}")
-        bc["income_derivation"] = st.text_area(
-            "Income Calculation Details",
-            value=bc["income_derivation"],
-            height=80,
-            key="bc_income",
-            label_visibility="collapsed",
-            placeholder="e.g., T4 slips, 2-year average for self-employed, variable income calculations"
-        )
-
-        # SECTION 4: DEBT SERVICING & CAPACITY
-        st.markdown("### 4. Debt Servicing & Capacity")
-        st.caption("Explain GDS/TDS ratios and any mitigating factors")
-        bc["debt_servicing_notes"] = st.text_area(
-            "Mitigating Factors & Exceptions",
-            value=bc["debt_servicing_notes"],
-            height=100,
-            key="bc_debt",
-            label_visibility="collapsed",
-            placeholder="Explain high ratios, exceptions, or mitigating factors"
-        )
-
-        st.markdown("**Quick Narrative Templates:**")
-        debt_narratives = {
-            "proven": "Proven ability to service debt - Client can currently service at this level",
-            "improved": "Improved cash flow - Consolidation improves financial position",
-            "temporary": "Temporary TDS exception - High ratios are temporary, certain debts retiring soon",
-            "reduced": "Reduced amortization - Client chose shorter term showing commitment to paydown",
-        }
-        narr_cols = st.columns(len(debt_narratives))
-        for idx, (key, label) in enumerate(debt_narratives.items()):
-            with narr_cols[idx]:
-                if st.button(label, key=f"bc_narr_{key}", use_container_width=True):
-                    if bc["debt_servicing_notes"] and not bc["debt_servicing_notes"].endswith("\n"):
-                        bc["debt_servicing_notes"] += "\n\n"
-                    bc["debt_servicing_notes"] += f"[{label} - add your explanation here]"
-                    st.rerun()
-
-        # SECTION 5: COLLATERAL & APPRAISAL
-        st.markdown("### 5. Collateral & Appraisal")
-        addr = st.session_state.subject_address.strip()
-        if addr:
-            st.caption(f"📍 Property: {addr}")
-        bc["ltv_appraisal_notes"] = st.text_area(
-            "Collateral Notes",
-            value=bc["ltv_appraisal_notes"],
-            height=80,
-            key="bc_ltv",
-            label_visibility="collapsed",
-            placeholder="LTV tiering, appraisal findings, property condition, etc."
-        )
-
-        # SECTION 6: CREDIT HISTORY
-        st.markdown("### 6. Credit History")
-        bc["credit_exception_notes"] = st.text_area(
-            "Credit Issues & Resolution",
-            value=bc["credit_exception_notes"],
-            height=80,
-            key="bc_credit",
-            label_visibility="collapsed",
-            placeholder="Explain any credit issues and why they won't recur"
-        )
-
-        # SECTION 7: SUMMARY & RECOMMENDATION
-        st.markdown("### 7. Summary & Recommendation")
-        bc["summary_recommendation"] = st.text_area(
-            "Why This Is a Good Transaction",
-            value=bc["summary_recommendation"],
-            height=100,
-            key="bc_summary",
-            label_visibility="collapsed",
-            placeholder="Summarize client strengths and why this is good for both client and bank"
-        )
+        with st.expander("System-Generated Summary (from application data)", expanded=True):
+            system_notes = build_system_notes()
+            st.markdown(system_notes.replace("\n", "  \n"))
 
         st.divider()
 
-        # GENERATE BUTTON
-        gen_col, _ = st.columns([1, 3])
-        with gen_col:
-            if st.button("📋 Generate Business Case Note", type="primary", use_container_width=True, key="bc_generate"):
-                if not bc["purpose_of_funds"].strip():
-                    st.error("⚠️ Purpose of Funds is required")
-                    st.stop()
-                if not bc["down_payment_source_details"].strip():
-                    st.error("⚠️ Down Payment Source is required")
-                    st.stop()
-                if not bc["down_payment_history"].strip():
-                    st.error("⚠️ 90-Day History is required")
-                    st.stop()
-
-                # Generate business case
-                generated = "AUTO-GENERATED BUSINESS CASE NOTE\n" + "=" * 60 + "\n\n"
-
-                # Borrower overview
-                generated += "APPLICATION OVERVIEW\n" + "-" * 60 + "\n"
-                for idx, b in enumerate(st.session_state.borrowers):
-                    if b["full_name"].strip():
-                        age = ""
-                        if b.get("dob"):
-                            age = (date.today() - b["dob"]).days // 365
-                            age = f", age {age}"
-                        marital = f", {b.get('marital_status', '')}".strip() if b.get("marital_status") else ""
-                        generated += f"• {b['full_name']}{age}{marital}\n"
-
-                # Mortgage details
-                purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
-                down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
-                generated += f"Purchase Price: {fmt_money(purchase_price)}\n"
-                generated += f"Down Payment: {fmt_money(down_payment)}\n"
-                if purchase_price > 0:
-                    ltv = (purchase_price - down_payment) / purchase_price * 100
-                    generated += f"LTV: {ltv:.1f}%\n"
-                generated += f"Mortgage Amount: {fmt_money(purchase_price - down_payment)}\n\n"
-
-                # Purpose
-                if bc["purpose_of_funds"].strip():
-                    generated += "PURPOSE OF FUNDS\n" + "-" * 60 + "\n"
-                    generated += bc["purpose_of_funds"].strip() + "\n\n"
-
-                # AML
-                if bc["down_payment_source_details"].strip() or bc["down_payment_history"].strip():
-                    generated += "DOWN PAYMENT / AML VERIFICATION\n" + "-" * 60 + "\n"
-                    if bc["down_payment_source_details"].strip():
-                        generated += f"Source: {bc['down_payment_source_details'].strip()}\n"
-                    if bc["down_payment_history"].strip():
-                        generated += f"90-Day History: {bc['down_payment_history'].strip()}\n"
-                    generated += "\n"
-
-                # Income
-                generated += "INCOME VERIFICATION\n" + "-" * 60 + "\n"
-                generated += f"Total Annual Income: {fmt_money(total_income)}\n"
-                if bc["income_derivation"].strip():
-                    generated += f"Calculation: {bc['income_derivation'].strip()}\n"
-                generated += "\n"
-
-                # Debt Servicing
-                if bc["debt_servicing_notes"].strip():
-                    generated += "DEBT SERVICING & CAPACITY\n" + "-" * 60 + "\n"
-                    generated += bc["debt_servicing_notes"].strip() + "\n\n"
-
-                # Collateral
-                if bc["ltv_appraisal_notes"].strip():
-                    generated += "COLLATERAL & APPRAISAL\n" + "-" * 60 + "\n"
-                    generated += bc["ltv_appraisal_notes"].strip() + "\n\n"
-
-                # Credit
-                if bc["credit_exception_notes"].strip():
-                    generated += "CREDIT HISTORY\n" + "-" * 60 + "\n"
-                    generated += bc["credit_exception_notes"].strip() + "\n\n"
-
-                # Summary
-                if bc["summary_recommendation"].strip():
-                    generated += "SUMMARY & RECOMMENDATION\n" + "-" * 60 + "\n"
-                    generated += bc["summary_recommendation"].strip() + "\n"
-
-                st.session_state["generated_business_case"] = generated
-                st.success("✅ Business case generated!")
-
-        st.divider()
-
-        # DISPLAY GENERATED BUSINESS CASE
-        if "generated_business_case" in st.session_state:
-            st.markdown("### Generated Business Case Note")
-            st.text_area(
-                "Generated note (read-only):",
-                value=st.session_state["generated_business_case"],
-                height=300,
-                disabled=True,
-                label_visibility="collapsed",
-            )
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.download_button(
-                    "📥 Download Note (.txt)",
-                    data=st.session_state["generated_business_case"],
-                    file_name="business_case_note.txt",
-                    mime="text/plain",
-                )
-            with col2:
-                st.code(st.session_state["generated_business_case"], language="markdown")
-
-        st.divider()
-
-        # MANUAL BROKER NOTES (SEPARATE SECTION)
-        st.markdown("---")
-        st.markdown("## 📝 ADDITIONAL BROKER NOTES")
-        st.markdown("Add any additional context that doesn't fit elsewhere")
-
+        st.markdown("#### Broker's Notes")
         st.session_state.broker_notes = st.text_area(
-            "Additional context",
-            value=st.session_state.broker_notes,
-            height=150,
-            key="broker_notes_input",
-            label_visibility="collapsed",
+            "Add any context the system can't infer — client's story, special circumstances, verbal explanations, etc.",
+            value=st.session_state.broker_notes, height=150, key="broker_notes_input",
         )
 
-        st.divider()
-
-        # COMBINE NOTES SECTION
-        st.markdown("### Combine All Notes")
-        if st.button("🧩 Combine Business Case + Broker Notes", type="primary", use_container_width=True, key="combine_all_notes"):
-            if "generated_business_case" not in st.session_state:
-                st.error("Please generate a business case note first")
-                st.stop()
-
-            combined = st.session_state["generated_business_case"]
-
-            if st.session_state.broker_notes.strip():
-                combined += "\n\n" + "=" * 60 + "\n"
-                combined += "BROKER'S ADDITIONAL NOTES\n"
-                combined += "=" * 60 + "\n"
-                combined += st.session_state.broker_notes.strip()
-
+        st.caption(
+            "Note: this app isn't connected to a live AI model — \"Combine Notes\" below merges the system "
+            "summary and your notes into one clean file note using a fixed format, not generative rewriting."
+        )
+        if st.button("🧩 Combine Notes", type="primary", use_container_width=True, key="combine_notes_btn"):
+            combined = "UNDERWRITER FILE NOTE\n" + "=" * 40 + "\n\n"
+            combined += "SYSTEM-GENERATED SUMMARY\n" + "-" * 40 + "\n" + system_notes + "\n\n"
+            combined += "BROKER'S NOTES\n" + "-" * 40 + "\n"
+            combined += st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)"
             st.session_state.combined_notes = combined
-            st.success("✅ Notes combined!")
+            st.success("Notes combined below — feel free to edit before downloading.")
 
         if st.session_state.combined_notes:
             st.divider()
-            st.markdown("#### Final Combined File Note")
+            st.markdown("#### Combined File Note")
             st.session_state.combined_notes = st.text_area(
-                "Final editable note:",
-                value=st.session_state.combined_notes,
-                height=300,
-                key="combined_notes_editor",
+                "Final note (editable)", value=st.session_state.combined_notes, height=300, key="combined_notes_editor",
                 label_visibility="collapsed",
             )
             st.download_button(
-                "📥 Download Final Note (.txt)",
+                "Download File Note (.txt)",
                 data=st.session_state.combined_notes,
                 file_name="underwriter_file_note.txt",
                 mime="text/plain",
@@ -3218,8 +2947,9 @@ def render_notes():
             st.session_state.step = 6
             st.rerun()
     with continue_col_bottom:
-        if st.button("Submit →", type="primary", use_container_width=True, key="p8_continue_bottom"):
-            st.success("✅ Application ready for submission!")
+        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p8_continue_bottom")
+        if continue_bottom:
+            st.success("Application complete! All notes have been prepared.")
 
 
 # ---------------------------------------------------------------------------
@@ -3241,6 +2971,4 @@ elif st.session_state.step == 5:
 elif st.session_state.step == 6:
     render_documents()
 elif st.session_state.step == 7:
-    render_notes()
-elif st.session_state.step == 8:
     render_notes()
