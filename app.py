@@ -31,7 +31,30 @@ SEWER_OPTIONS = ["", "Sanitary Sewer (Municipal)", "Septic System", "Other"]
 WATER_OPTIONS = ["", "Municipal Water", "Well", "Other"]
 TITLE_TYPE_OPTIONS = ["", "Freehold", "Condominium", "Leasehold", "Other"]
 
-STEPS = ["Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Documents", "Notes"]
+STEPS = ["Transaction Type", "Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Documents", "Notes"]
+
+TRANSACTION_TYPE_OPTIONS = [
+    {
+        "key": "purchase",
+        "label": "Purchase",
+        "description": "Buying an existing resale property from a seller.",
+    },
+    {
+        "key": "builder_purchase",
+        "label": "Builder Purchase",
+        "description": "Buying a newly built property directly from a builder or developer.",
+    },
+    {
+        "key": "refinance_existing_lender",
+        "label": "Refinance — Existing Lender",
+        "description": "Refinancing the current mortgage with the same lender already on title.",
+    },
+    {
+        "key": "refinance_new_lender",
+        "label": "Refinance — New Lender",
+        "description": "Refinancing (switching) the mortgage to a different lender than the one currently on title.",
+    },
+]
 
 GDS_LIMIT = 32.0
 TDS_LIMIT = 40.0
@@ -299,6 +322,10 @@ def empty_property():
 def init_state():
     if "step" not in st.session_state:
         st.session_state.step = 0
+    if "transaction_type" not in st.session_state:
+        st.session_state.transaction_type = ""
+    if "transaction_type_error" not in st.session_state:
+        st.session_state.transaction_type_error = ""
     if "doc_removed_items" not in st.session_state:
         st.session_state.doc_removed_items = []
     if "doc_edit_mode" not in st.session_state:
@@ -400,7 +427,7 @@ def init_state():
 
 
 SAVE_STATE_KEYS = [
-    "step", "borrower_count", "borrowers", "consent", "borrower_errors",
+    "step", "transaction_type", "borrower_count", "borrowers", "consent", "borrower_errors",
     "purchase_price_raw", "down_payment_raw", "selected_sources", "source_amounts",
     "other_source_desc", "dp_errors",
     "income_selected", "income_amounts", "income_special", "income_other_desc", "income_errors",
@@ -465,6 +492,8 @@ def load_application(json_text):
 
 def refresh_all():
     st.session_state.step = 0
+    st.session_state.transaction_type = ""
+    st.session_state.transaction_type_error = ""
     st.session_state.doc_removed_items = []
     st.session_state.doc_edit_mode = False
     st.session_state.broker_notes = ""
@@ -528,8 +557,6 @@ def render_stepper(active_index):
                         st.rerun()
 
 
-
-
 st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout="centered")
 
 st.markdown(
@@ -561,11 +588,11 @@ st.markdown(
         width: 100% !important;
         box-sizing: border-box !important;
     }
-    div[class*="st-key-stepbtn_3"] button,
     div[class*="st-key-stepbtn_4"] button,
     div[class*="st-key-stepbtn_5"] button,
     div[class*="st-key-stepbtn_6"] button,
-    div[class*="st-key-stepbtn_7"] button {
+    div[class*="st-key-stepbtn_7"] button,
+    div[class*="st-key-stepbtn_8"] button {
         white-space: nowrap !important;
     }
     div[class*="st-key-fieldrow_"] div[data-testid="stHorizontalBlock"] {
@@ -752,15 +779,74 @@ def refresh_page1():
     st.session_state.consent = False
 
 
-def render_client_details():
-    spacer, back_col, continue_col = st.columns([3, 1, 1])
+# ---------------------------------------------------------------------------
+# STEP 0 — Transaction Type
+# ---------------------------------------------------------------------------
 
+def render_transaction_type():
+    st.markdown("### Transaction Type")
+    st.write("Select the type of transaction this application is for.")
+    render_calculator_popover("txntype")
+
+    for opt in TRANSACTION_TYPE_OPTIONS:
+        selected = st.session_state.transaction_type == opt["key"]
+        with st.container(key="txntype_card_" + opt["key"]):
+            col_radio, col_text = st.columns([1, 6])
+            with col_radio:
+                if st.button(
+                    "●" if selected else "○",
+                    key="txntype_pick_" + opt["key"],
+                    use_container_width=True,
+                    type="primary" if selected else "secondary",
+                ):
+                    st.session_state.transaction_type = opt["key"]
+                    st.session_state.transaction_type_error = ""
+                    st.rerun()
+            with col_text:
+                st.markdown("**" + opt["label"] + "**")
+                st.caption(opt["description"])
+
+    if st.session_state.transaction_type_error:
+        st.markdown(":red[" + st.session_state.transaction_type_error + "]")
+
+    st.divider()
+
+    back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
-        if st.button("← Back", use_container_width=True, key="p1_back_top"):
+        if st.button("← Back", use_container_width=True, key="p0_back"):
             st.info("This is the first screen.")
-    with continue_col:
-        continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p1_continue_top")
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p0_refresh"):
+            st.session_state["p0_show_refresh_confirm"] = True
 
+    if st.session_state.get("p0_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p0_confirm_refresh"):
+                refresh_all()
+                st.session_state["p0_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p0_cancel_refresh"):
+                st.session_state["p0_show_refresh_confirm"] = False
+                st.rerun()
+
+    with continue_col:
+        if st.button("Continue →", type="primary", use_container_width=True, key="p0_continue"):
+            if not st.session_state.transaction_type:
+                st.session_state.transaction_type_error = "Please select a transaction type before continuing."
+                st.rerun()
+            else:
+                st.session_state.step = 1
+                st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# STEP 1 — Client Details
+# ---------------------------------------------------------------------------
+
+def render_client_details():
     st.markdown("### Client Details")
     st.write("Enter information for each borrower on this application.")
     render_calculator_popover("client")
@@ -783,21 +869,20 @@ def render_client_details():
             col1, col2 = st.columns(2)
             with col1:
                 borrower["full_name"] = st.text_input(
-                    "Full Name", value=borrower.get("full_name", ""), placeholder="Jane Smith", key="name_" + str(idx)
+                    "Full Name", value=borrower["full_name"], placeholder="Jane Smith", key="name_" + str(idx)
                 )
                 if errors.get("full_name"):
                     st.caption(":red[" + errors["full_name"] + "]")
 
                 borrower["phone"] = st.text_input(
-                    "Phone Number", value=borrower.get("phone", ""), placeholder="(416) 555-0100", key="phone_" + str(idx)
+                    "Phone Number", value=borrower["phone"], placeholder="(416) 555-0100", key="phone_" + str(idx)
                 )
                 if errors.get("phone"):
                     st.caption(":red[" + errors["phone"] + "]")
 
-                gender_val = borrower.get("gender", "")
                 borrower["gender"] = st.selectbox(
                     "Gender", GENDER_OPTIONS,
-                    index=GENDER_OPTIONS.index(gender_val) if gender_val in GENDER_OPTIONS else 0,
+                    index=GENDER_OPTIONS.index(borrower["gender"]) if borrower["gender"] in GENDER_OPTIONS else 0,
                     key="gender_" + str(idx),
                 )
                 if errors.get("gender"):
@@ -805,17 +890,14 @@ def render_client_details():
 
             with col2:
                 borrower["email"] = st.text_input(
-                    "Email Address", value=borrower.get("email", ""), placeholder="jane@example.com", key="email_" + str(idx)
+                    "Email Address", value=borrower["email"], placeholder="jane@example.com", key="email_" + str(idx)
                 )
                 if errors.get("email"):
                     st.caption(":red[" + errors["email"] + "]")
 
-                dob_value = borrower.get("dob")
-                if dob_value is None:
-                    dob_value = date(1990, 1, 1)
                 borrower["dob"] = st.date_input(
                     "Date of Birth",
-                    value=dob_value,
+                    value=borrower["dob"] or date(1990, 1, 1),
                     min_value=date(1900, 1, 1),
                     max_value=date.today(),
                     key="dob_" + str(idx),
@@ -823,17 +905,16 @@ def render_client_details():
                 if errors.get("dob"):
                     st.caption(":red[" + errors["dob"] + "]")
 
-                marital_val = borrower.get("marital_status", "")
                 borrower["marital_status"] = st.selectbox(
                     "Marital Status", MARITAL_OPTIONS,
-                    index=MARITAL_OPTIONS.index(marital_val) if marital_val in MARITAL_OPTIONS else 0,
+                    index=MARITAL_OPTIONS.index(borrower["marital_status"]) if borrower["marital_status"] in MARITAL_OPTIONS else 0,
                     key="marital_" + str(idx),
                 )
                 if errors.get("marital_status"):
                     st.caption(":red[" + errors["marital_status"] + "]")
 
             borrower["address"] = st.text_area(
-                "Current Address", value=borrower.get("address", ""), placeholder="123 Main St, Toronto, ON M5V 1A1",
+                "Current Address", value=borrower["address"], placeholder="123 Main St, Toronto, ON M5V 1A1",
                 key="address_" + str(idx), height=80,
             )
             if errors.get("address"):
@@ -858,29 +939,42 @@ def render_client_details():
     )
     consent_error_slot = st.empty()
 
-    st.divider()
-
-    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
-    with back_col_bottom:
-        if st.button("← Back", use_container_width=True, key="p1_back_bottom"):
-            st.info("This is the first screen.")
-    with continue_col_bottom:
-        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p1_continue_bottom")
-
-    # Handle Continue button from top or bottom
-    if continue_top or continue_bottom:
-        all_errors = [validate_borrower(b) for b in st.session_state.borrowers]
-        st.session_state.borrower_errors = all_errors
-        is_valid = all(len(e) == 0 for e in all_errors)
-
-        if not st.session_state.consent:
-            consent_error_slot.markdown(":red[You must acknowledge and consent before continuing.]")
-
-        if is_valid and st.session_state.consent:
-            st.session_state.step = 1
+    back_col, refresh_col, continue_col = st.columns(3)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p1_back"):
+            st.session_state.step = 0
             st.rerun()
-        else:
-            st.rerun()
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p1_refresh"):
+            st.session_state["p1_show_refresh_confirm"] = True
+
+    if st.session_state.get("p1_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p1_confirm_refresh"):
+                refresh_page1()
+                st.session_state["p1_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p1_cancel_refresh"):
+                st.session_state["p1_show_refresh_confirm"] = False
+                st.rerun()
+
+    with continue_col:
+        if st.button("Continue →", type="primary", use_container_width=True, key="p1_continue"):
+            all_errors = [validate_borrower(b) for b in st.session_state.borrowers]
+            st.session_state.borrower_errors = all_errors
+            is_valid = all(len(e) == 0 for e in all_errors)
+
+            if not st.session_state.consent:
+                consent_error_slot.markdown(":red[You must acknowledge and consent before continuing.]")
+
+            if is_valid and st.session_state.consent:
+                st.session_state.step = 2
+                st.rerun()
+            else:
+                st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -897,15 +991,6 @@ def refresh_page2():
 
 
 def render_down_payment():
-    spacer, back_col, continue_col = st.columns([3, 1, 1])
-
-    with back_col:
-        if st.button("← Back", use_container_width=True, key="p2_back_top"):
-            st.session_state.step = 0
-            st.rerun()
-    with continue_col:
-        continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p2_continue_top")
-
     st.markdown("### Down Payment")
     st.write("Enter property price, down payment, and the sources funding it.")
     render_calculator_popover("downpayment")
@@ -1042,26 +1127,41 @@ def render_down_payment():
 
     st.divider()
 
-    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
-    with back_col_bottom:
-        if st.button("← Back", use_container_width=True, key="p2_back_bottom"):
-            st.session_state.step = 0
+    back_col, refresh_col, continue_col = st.columns(3)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p2_back"):
+            st.session_state.step = 1
             st.rerun()
-    with continue_col_bottom:
-        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p2_continue_bottom")
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p2_refresh"):
+            st.session_state["p2_show_refresh_confirm"] = True
 
-    if continue_top or continue_bottom:
-        valid = (
-            purchase_price is not None and purchase_price > 0 and not price_error
-            and down_payment is not None and not dp_error
-            and len(selected) > 0
-            and totals_match
-        )
-        if valid:
-            st.session_state.step = 2
-            st.rerun()
-        else:
-            st.error("Please resolve the issues above before continuing.")
+    if st.session_state.get("p2_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p2_confirm_refresh"):
+                refresh_page2()
+                st.session_state["p2_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p2_cancel_refresh"):
+                st.session_state["p2_show_refresh_confirm"] = False
+                st.rerun()
+
+    with continue_col:
+        if st.button("Continue →", type="primary", use_container_width=True, key="p2_continue"):
+            valid = (
+                purchase_price is not None and purchase_price > 0 and not price_error
+                and down_payment is not None and not dp_error
+                and len(selected) > 0
+                and totals_match
+            )
+            if valid:
+                st.session_state.step = 3
+                st.rerun()
+            else:
+                st.error("Please resolve the issues above before continuing.")
 
 
 # ---------------------------------------------------------------------------
@@ -1121,15 +1221,6 @@ def get_subject_property_costs():
 
 
 def render_property_details():
-    spacer, back_col, continue_col = st.columns([3, 1, 1])
-
-    with back_col:
-        if st.button("← Back", use_container_width=True, key="p3_back_top"):
-            st.session_state.step = 1
-            st.rerun()
-    with continue_col:
-        continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p3_continue_top")
-
     st.markdown("### Property Details")
     st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
     render_calculator_popover("property")
@@ -1268,20 +1359,35 @@ def render_property_details():
 
     st.divider()
 
-    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
-    with back_col_bottom:
-        if st.button("← Back", use_container_width=True, key="p3_back_bottom"):
-            st.session_state.step = 1
+    back_col, refresh_col, continue_col = st.columns(3)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p2b_back"):
+            st.session_state.step = 2
             st.rerun()
-    with continue_col_bottom:
-        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p3_continue_bottom")
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p2b_refresh"):
+            st.session_state["p2b_show_refresh_confirm"] = True
 
-    if continue_top or continue_bottom:
-        if st.session_state.subject_address.strip():
-            st.session_state.step = 3
-            st.rerun()
-        else:
-            st.error("Please enter the property address before continuing.")
+    if st.session_state.get("p2b_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p2b_confirm_refresh"):
+                refresh_property_details()
+                st.session_state["p2b_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p2b_cancel_refresh"):
+                st.session_state["p2b_show_refresh_confirm"] = False
+                st.rerun()
+
+    with continue_col:
+        if st.button("Continue →", type="primary", use_container_width=True, key="p2b_continue"):
+            if st.session_state.subject_address.strip():
+                st.session_state.step = 4
+                st.rerun()
+            else:
+                st.error("Please enter the property address before continuing.")
 
 
 # ---------------------------------------------------------------------------
@@ -1625,15 +1731,6 @@ def render_income_category_card(bidx, skey, source, amounts):
 
 
 def render_income():
-    spacer, back_col, continue_col = st.columns([3, 1, 1])
-
-    with back_col:
-        if st.button("← Back", use_container_width=True, key="p4_back_top"):
-            st.session_state.step = 2
-            st.rerun()
-    with continue_col:
-        continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p4_continue_top")
-
     st.markdown("### Income Details")
     st.write("Enter income information for each borrower on this application.")
     st.info("💡 All income amounts below are **annual** figures, not monthly.")
@@ -1720,20 +1817,35 @@ def render_income():
     st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
     st.divider()
 
-    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
-    with back_col_bottom:
-        if st.button("← Back", use_container_width=True, key="p4_back_bottom"):
-            st.session_state.step = 2
+    back_col, refresh_col, continue_col = st.columns(3)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p3_back"):
+            st.session_state.step = 3
             st.rerun()
-    with continue_col_bottom:
-        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p4_continue_bottom")
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p3_refresh"):
+            st.session_state["p3_show_refresh_confirm"] = True
 
-    if continue_top or continue_bottom:
-        if all_valid:
-            st.session_state.step = 4
-            st.rerun()
-        else:
-            st.error("Please resolve the issues above before continuing.")
+    if st.session_state.get("p3_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p3_confirm_refresh"):
+                refresh_page3()
+                st.session_state["p3_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p3_cancel_refresh"):
+                st.session_state["p3_show_refresh_confirm"] = False
+                st.rerun()
+
+    with continue_col:
+        if st.button("Continue →", type="primary", use_container_width=True, key="p3_continue"):
+            if all_valid:
+                st.session_state.step = 5
+                st.rerun()
+            else:
+                st.error("Please resolve the issues above before continuing.")
 
 
 # ---------------------------------------------------------------------------
@@ -1789,15 +1901,6 @@ def explain_debt_payment(debt_type, amounts):
 
 
 def render_debts():
-    spacer, back_col, continue_col = st.columns([3, 1, 1])
-
-    with back_col:
-        if st.button("← Back", use_container_width=True, key="p5_back_top"):
-            st.session_state.step = 3
-            st.rerun()
-    with continue_col:
-        continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p5_continue_top")
-
     st.markdown("### Debts & Liabilities")
     st.write("Enter property debts and other liabilities for this application.")
     render_calculator_popover("debts")
@@ -1989,22 +2092,35 @@ def render_debts():
     if not has_any_debt:
         st.caption(":red[Please add at least one property or select at least one debt type.]")
 
-    st.divider()
-
-    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
-    with back_col_bottom:
-        if st.button("← Back", use_container_width=True, key="p5_back_bottom"):
-            st.session_state.step = 3
+    back_col, refresh_col, continue_col = st.columns(3)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p4_back"):
+            st.session_state.step = 4
             st.rerun()
-    with continue_col_bottom:
-        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p5_continue_bottom")
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p4_refresh"):
+            st.session_state["p4_show_refresh_confirm"] = True
 
-    if continue_top or continue_bottom:
-        if is_valid:
-            st.session_state.step = 5
-            st.rerun()
-        else:
-            st.error("Please resolve the issues above before continuing.")
+    if st.session_state.get("p4_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data on this page will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p4_confirm_refresh"):
+                refresh_page4()
+                st.session_state["p4_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p4_cancel_refresh"):
+                st.session_state["p4_show_refresh_confirm"] = False
+                st.rerun()
+
+    with continue_col:
+        if st.button("Continue →", type="primary", use_container_width=True, key="p4_continue"):
+            if is_valid:
+                st.session_state.step = 6
+                st.rerun()
+            else:
+                st.error("Please resolve the issues above before continuing.")
 
 
 # ---------------------------------------------------------------------------
@@ -2057,15 +2173,6 @@ def render_gauge(label, value, limit):
 
 
 def render_analysis():
-    spacer, back_col, continue_col = st.columns([3, 1, 1])
-
-    with back_col:
-        if st.button("← Back", use_container_width=True, key="p6_back_top"):
-            st.session_state.step = 4
-            st.rerun()
-    with continue_col:
-        continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p6_continue_top")
-
     st.markdown("### Qualification Summary")
     st.write("This page aggregates data from all previous steps — nothing to re-enter here.")
     render_calculator_popover("analysis")
@@ -2349,30 +2456,38 @@ def render_analysis():
 
     st.divider()
 
-    submit_col, docs_col = st.columns(2)
+    # --- Navigation ---
+    back_col, refresh_col, submit_col, docs_col = st.columns(4)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p5_back"):
+            st.session_state.step = 5
+            st.rerun()
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p5_refresh"):
+            st.session_state["p5_show_refresh_confirm"] = True
+
+    if st.session_state.get("p5_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data across all pages will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p5_confirm_refresh"):
+                refresh_all()
+                st.session_state["p5_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p5_cancel_refresh"):
+                st.session_state["p5_show_refresh_confirm"] = False
+                st.rerun()
+
     with submit_col:
         submit_disabled = total_income <= 0
-        if st.button("Submit Application", type="primary", use_container_width=True, key="p6_submit", disabled=submit_disabled):
+        if st.button("Submit Application", type="primary", use_container_width=True, key="p5_submit", disabled=submit_disabled):
             st.success("Application submitted. (Connect this button to your backend to persist the data.)")
 
     with docs_col:
-        if st.button("Required Documents →", use_container_width=True, key="p6_to_docs"):
-            st.session_state.step = 6
+        if st.button("Required Documents →", use_container_width=True, key="p5_to_docs"):
+            st.session_state.step = 7
             st.rerun()
-
-    st.divider()
-
-    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
-    with back_col_bottom:
-        if st.button("← Back", use_container_width=True, key="p6_back_bottom"):
-            st.session_state.step = 4
-            st.rerun()
-    with continue_col_bottom:
-        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p6_continue_bottom")
-
-    if continue_top or continue_bottom:
-        st.session_state.step = 6
-        st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -2657,15 +2772,6 @@ def render_document_checklist_editable(data):
 
 
 def render_documents():
-    spacer, back_col, continue_col = st.columns([3, 1, 1])
-
-    with back_col:
-        if st.button("← Back", use_container_width=True, key="p7_back_top"):
-            st.session_state.step = 5
-            st.rerun()
-    with continue_col:
-        continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p7_continue_top")
-
     render_calculator_popover("documents")
     raw_checklist_data = build_document_checklist_data()
     checklist_data = filter_checklist_data(raw_checklist_data, st.session_state.doc_removed_items)
@@ -2742,25 +2848,31 @@ def render_documents():
 
     st.divider()
 
-    notes_col = st.columns([1])[0]
+    back_col, refresh_col, notes_col = st.columns(3)
+    with back_col:
+        if st.button("← Back to Analysis", use_container_width=True, key="p6_back"):
+            st.session_state.step = 6
+            st.rerun()
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p6_refresh"):
+            st.session_state["p6_show_refresh_confirm"] = True
     with notes_col:
-        if st.button("Notes →", use_container_width=True, key="p7_to_notes"):
-            st.session_state.step = 7
+        if st.button("Notes →", use_container_width=True, key="p6_to_notes"):
+            st.session_state.step = 8
             st.rerun()
 
-    st.divider()
-
-    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
-    with back_col_bottom:
-        if st.button("← Back", use_container_width=True, key="p7_back_bottom"):
-            st.session_state.step = 5
-            st.rerun()
-    with continue_col_bottom:
-        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p7_continue_bottom")
-
-    if continue_top or continue_bottom:
-        st.session_state.step = 7
-        st.rerun()
+    if st.session_state.get("p6_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data across all pages will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p6_confirm_refresh"):
+                refresh_all()
+                st.session_state["p6_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p6_cancel_refresh"):
+                st.session_state["p6_show_refresh_confirm"] = False
+                st.rerun()
 
 
 def build_system_notes():
@@ -2886,13 +2998,6 @@ def build_system_notes():
 
 
 def render_notes():
-    spacer, back_col = st.columns([4, 1])
-
-    with back_col:
-        if st.button("← Back", use_container_width=True, key="p8_back_top"):
-            st.session_state.step = 6
-            st.rerun()
-
     st.markdown("### Notes for Underwriter")
     render_calculator_popover("notes")
     st.write(
@@ -2941,15 +3046,27 @@ def render_notes():
 
     st.divider()
 
-    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
-    with back_col_bottom:
-        if st.button("← Back", use_container_width=True, key="p8_back_bottom"):
-            st.session_state.step = 6
+    back_col, refresh_col = st.columns(2)
+    with back_col:
+        if st.button("← Back to Documents", use_container_width=True, key="p7_back"):
+            st.session_state.step = 7
             st.rerun()
-    with continue_col_bottom:
-        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p8_continue_bottom")
-        if continue_bottom:
-            st.success("Application complete! All notes have been prepared.")
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, key="p7_refresh"):
+            st.session_state["p7_show_refresh_confirm"] = True
+
+    if st.session_state.get("p7_show_refresh_confirm"):
+        st.warning("Are you sure you want to refresh? All entered data across all pages will be permanently cleared.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="p7_confirm_refresh"):
+                refresh_all()
+                st.session_state["p7_show_refresh_confirm"] = False
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="p7_cancel_refresh"):
+                st.session_state["p7_show_refresh_confirm"] = False
+                st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -2957,18 +3074,20 @@ def render_notes():
 # ---------------------------------------------------------------------------
 
 if st.session_state.step == 0:
-    render_client_details()
+    render_transaction_type()
 elif st.session_state.step == 1:
-    render_down_payment()
+    render_client_details()
 elif st.session_state.step == 2:
-    render_property_details()
+    render_down_payment()
 elif st.session_state.step == 3:
-    render_income()
+    render_property_details()
 elif st.session_state.step == 4:
-    render_debts()
+    render_income()
 elif st.session_state.step == 5:
-    render_analysis()
+    render_debts()
 elif st.session_state.step == 6:
-    render_documents()
+    render_analysis()
 elif st.session_state.step == 7:
+    render_documents()
+elif st.session_state.step == 8:
     render_notes()
