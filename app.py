@@ -3154,7 +3154,7 @@ def render_business_case():
 
             for phrase, reason in redundant_phrases:
                 if phrase in full_text:
-                    redundancy_warnings.append(f"• "{phrase}" - {reason}")
+                    redundancy_warnings.append(f'• "{phrase}" - {reason}')
 
             if redundancy_warnings:
                 st.warning("⚠️ The following phrases are redundant or vague:\n" + "\n".join(redundancy_warnings))
