@@ -31,7 +31,7 @@ SEWER_OPTIONS = ["", "Sanitary Sewer (Municipal)", "Septic System", "Other"]
 WATER_OPTIONS = ["", "Municipal Water", "Well", "Other"]
 TITLE_TYPE_OPTIONS = ["", "Freehold", "Condominium", "Leasehold", "Other"]
 
-STEPS = ["Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Documents", "Business Case", "Notes"]
+STEPS = ["Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Documents", "Notes"]
 
 GDS_LIMIT = 32.0
 TDS_LIMIT = 40.0
@@ -397,18 +397,6 @@ def init_state():
         st.session_state.subject_land_size = ""
     if "subject_title_type" not in st.session_state:
         st.session_state.subject_title_type = ""
-    if "business_case" not in st.session_state:
-        st.session_state.business_case = {
-            "purpose_of_funds": "",
-            "down_payment_source_details": "",
-            "down_payment_history": "",
-            "income_derivation": "",
-            "debt_servicing_notes": "",
-            "ltv_appraisal_notes": "",
-            "credit_exception_notes": "",
-            "summary_recommendation": "",
-            "selected_narratives": [],
-        }
 
 
 SAVE_STATE_KEYS = [
@@ -423,7 +411,7 @@ SAVE_STATE_KEYS = [
     "subject_cooling", "subject_foundation", "subject_exterior_finish", "subject_sewer",
     "subject_water", "subject_parking_spaces", "subject_land_size", "subject_title_type",
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
-    "broker_notes", "combined_notes", "mortgage_term", "rate_type", "business_case",
+    "broker_notes", "combined_notes", "mortgage_term", "rate_type",
 ]
 
 
@@ -2902,7 +2890,7 @@ def render_notes():
 
     with back_col:
         if st.button("← Back", use_container_width=True, key="p8_back_top"):
-            st.session_state.step = 7
+            st.session_state.step = 6
             st.rerun()
 
     st.markdown("### Notes for Underwriter")
@@ -2965,284 +2953,6 @@ def render_notes():
 
 
 # ---------------------------------------------------------------------------
-# STEP 7 — Business Case
-# ---------------------------------------------------------------------------
-
-DEBT_SERVICING_NARRATIVES = {
-    "proven_ability": {
-        "label": "Proven ability to service debt",
-        "template": "The client has demonstrated the ability to service debt at this level. The new monthly housing obligation of $[NEW_PAYMENT] is [equal to / less than] the client's current monthly rent/mortgage payment of $[CURRENT_PAYMENT]. This supports the client's capacity to manage the new payment without financial strain."
-    },
-    "improved_cashflow": {
-        "label": "Improved cash flow",
-        "template": "This transaction consolidates existing debts, improving the client's overall financial position. Prior to consolidation, monthly payments were $[PRE_CONSOLIDATION]. After consolidation, the new monthly payment is $[POST_CONSOLIDATION], representing a cash flow improvement of $[IMPROVEMENT] per month."
-    },
-    "additional_income": {
-        "label": "Additional income outside policy",
-        "template": "The client has additional verifiable income that falls outside policy guidelines. When considered, this income materially improves the client's debt servicing capacity and supports the transaction."
-    },
-    "temporary_tds": {
-        "label": "Temporary TDS exception",
-        "template": "The current TDS of [CURRENT_TDS]% is temporarily elevated due to [REASON]. The following debts will be retired in the near future: [LIST_DEBTS]. Once retired, the TDS will fall to [FUTURE_TDS]%, bringing it within guidelines."
-    },
-    "reduced_amortization": {
-        "label": "Reduced amortization",
-        "template": "The client has elected a [SELECTED_YEARS]-year amortization rather than the maximum [MAX_YEARS] years. If the maximum amortization were used, the TDS would be [IF_MAX_TDS]%, which is within guidelines. This demonstrates the client's commitment to paying down the mortgage faster."
-    },
-}
-
-def render_business_case():
-    spacer, back_col, continue_col = st.columns([3, 1, 1])
-
-    with back_col:
-        if st.button("← Back", use_container_width=True, key="p7_back_top"):
-            st.session_state.step = 6
-            st.rerun()
-    with continue_col:
-        continue_top = st.button("Continue →", type="primary", use_container_width=True, key="p7_continue_top")
-
-    st.markdown("### Business Case Builder")
-    st.write("Build a structured business case to get your application approved faster. All required fields marked with * must be completed.")
-    render_calculator_popover("business_case")
-
-    bc = st.session_state.business_case
-
-    with st.container(key="bc_font_scope"):
-        st.markdown("#### A. Purpose of Funds *")
-        bc["purpose_of_funds"] = st.text_area(
-            "Explain exactly what the funds are for. If renovating, detail planned spending. If consolidating debt, explain how debt was accumulated.",
-            value=bc["purpose_of_funds"],
-            height=120,
-            key="bc_purpose",
-            label_visibility="collapsed",
-        )
-        if not bc["purpose_of_funds"].strip():
-            st.caption(":red[* Required field]")
-
-        st.divider()
-
-        st.markdown("#### B. Down Payment / AML Verification *")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Source Details **")
-            bc["down_payment_source_details"] = st.text_area(
-                "Explain the original source of down payment funds (e.g., savings, inheritance, gift).",
-                value=bc["down_payment_source_details"],
-                height=100,
-                key="bc_dp_source",
-                label_visibility="collapsed",
-            )
-            if not bc["down_payment_source_details"].strip():
-                st.caption(":red[* Required field]")
-        with col2:
-            st.markdown("**90-Day History **")
-            bc["down_payment_history"] = st.text_area(
-                "Describe the 90-day history of these funds. If multiple sources, list each separately.",
-                value=bc["down_payment_history"],
-                height=100,
-                key="bc_dp_history",
-                label_visibility="collapsed",
-            )
-            if not bc["down_payment_history"].strip():
-                st.caption(":red[* Required field]")
-
-        st.divider()
-
-        st.markdown("#### C. Income Verification")
-        total_income = 0.0
-        for bidx in range(st.session_state.borrower_count):
-            bidx_str = str(bidx)
-            if bidx_str in st.session_state.income_amounts:
-                for val in st.session_state.income_amounts[bidx_str].values():
-                    if isinstance(val, (int, float)):
-                        total_income += val
-
-        st.caption(f"**Total Combined Annual Income (from Income step): ${fmt_money(total_income)}**")
-        bc["income_derivation"] = st.text_area(
-            "Explain how income was derived and verified. For variable income, state the two-year average used. If income is excluded, explain why.",
-            value=bc["income_derivation"],
-            height=120,
-            key="bc_income",
-            label_visibility="collapsed",
-        )
-
-        st.divider()
-
-        st.markdown("#### D. Debt Servicing & Capacity (TDS/GDS)")
-        bc["debt_servicing_notes"] = st.text_area(
-            "Explain the client's debt servicing capacity and any exceptions being requested.",
-            value=bc["debt_servicing_notes"],
-            height=120,
-            key="bc_debt",
-            label_visibility="collapsed",
-        )
-
-        st.markdown("**Quick Insert Narratives:**")
-        narrative_cols = st.columns(len(DEBT_SERVICING_NARRATIVES))
-        for idx, (key, narrative) in enumerate(DEBT_SERVICING_NARRATIVES.items()):
-            with narrative_cols[idx]:
-                if st.button(narrative["label"], key=f"bc_narr_{key}", use_container_width=True):
-                    current = bc["debt_servicing_notes"]
-                    if current and not current.endswith("\n"):
-                        current += "\n\n"
-                    bc["debt_servicing_notes"] = current + narrative["template"]
-                    bc["selected_narratives"].append(key)
-                    st.rerun()
-
-        st.divider()
-
-        st.markdown("#### E. Collateral & Appraisal")
-        bc["ltv_appraisal_notes"] = st.text_area(
-            "If exceeding LTV tiering, state the exact overage amount and percentage increase over the tier. Reference appraisal report findings.",
-            value=bc["ltv_appraisal_notes"],
-            height=100,
-            key="bc_ltv",
-            label_visibility="collapsed",
-        )
-
-        st.divider()
-
-        st.markdown("#### F. Credit History")
-        bc["credit_exception_notes"] = st.text_area(
-            "Explain any derogatory credit history. Is it an isolated incident? Has credit been re-established since? Reference the credit bureau report.",
-            value=bc["credit_exception_notes"],
-            height=100,
-            key="bc_credit",
-            label_visibility="collapsed",
-        )
-
-        st.divider()
-
-        st.markdown("#### G. Summary & Recommendation")
-        bc["summary_recommendation"] = st.text_area(
-            "Summarize the client's strengths and why this is a good transaction for the bank and the client.",
-            value=bc["summary_recommendation"],
-            height=120,
-            key="bc_summary",
-            label_visibility="collapsed",
-        )
-
-    st.divider()
-
-    generate_col, _ = st.columns([1, 3])
-    with generate_col:
-        if st.button("📋 Generate Business Case", type="primary", use_container_width=True, key="bc_generate"):
-            mandatory_fields_filled = (
-                bc["purpose_of_funds"].strip() and
-                bc["down_payment_source_details"].strip() and
-                bc["down_payment_history"].strip()
-            )
-
-            if not mandatory_fields_filled:
-                st.error("⚠️ Please complete all required fields (marked with *) before generating the business case.")
-                st.rerun()
-
-            redundancy_warnings = []
-            redundant_phrases = [
-                ("high value client", "is vague and redundant with application data"),
-                ("center of influence", "is vague and redundant with application data"),
-                ("long time client", "is redundant - use specific financial context instead"),
-                ("been with rbc", "is redundant - focus on financial strengths instead"),
-            ]
-
-            full_text = " ".join([
-                bc.get("purpose_of_funds", ""),
-                bc.get("down_payment_source_details", ""),
-                bc.get("income_derivation", ""),
-                bc.get("debt_servicing_notes", ""),
-            ]).lower()
-
-            for phrase, reason in redundant_phrases:
-                if phrase in full_text:
-                    redundancy_warnings.append(f'• "{phrase}" - {reason}')
-
-            if redundancy_warnings:
-                st.warning("⚠️ The following phrases are redundant or vague:\n" + "\n".join(redundancy_warnings))
-
-            compiled = compile_business_case(bc)
-            st.session_state["bc_compiled"] = compiled
-
-            st.success("✓ Business case generated!")
-            st.markdown("---")
-            st.markdown("#### Compiled Business Case Note")
-            st.markdown(compiled)
-
-            st.divider()
-            copy_col, download_col = st.columns(2)
-            with copy_col:
-                st.code(compiled, language="markdown", label="Copy this text:")
-            with download_col:
-                st.download_button(
-                    "📥 Download as Text",
-                    data=compiled,
-                    file_name="business_case_note.txt",
-                    mime="text/plain",
-                )
-
-    st.divider()
-
-    spacer_bottom, back_col_bottom, continue_col_bottom = st.columns([3, 1, 1])
-    with back_col_bottom:
-        if st.button("← Back", use_container_width=True, key="p7_back_bottom"):
-            st.session_state.step = 6
-            st.rerun()
-    with continue_col_bottom:
-        continue_bottom = st.button("Continue →", type="primary", use_container_width=True, key="p7_continue_bottom")
-
-    if continue_top or continue_bottom:
-        mandatory_fields_filled = (
-            bc["purpose_of_funds"].strip() and
-            bc["down_payment_source_details"].strip() and
-            bc["down_payment_history"].strip()
-        )
-
-        if mandatory_fields_filled:
-            st.session_state.step = 8
-            st.rerun()
-        else:
-            st.error("⚠️ Please complete all required fields before continuing.")
-            st.rerun()
-
-
-def compile_business_case(bc):
-    compiled = "BUSINESS CASE NOTES\n" + "=" * 50 + "\n\n"
-
-    if bc["purpose_of_funds"].strip():
-        compiled += "PURPOSE OF FUNDS\n" + "-" * 50 + "\n"
-        compiled += bc["purpose_of_funds"].strip() + "\n\n"
-
-    if bc["down_payment_source_details"].strip() or bc["down_payment_history"].strip():
-        compiled += "DOWN PAYMENT / AML VERIFICATION\n" + "-" * 50 + "\n"
-        if bc["down_payment_source_details"].strip():
-            compiled += "Source: " + bc["down_payment_source_details"].strip() + "\n"
-        if bc["down_payment_history"].strip():
-            compiled += "90-Day History: " + bc["down_payment_history"].strip() + "\n"
-        compiled += "\n"
-
-    if bc["income_derivation"].strip():
-        compiled += "INCOME VERIFICATION\n" + "-" * 50 + "\n"
-        compiled += bc["income_derivation"].strip() + "\n\n"
-
-    if bc["debt_servicing_notes"].strip():
-        compiled += "DEBT SERVICING & CAPACITY\n" + "-" * 50 + "\n"
-        compiled += bc["debt_servicing_notes"].strip() + "\n\n"
-
-    if bc["ltv_appraisal_notes"].strip():
-        compiled += "COLLATERAL & APPRAISAL MITIGATION\n" + "-" * 50 + "\n"
-        compiled += bc["ltv_appraisal_notes"].strip() + "\n\n"
-
-    if bc["credit_exception_notes"].strip():
-        compiled += "CREDIT HISTORY MITIGATION\n" + "-" * 50 + "\n"
-        compiled += bc["credit_exception_notes"].strip() + "\n\n"
-
-    if bc["summary_recommendation"].strip():
-        compiled += "SUMMARY & RECOMMENDATION\n" + "-" * 50 + "\n"
-        compiled += bc["summary_recommendation"].strip() + "\n"
-
-    return compiled
-
-
-# ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
 
@@ -3261,6 +2971,4 @@ elif st.session_state.step == 5:
 elif st.session_state.step == 6:
     render_documents()
 elif st.session_state.step == 7:
-    render_business_case()
-elif st.session_state.step == 8:
     render_notes()
