@@ -455,6 +455,16 @@ def init_state():
         st.session_state.subject_land_size = ""
     if "subject_title_type" not in st.session_state:
         st.session_state.subject_title_type = ""
+    if "subject_title_type_other" not in st.session_state:
+        st.session_state.subject_title_type_other = ""
+    if "subject_prop_type_other" not in st.session_state:
+        st.session_state.subject_prop_type_other = ""
+    if "subject_heating_type_other" not in st.session_state:
+        st.session_state.subject_heating_type_other = ""
+    if "subject_sewer_other" not in st.session_state:
+        st.session_state.subject_sewer_other = ""
+    if "subject_water_other" not in st.session_state:
+        st.session_state.subject_water_other = ""
 
 
 SAVE_STATE_KEYS = [
@@ -469,6 +479,8 @@ SAVE_STATE_KEYS = [
     "subject_cooling", "subject_foundation", "subject_foundation_other",
     "subject_exterior_finish", "subject_exterior_finish_other", "subject_garage_other", "subject_sewer",
     "subject_water", "subject_parking_spaces", "subject_land_size", "subject_title_type",
+    "subject_title_type_other", "subject_prop_type_other", "subject_heating_type_other",
+    "subject_sewer_other", "subject_water_other",
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
     "broker_notes", "combined_notes", "mortgage_term", "rate_type",
 ]
@@ -575,6 +587,11 @@ def refresh_all():
     st.session_state.subject_parking_spaces = ""
     st.session_state.subject_land_size = ""
     st.session_state.subject_title_type = ""
+    st.session_state.subject_title_type_other = ""
+    st.session_state.subject_prop_type_other = ""
+    st.session_state.subject_heating_type_other = ""
+    st.session_state.subject_sewer_other = ""
+    st.session_state.subject_water_other = ""
     st.session_state.contract_rate = 5.0
     st.session_state.amortization_years = 25
     st.session_state.benchmark_rate = 5.25
@@ -1284,6 +1301,11 @@ def refresh_property_details():
     st.session_state.subject_parking_spaces = ""
     st.session_state.subject_land_size = ""
     st.session_state.subject_title_type = ""
+    st.session_state.subject_title_type_other = ""
+    st.session_state.subject_prop_type_other = ""
+    st.session_state.subject_heating_type_other = ""
+    st.session_state.subject_sewer_other = ""
+    st.session_state.subject_water_other = ""
 
 
 def get_subject_property_costs():
@@ -1350,6 +1372,11 @@ def render_property_details():
             index=TITLE_TYPE_OPTIONS.index(st.session_state.subject_title_type)
             if st.session_state.subject_title_type in TITLE_TYPE_OPTIONS else 0,
         )
+        if st.session_state.subject_title_type == "Other":
+            st.session_state.subject_title_type_other = st.text_input(
+                "Describe title type", value=st.session_state.subject_title_type_other,
+                key="subject_title_type_other_input",
+            )
         st.session_state.subject_sqft = st.text_input(
             "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
         )
@@ -1379,6 +1406,11 @@ def render_property_details():
             index=WATER_OPTIONS.index(st.session_state.subject_water)
             if st.session_state.subject_water in WATER_OPTIONS else 0,
         )
+        if st.session_state.subject_water == "Other":
+            st.session_state.subject_water_other = st.text_input(
+                "Describe water source", value=st.session_state.subject_water_other,
+                key="subject_water_other_input",
+            )
     with c2:
         st.session_state.subject_prop_type = st.selectbox(
             "Property Type", PROPERTY_STYLE_TYPES,
@@ -1386,6 +1418,11 @@ def render_property_details():
             if st.session_state.subject_prop_type in PROPERTY_STYLE_TYPES else 0,
             key="subject_prop_type_select",
         )
+        if st.session_state.subject_prop_type == "Other":
+            st.session_state.subject_prop_type_other = st.text_input(
+                "Describe property type", value=st.session_state.subject_prop_type_other,
+                key="subject_prop_type_other_input",
+            )
         st.session_state.subject_prop_age = st.text_input(
             "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
             placeholder="e.g. 15 years or Built 2011",
@@ -1408,6 +1445,11 @@ def render_property_details():
             index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
             if st.session_state.subject_heating_type in HEATING_TYPE_OPTIONS else 0,
         )
+        if st.session_state.subject_heating_type == "Other":
+            st.session_state.subject_heating_type_other = st.text_input(
+                "Describe heating type", value=st.session_state.subject_heating_type_other,
+                key="subject_heating_type_other_input",
+            )
         st.session_state.subject_foundation = st.selectbox(
             "Foundation Type", FOUNDATION_TYPE_OPTIONS,
             index=FOUNDATION_TYPE_OPTIONS.index(st.session_state.subject_foundation)
@@ -1423,6 +1465,11 @@ def render_property_details():
             index=SEWER_OPTIONS.index(st.session_state.subject_sewer)
             if st.session_state.subject_sewer in SEWER_OPTIONS else 0,
         )
+        if st.session_state.subject_sewer == "Other":
+            st.session_state.subject_sewer_other = st.text_input(
+                "Describe utility sewer", value=st.session_state.subject_sewer_other,
+                key="subject_sewer_other_input",
+            )
         st.session_state.subject_rural_urban = st.selectbox(
             "Rural / Urban / Agricultural",
             RURAL_URBAN_OPTIONS,
