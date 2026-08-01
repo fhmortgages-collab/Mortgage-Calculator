@@ -357,6 +357,10 @@ def init_state():
         st.session_state.doc_removed_items = []
     if "doc_edit_mode" not in st.session_state:
         st.session_state.doc_edit_mode = False
+    if "doc_text_overrides" not in st.session_state:
+        st.session_state.doc_text_overrides = {}
+    if "doc_custom_items" not in st.session_state:
+        st.session_state.doc_custom_items = {}
     if "broker_notes" not in st.session_state:
         st.session_state.broker_notes = ""
     if "combined_notes" not in st.session_state:
@@ -484,6 +488,7 @@ SAVE_STATE_KEYS = [
     "subject_title_type_other", "subject_prop_type_other", "subject_heating_type_other",
     "subject_sewer_other", "subject_water_other",
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
+    "doc_text_overrides", "doc_custom_items",
     "broker_notes", "combined_notes", "mortgage_term", "rate_type",
 ]
 
@@ -542,6 +547,8 @@ def refresh_all():
     st.session_state.transaction_type_error = ""
     st.session_state.doc_removed_items = []
     st.session_state.doc_edit_mode = False
+    st.session_state.doc_text_overrides = {}
+    st.session_state.doc_custom_items = {}
     st.session_state.broker_notes = ""
     st.session_state.combined_notes = ""
     st.session_state.mortgage_term = "5 Year"
@@ -2944,6 +2951,11 @@ OTHER_PROPERTY_DOC_LABELS = [
     "Heating bill or utility estimate",
 ]
 
+ALL_CHECKLIST_CATEGORIES = [
+    "Application & Consent", "Identification", "Down Payment", "Income",
+    "Property Being Purchased", "Other Properties Owned", "Other Debts & Liabilities",
+]
+
 
 def borrower_display_name(idx):
     borrowers = st.session_state.borrowers
@@ -3042,6 +3054,54 @@ def group_checklist_items(items):
     return [(key, grouped[key]) for key in order]
 
 
+def annotate_item_keys(data):
+    """Stamps each item with a stable '_key' derived from its default (un-edited) text, before any overrides are applied."""
+    for category in data.get("categories", []):
+        name = category.get("name", "")
+        for item in category.get("items", []):
+            item["_key"] = checklist_item_key(name, item)
+    return data
+
+
+def apply_text_overrides(data, overrides):
+    """Swaps in any broker-edited wording, matched by each item's stable _key (based on its original default text)."""
+    for category in data.get("categories", []):
+        for item in category.get("items", []):
+            key = item.get("_key")
+            if key and key in overrides:
+                item["text"] = overrides[key]
+    return data
+
+
+def add_custom_items(data, custom_items_by_category, all_category_names):
+    """
+    Ensures every category in `all_category_names` exists (even if empty), then
+    appends any broker-added custom document lines to their category.
+    """
+    categories_by_name = {c["name"]: c for c in data.get("categories", [])}
+    for name in all_category_names:
+        if name not in categories_by_name:
+            new_cat = {"name": name, "items": []}
+            data.setdefault("categories", []).append(new_cat)
+            categories_by_name[name] = new_cat
+
+    for cat_name, custom_texts in custom_items_by_category.items():
+        if cat_name not in categories_by_name:
+            continue
+        for i, text in enumerate(custom_texts):
+            item = {"text": text, "custom": True}
+            item["_key"] = "CUSTOM||" + cat_name + "||" + str(i)
+            categories_by_name[cat_name]["items"].append(item)
+
+    # Preserve the original category ordering (all_category_names first, in order).
+    ordered = [categories_by_name[n] for n in all_category_names if n in categories_by_name]
+    for c in data.get("categories", []):
+        if c["name"] not in all_category_names:
+            ordered.append(c)
+    data["categories"] = ordered
+    return data
+
+
 def render_document_checklist(data):
     """
     Generic renderer for the checklist schema described above. Doesn't know
@@ -3125,27 +3185,42 @@ def filter_checklist_data(data, removed_keys):
     filtered = []
     for category in data.get("categories", []):
         name = category.get("name", "")
-        kept_items = [it for it in category.get("items", []) if checklist_item_key(name, it) not in removed_set]
+        kept_items = [
+            it for it in category.get("items", [])
+            if it.get("_key", checklist_item_key(name, it)) not in removed_set
+        ]
         filtered.append({"name": name, "items": kept_items})
     return {"categories": filtered}
 
 
 def render_document_checklist_editable(data):
     """
-    Edit-mode view: every item gets a checkbox (checked = keep). Unchecking
-    and saving permanently removes that item from the checklist. Returns
-    the set of item-keys the user unchecked in this pass.
+    Edit-mode view: every item gets a checkbox (checked = keep) and an
+    editable text field (so wording like "2 years financials" can become
+    "3 years financials"). Every category also gets an "add a document"
+    box, even if it currently has no items, so brokers can add a custom
+    requirement to any category. Unchecking + saving permanently removes
+    an item; editing text + saving permanently rewords it. Custom items
+    are added immediately (not gated behind Save).
+
+    Returns (unchecked_keys, text_edits) — the caller merges these into
+    session state on Save.
     """
     unchecked_keys = set()
+    text_edits = {}
+
     for category in data.get("categories", []):
+        cat_name = category.get("name", "")
         items = category.get("items", [])
-        if not items:
-            continue
         st.markdown(
             "<div style='font-size:18px; font-weight:700; margin-top:14px; margin-bottom:6px;'>"
-            + category.get("name", "") + " (" + str(len(items)) + ")</div>",
+            + cat_name + " (" + str(len(items)) + ")</div>",
             unsafe_allow_html=True,
         )
+
+        if not items:
+            st.caption("No documents in this category yet.")
+
         for (applicant, subcategory), group_items in group_checklist_items(items):
             if applicant or subcategory:
                 heading_parts = []
@@ -3158,22 +3233,49 @@ def render_document_checklist_editable(data):
                     + " — ".join(heading_parts) + "</div>",
                     unsafe_allow_html=True,
                 )
-                indent_col = st.columns([1, 19])[1]
-            else:
-                indent_col = st.columns([1, 19])[1]
 
             for item in group_items:
-                key = checklist_item_key(category.get("name", ""), item)
-                with indent_col:
-                    keep = st.checkbox(item["text"], value=True, key="doc_edit_" + key)
+                key = item.get("_key") or checklist_item_key(cat_name, item)
+                row_col, text_col = st.columns([1, 9])
+                with row_col:
+                    keep = st.checkbox("", value=True, key="doc_edit_keep_" + key, label_visibility="collapsed")
+                with text_col:
+                    edited_text = st.text_input(
+                        "Document", value=item["text"], key="doc_edit_text_" + key, label_visibility="collapsed",
+                    )
                 if not keep:
                     unchecked_keys.add(key)
-    return unchecked_keys
+                if edited_text != item["text"]:
+                    text_edits[key] = edited_text
+
+        # Add a custom document line to this category — applies immediately.
+        add_col, btn_col = st.columns([4, 1])
+        new_doc_input_key = "doc_add_new_" + cat_name
+        with add_col:
+            new_doc_text = st.text_input(
+                "Add a document to " + cat_name, value="", key=new_doc_input_key,
+                placeholder="e.g. 3 years of financial statements", label_visibility="collapsed",
+            )
+        with btn_col:
+            if st.button("+ Add", key="doc_add_btn_" + cat_name, use_container_width=True):
+                if new_doc_text.strip():
+                    existing = dict(st.session_state.doc_custom_items)
+                    existing.setdefault(cat_name, [])
+                    existing[cat_name] = existing[cat_name] + [new_doc_text.strip()]
+                    st.session_state.doc_custom_items = existing
+                    st.rerun()
+
+        st.markdown("---")
+
+    return unchecked_keys, text_edits
 
 
 def render_documents():
     render_calculator_popover("documents")
     raw_checklist_data = build_document_checklist_data()
+    annotate_item_keys(raw_checklist_data)
+    apply_text_overrides(raw_checklist_data, st.session_state.doc_text_overrides)
+    add_custom_items(raw_checklist_data, st.session_state.doc_custom_items, ALL_CHECKLIST_CATEGORIES)
     checklist_data = filter_checklist_data(raw_checklist_data, st.session_state.doc_removed_items)
 
     always_present = ("Application & Consent", "Property Being Purchased")
@@ -3188,6 +3290,8 @@ def render_documents():
 
     if st.session_state.doc_removed_items:
         st.caption(str(len(st.session_state.doc_removed_items)) + " item(s) manually removed from this checklist.")
+    if st.session_state.doc_text_overrides:
+        st.caption(str(len(st.session_state.doc_text_overrides)) + " item(s) reworded from their default text.")
 
     if not st.session_state.doc_edit_mode:
         edit_col, _ = st.columns([1, 3])
@@ -3208,14 +3312,20 @@ def render_documents():
             mime="text/plain",
         )
     else:
-        st.warning("**Edit mode:** uncheck any item you want to permanently remove, then Save. This cannot be undone from within this page.")
-        unchecked_keys = render_document_checklist_editable(checklist_data)
+        st.warning(
+            "**Edit mode:** uncheck an item to permanently remove it, edit its text to reword it (e.g. "
+            "\"2 years financials\" → \"3 years financials\"), or use \"+ Add\" at the bottom of any "
+            "category to add a document that isn't listed. Removals and rewording take effect on Save; "
+            "additions apply immediately."
+        )
+        unchecked_keys, text_edits = render_document_checklist_editable(checklist_data)
 
         st.divider()
         save_col, cancel_col = st.columns(2)
         with save_col:
             if st.button("💾 Save Changes", type="primary", use_container_width=True, key="doc_save_edits"):
                 st.session_state["doc_pending_removal"] = list(unchecked_keys)
+                st.session_state["doc_pending_text_edits"] = text_edits
                 st.session_state["doc_show_save_confirm"] = True
         with cancel_col:
             if st.button("Cancel", use_container_width=True, key="doc_cancel_edits"):
@@ -3224,20 +3334,30 @@ def render_documents():
 
         if st.session_state.get("doc_show_save_confirm"):
             pending = st.session_state.get("doc_pending_removal", [])
-            if pending:
+            pending_edits = st.session_state.get("doc_pending_text_edits", {})
+            if pending or pending_edits:
+                msg_parts = []
+                if pending:
+                    msg_parts.append(str(len(pending)) + " item(s) permanently removed")
+                if pending_edits:
+                    msg_parts.append(str(len(pending_edits)) + " item(s) reworded")
                 st.warning(
-                    "Are you sure you want to permanently remove " + str(len(pending)) + " item(s) from this "
-                    "checklist? This cannot be undone (unless you re-check the item's original selection, which "
-                    "won't bring it back — you'd need to clear removals via a fresh Refresh)."
+                    "This will save: " + " and ".join(msg_parts) + ". Removals cannot be undone from within "
+                    "this page (short of a full Refresh)."
                 )
             else:
-                st.info("No items were unchecked — nothing will be removed.")
+                st.info("No changes were made — nothing to save.")
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("Confirm & Save", type="primary", use_container_width=True, key="doc_confirm_save"):
-                    existing = set(st.session_state.doc_removed_items)
-                    existing.update(pending)
-                    st.session_state.doc_removed_items = list(existing)
+                    existing_removed = set(st.session_state.doc_removed_items)
+                    existing_removed.update(pending)
+                    st.session_state.doc_removed_items = list(existing_removed)
+
+                    existing_overrides = dict(st.session_state.doc_text_overrides)
+                    existing_overrides.update(pending_edits)
+                    st.session_state.doc_text_overrides = existing_overrides
+
                     st.session_state.doc_edit_mode = False
                     st.session_state["doc_show_save_confirm"] = False
                     st.rerun()
