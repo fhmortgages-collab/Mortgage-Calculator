@@ -1584,7 +1584,15 @@ VARIABLE_INCOME_KEYS = (
     "self_employed_incorporated", "self_employed_professional",
 )
 EXCLUDED_INCOME_KEYS = ("capital_gains",)
-RENTAL_INCLUSION_RATE_OPTIONS = ["50%", "80%"]
+RENTAL_INCLUSION_RATE_OPTIONS = ["50%", "80%", "100%"]
+
+
+def rental_inclusion_rate_value(rate_label):
+    """Converts a rental inclusion rate label ('50%'/'80%'/'100%') into its decimal fraction."""
+    try:
+        return float(str(rate_label).replace("%", "").strip()) / 100.0
+    except (ValueError, TypeError):
+        return 0.50
 
 
 def compute_qualifying_variable_income(amounts):
@@ -1615,7 +1623,7 @@ def compute_income_source_value(key, amounts):
             return 0.0
         gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "50%")
-        rate = 0.80 if rate_label == "80%" else 0.50
+        rate = rental_inclusion_rate_value(rate_label)
         return gross_rental * rate
     elif key in VARIABLE_INCOME_KEYS:
         return compute_qualifying_variable_income(amounts)
@@ -1633,7 +1641,7 @@ def explain_income_source(key, source, amounts):
             return source["label"] + ": $0 — property is marked \"" + amounts.get("status", "") + "\", so this income is not used."
         gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "50%")
-        rate = 0.80 if rate_label == "80%" else 0.50
+        rate = rental_inclusion_rate_value(rate_label)
         qualifying = gross_rental * rate
         return (
             source["label"] + ": " + fmt_money(gross_rental) + " gross annual rental × " + rate_label
@@ -1899,7 +1907,7 @@ def render_income_category_card(bidx, skey, source, amounts):
             )
         else:
             gross_v = parse_money(amounts.get("gross_rental", "")) or 0.0
-            rate_v = 0.80 if amounts["inclusion_rate"] == "80%" else 0.50
+            rate_v = rental_inclusion_rate_value(amounts["inclusion_rate"])
             st.caption(
                 "Qualifying Rental Income (" + amounts["inclusion_rate"] + " of gross rent): "
                 + fmt_money(gross_v * rate_v)
@@ -2065,12 +2073,24 @@ def render_income():
 
     st.divider()
     st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
-    if len(borrower_totals_for_display) > 1:
+
+    calc_terms = []
+    for idx in range(borrower_count):
+        bidx = str(idx)
+        name = borrower_display_name(idx)
+        _, breakdown = compute_borrower_income(idx)
+        for skey in st.session_state.income_selected.get(bidx, []):
+            src = get_income_source(skey)
+            val = breakdown.get(skey, 0.0)
+            if src:
+                calc_terms.append((name + " — " + src["label"], val))
+    if calc_terms:
         st.caption(
-            "Calculation: " + " + ".join(
-                name + " (" + fmt_money(total) + ")" for name, total in borrower_totals_for_display
-            ) + " = " + fmt_money(grand_total)
+            "Calculation: " + " + ".join(fmt_money(v) for _, v in calc_terms) + " = " + fmt_money(grand_total)
         )
+        with st.expander("Show breakdown by source"):
+            for label, v in calc_terms:
+                st.markdown("- " + label + ": **" + fmt_money(v) + "**")
     st.divider()
 
     st.divider()
@@ -2688,6 +2708,7 @@ def render_analysis():
         "</div>",
         unsafe_allow_html=True,
     )
+    st.caption(help_combined_ltv_text())
 
     st.divider()
 
