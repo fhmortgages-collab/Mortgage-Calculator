@@ -97,6 +97,7 @@ INCOME_SOURCES = [
             "Signed lease agreement(s)",
             "Most recent Notice of Assessment or rental income schedule",
             "Property tax and expense statements",
+            "3 months of bank statements confirming deposit of rental income",
         ],
         "notes": "Net rental income is generally calculated as gross rent less property expenses.",
         "special": "rental",
