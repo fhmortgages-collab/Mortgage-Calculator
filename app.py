@@ -30,8 +30,21 @@ COOLING_OPTIONS = ["", "Central Air Conditioning", "Heat Pump", "Window/Wall Uni
 SEWER_OPTIONS = ["", "Sanitary Sewer (Municipal)", "Septic System", "Other"]
 WATER_OPTIONS = ["", "Municipal Water", "Well", "Other"]
 TITLE_TYPE_OPTIONS = ["", "Freehold", "Condominium", "Leasehold", "Other"]
+FOUNDATION_TYPE_OPTIONS = [
+    "", "Poured Concrete", "Concrete Block", "Stone", "Preserved Wood (PWF)",
+    "Slab-on-Grade", "Crawl Space", "Pier & Post", "Other",
+]
+EXTERIOR_FINISH_OPTIONS = [
+    "", "Brick", "Brick Veneer", "Vinyl Siding", "Stucco", "Stone", "Stone Veneer",
+    "Wood Siding", "Aluminum/Steel Siding", "Fiber Cement (Hardie Board)", "Other",
+]
+GARAGE_OPTIONS = ["", "None", "Attached", "Detached", "Carport", "Underground Parking", "Other"]
+PROPERTY_STATUS_OPTIONS = [
+    "", "Keeping — Primary Residence", "Keeping — Second Home", "Keeping — Investment Property",
+    "Being Sold — Firm (Unconditional) Sale Agreement", "Being Sold — Not Yet Firm / Listed Only",
+]
 
-STEPS = ["Deal", "Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Documents", "Notes"]
+STEPS = ["Deal", "Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Docs", "Notes"]
 
 TRANSACTION_TYPE_OPTIONS = [
     {
@@ -208,6 +221,15 @@ def parse_money(raw):
         return None
 
 
+def render_missing_fields_warning(missing_items):
+    """Shows a consolidated warning listing everything still needed before continuing, if anything is missing."""
+    if missing_items:
+        st.warning(
+            "**Before continuing, please complete:**\n\n"
+            + "\n".join("- " + item for item in missing_items)
+        )
+
+
 def parse_month_year(text):
     """Parses a 'MM/YYYY' string into a date (first of that month). Returns None if invalid/empty."""
     if not text:
@@ -316,6 +338,9 @@ def empty_property():
         "property_taxes": "",
         "condo_fees": "",
         "heating": "",
+        "status": "",
+        "property_value": "",
+        "mortgage_balance": "",
     }
 
 
@@ -412,8 +437,14 @@ def init_state():
         st.session_state.subject_cooling = ""
     if "subject_foundation" not in st.session_state:
         st.session_state.subject_foundation = ""
+    if "subject_foundation_other" not in st.session_state:
+        st.session_state.subject_foundation_other = ""
     if "subject_exterior_finish" not in st.session_state:
         st.session_state.subject_exterior_finish = ""
+    if "subject_exterior_finish_other" not in st.session_state:
+        st.session_state.subject_exterior_finish_other = ""
+    if "subject_garage_other" not in st.session_state:
+        st.session_state.subject_garage_other = ""
     if "subject_sewer" not in st.session_state:
         st.session_state.subject_sewer = ""
     if "subject_water" not in st.session_state:
@@ -435,7 +466,8 @@ SAVE_STATE_KEYS = [
     "subject_address", "subject_taxes_raw", "subject_condo_raw", "subject_heat_raw",
     "subject_prop_type", "subject_prop_purpose", "subject_prop_age", "subject_garage",
     "subject_rural_urban", "subject_sqft", "subject_storeys", "subject_heating_type",
-    "subject_cooling", "subject_foundation", "subject_exterior_finish", "subject_sewer",
+    "subject_cooling", "subject_foundation", "subject_foundation_other",
+    "subject_exterior_finish", "subject_exterior_finish_other", "subject_garage_other", "subject_sewer",
     "subject_water", "subject_parking_spaces", "subject_land_size", "subject_title_type",
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
     "broker_notes", "combined_notes", "mortgage_term", "rate_type",
@@ -528,13 +560,16 @@ def refresh_all():
     st.session_state.subject_prop_purpose = ""
     st.session_state.subject_prop_age = ""
     st.session_state.subject_garage = ""
+    st.session_state.subject_garage_other = ""
     st.session_state.subject_rural_urban = ""
     st.session_state.subject_sqft = ""
     st.session_state.subject_storeys = ""
     st.session_state.subject_heating_type = ""
     st.session_state.subject_cooling = ""
     st.session_state.subject_foundation = ""
+    st.session_state.subject_foundation_other = ""
     st.session_state.subject_exterior_finish = ""
+    st.session_state.subject_exterior_finish_other = ""
     st.session_state.subject_sewer = ""
     st.session_state.subject_water = ""
     st.session_state.subject_parking_spaces = ""
@@ -816,6 +851,10 @@ def render_transaction_type():
     if st.session_state.transaction_type_error:
         st.markdown(":red[" + st.session_state.transaction_type_error + "]")
 
+    render_missing_fields_warning(
+        [] if st.session_state.transaction_type else ["Transaction type"]
+    )
+
     st.divider()
 
     back_col, refresh_col, continue_col = st.columns(3)
@@ -945,6 +984,20 @@ def render_client_details():
         "I acknowledge and consent to the above terms", value=st.session_state.consent
     )
     consent_error_slot = st.empty()
+
+    live_errors = [validate_borrower(b) for b in st.session_state.borrowers]
+    missing_items = []
+    field_labels = {
+        "full_name": "Full Name", "dob": "Date of Birth", "gender": "Gender",
+        "marital_status": "Marital Status", "phone": "Phone Number", "email": "Email Address",
+        "address": "Current Address",
+    }
+    for idx, errs in enumerate(live_errors):
+        for fkey in errs:
+            missing_items.append("Borrower " + str(idx + 1) + " — " + field_labels.get(fkey, fkey))
+    if not st.session_state.consent:
+        missing_items.append("Consent checkbox")
+    render_missing_fields_warning(missing_items)
 
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
@@ -1134,11 +1187,18 @@ def render_down_payment():
 
     st.divider()
 
+    missing_items = []
+    if purchase_price is None or purchase_price <= 0:
+        missing_items.append("Purchase Price")
+    if down_payment is None:
+        missing_items.append("Down Payment Amount")
+    if not selected:
+        missing_items.append("At least one Down Payment Source")
+    if selected and down_payment is not None and not totals_match:
+        missing_items.append("Source amounts must sum to the Down Payment Amount")
+    render_missing_fields_warning(missing_items)
+
     back_col, refresh_col, continue_col = st.columns(3)
-    with back_col:
-        if st.button("← Back", use_container_width=True, key="p2_back"):
-            st.session_state.step = 1
-            st.rerun()
     with refresh_col:
         if st.button("Refresh", use_container_width=True, key="p2_refresh"):
             st.session_state["p2_show_refresh_confirm"] = True
@@ -1200,13 +1260,16 @@ def refresh_property_details():
     st.session_state.subject_prop_purpose = ""
     st.session_state.subject_prop_age = ""
     st.session_state.subject_garage = ""
+    st.session_state.subject_garage_other = ""
     st.session_state.subject_rural_urban = ""
     st.session_state.subject_sqft = ""
     st.session_state.subject_storeys = ""
     st.session_state.subject_heating_type = ""
     st.session_state.subject_cooling = ""
     st.session_state.subject_foundation = ""
+    st.session_state.subject_foundation_other = ""
     st.session_state.subject_exterior_finish = ""
+    st.session_state.subject_exterior_finish_other = ""
     st.session_state.subject_sewer = ""
     st.session_state.subject_water = ""
     st.session_state.subject_parking_spaces = ""
@@ -1292,10 +1355,16 @@ def render_property_details():
             index=COOLING_OPTIONS.index(st.session_state.subject_cooling)
             if st.session_state.subject_cooling in COOLING_OPTIONS else 0,
         )
-        st.session_state.subject_exterior_finish = st.text_input(
-            "Exterior Finish", value=st.session_state.subject_exterior_finish,
-            placeholder="e.g. Brick, Stone, Vinyl Siding",
+        st.session_state.subject_exterior_finish = st.selectbox(
+            "Exterior Finish", EXTERIOR_FINISH_OPTIONS,
+            index=EXTERIOR_FINISH_OPTIONS.index(st.session_state.subject_exterior_finish)
+            if st.session_state.subject_exterior_finish in EXTERIOR_FINISH_OPTIONS else 0,
         )
+        if st.session_state.subject_exterior_finish == "Other":
+            st.session_state.subject_exterior_finish_other = st.text_input(
+                "Describe exterior finish", value=st.session_state.subject_exterior_finish_other,
+                key="subject_exterior_finish_other_input",
+            )
         st.session_state.subject_water = st.selectbox(
             "Water", WATER_OPTIONS,
             index=WATER_OPTIONS.index(st.session_state.subject_water)
@@ -1316,19 +1385,30 @@ def render_property_details():
             "Land Size", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
         )
         st.session_state.subject_garage = st.selectbox(
-            "Garage", ["", "None", "Attached", "Detached", "Carport"],
-            index=["", "None", "Attached", "Detached", "Carport"].index(st.session_state.subject_garage)
-            if st.session_state.subject_garage in ["", "None", "Attached", "Detached", "Carport"] else 0,
+            "Garage", GARAGE_OPTIONS,
+            index=GARAGE_OPTIONS.index(st.session_state.subject_garage)
+            if st.session_state.subject_garage in GARAGE_OPTIONS else 0,
         )
+        if st.session_state.subject_garage == "Other":
+            st.session_state.subject_garage_other = st.text_input(
+                "Describe garage / parking", value=st.session_state.subject_garage_other,
+                key="subject_garage_other_input",
+            )
         st.session_state.subject_heating_type = st.selectbox(
             "Heating Type", HEATING_TYPE_OPTIONS,
             index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
             if st.session_state.subject_heating_type in HEATING_TYPE_OPTIONS else 0,
         )
-        st.session_state.subject_foundation = st.text_input(
-            "Foundation Type", value=st.session_state.subject_foundation,
-            placeholder="e.g. Poured Concrete",
+        st.session_state.subject_foundation = st.selectbox(
+            "Foundation Type", FOUNDATION_TYPE_OPTIONS,
+            index=FOUNDATION_TYPE_OPTIONS.index(st.session_state.subject_foundation)
+            if st.session_state.subject_foundation in FOUNDATION_TYPE_OPTIONS else 0,
         )
+        if st.session_state.subject_foundation == "Other":
+            st.session_state.subject_foundation_other = st.text_input(
+                "Describe foundation type", value=st.session_state.subject_foundation_other,
+                key="subject_foundation_other_input",
+            )
         st.session_state.subject_sewer = st.selectbox(
             "Utility Sewer", SEWER_OPTIONS,
             index=SEWER_OPTIONS.index(st.session_state.subject_sewer)
@@ -1365,6 +1445,10 @@ def render_property_details():
     )
 
     st.divider()
+
+    render_missing_fields_warning(
+        [] if st.session_state.subject_address.strip() else ["Property Address"]
+    )
 
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
@@ -1443,6 +1527,23 @@ def compute_qualifying_variable_income(amounts):
     return (recent_v + prior_v) / 2.0
 
 
+def compute_income_source_value(key, amounts):
+    """Qualifying value for one income source's amounts dict, per its calc rule."""
+    if key in EXCLUDED_INCOME_KEYS:
+        return 0.0
+    elif key == "rental":
+        if amounts.get("occupancy") == "To Be Sold":
+            return 0.0
+        gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
+        rate_label = amounts.get("inclusion_rate", "50%")
+        rate = 0.80 if rate_label == "80%" else 0.50
+        return gross_rental * rate
+    elif key in VARIABLE_INCOME_KEYS:
+        return compute_qualifying_variable_income(amounts)
+    else:
+        return parse_money(amounts.get("amount", "")) or 0.0
+
+
 def compute_borrower_income(borrower_idx):
     bidx = str(borrower_idx)
     selected_keys = st.session_state.income_selected.get(bidx, [])
@@ -1451,19 +1552,7 @@ def compute_borrower_income(borrower_idx):
 
     for key in selected_keys:
         amounts = st.session_state.income_amounts.get(bidx, {}).get(key, {})
-
-        if key in EXCLUDED_INCOME_KEYS:
-            value = 0.0
-        elif key == "rental":
-            gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
-            rate_label = amounts.get("inclusion_rate", "50%")
-            rate = 0.80 if rate_label == "80%" else 0.50
-            value = gross_rental * rate
-        elif key in VARIABLE_INCOME_KEYS:
-            value = compute_qualifying_variable_income(amounts)
-        else:
-            value = parse_money(amounts.get("amount", "")) or 0.0
-
+        value = compute_income_source_value(key, amounts)
         breakdown[key] = value
         total += value
 
@@ -1660,7 +1749,7 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c1:
             amounts["property_address"] = st.text_input("Property Address", value=amounts.get("property_address", ""), key=prefix + "property_address")
             amounts["property_value"] = st.text_input("Property Value ($)", value=amounts.get("property_value", ""), key=prefix + "property_value")
-            occ_options = ["", "Primary", "Secondary", "Investment"]
+            occ_options = ["", "Primary", "Secondary", "Investment", "To Be Sold"]
             cur_occ = amounts.get("occupancy", "")
             amounts["occupancy"] = st.selectbox(
                 "Intended Occupancy", occ_options,
@@ -1676,12 +1765,18 @@ def render_income_category_card(bidx, skey, source, amounts):
                 index=RENTAL_INCLUSION_RATE_OPTIONS.index(cur_rate) if cur_rate in RENTAL_INCLUSION_RATE_OPTIONS else 0,
                 key=prefix + "inclusion_rate",
             )
-        gross_v = parse_money(amounts.get("gross_rental", "")) or 0.0
-        rate_v = 0.80 if amounts["inclusion_rate"] == "80%" else 0.50
-        st.caption(
-            "Qualifying Rental Income (" + amounts["inclusion_rate"] + " of gross rent): "
-            + fmt_money(gross_v * rate_v)
-        )
+        if amounts["occupancy"] == "To Be Sold":
+            st.caption(
+                "⚠️ This property is marked **To Be Sold** — its rental income is excluded from GDS/TDS "
+                "qualification (it won't be an ongoing source of income once sold)."
+            )
+        else:
+            gross_v = parse_money(amounts.get("gross_rental", "")) or 0.0
+            rate_v = 0.80 if amounts["inclusion_rate"] == "80%" else 0.50
+            st.caption(
+                "Qualifying Rental Income (" + amounts["inclusion_rate"] + " of gross rent): "
+                + fmt_money(gross_v * rate_v)
+            )
         st.caption(
             "This property's mortgage payment, taxes, condo fees, and heating should be entered "
             "under Debts & Liabilities → Property Debts so they're included in the debt service calculation."
@@ -1762,6 +1857,7 @@ def render_income():
     borrowers = st.session_state.borrowers
     all_valid = True
     grand_total = 0.0
+    borrower_totals_for_display = []
 
     for idx in range(borrower_count):
         bidx = str(idx)
@@ -1808,12 +1904,16 @@ def render_income():
                 amounts = st.session_state.income_amounts[bidx][skey]
                 st.markdown("---")
                 render_income_category_card(bidx, skey, source, amounts)
+                if skey not in VARIABLE_INCOME_KEYS and skey not in ("rental", "capital_gains"):
+                    qualifying_value = compute_income_source_value(skey, amounts)
+                    st.caption("Qualifying Income (used for GDS/TDS): **" + fmt_money(qualifying_value) + "**")
                 st.session_state.income_amounts[bidx][skey] = amounts
 
             borrower_total, breakdown = compute_borrower_income(idx)
             grand_total += borrower_total
-
             label_name = borrower_name if borrower_name else ("Borrower " + str(idx + 1))
+            borrower_totals_for_display.append((label_name, borrower_total))
+
             st.markdown(
                 "<div class='borrower-total'>" + label_name + " Total Income: " + fmt_money(borrower_total) + "</div>",
                 unsafe_allow_html=True,
@@ -1837,7 +1937,21 @@ def render_income():
 
     st.divider()
     st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
+    if len(borrower_totals_for_display) > 1:
+        st.caption(
+            "Calculation: " + " + ".join(
+                name + " (" + fmt_money(total) + ")" for name, total in borrower_totals_for_display
+            ) + " = " + fmt_money(grand_total)
+        )
     st.divider()
+
+    st.divider()
+
+    income_missing_items = []
+    for bidx_key, errs in st.session_state.income_errors.items():
+        for msg in errs.values():
+            income_missing_items.append(msg)
+    render_missing_fields_warning(income_missing_items)
 
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
@@ -1922,6 +2036,18 @@ def explain_debt_payment(debt_type, amounts):
         return payment, explanation
 
 
+def get_rental_income_addresses():
+    """Collects unique, non-empty rental property addresses entered anywhere under Income."""
+    addresses = []
+    for bidx, sources in st.session_state.income_amounts.items():
+        rental_amounts = sources.get("rental")
+        if rental_amounts:
+            addr = rental_amounts.get("property_address", "").strip()
+            if addr and addr not in addresses:
+                addresses.append(addr)
+    return addresses
+
+
 def render_debts():
     st.markdown("### Debts & Liabilities")
     st.write("Enter property debts and other liabilities for this application.")
@@ -1942,6 +2068,16 @@ def render_debts():
 
     for pidx, prop in enumerate(st.session_state.properties):
         with st.expander("Property " + str(pidx + 1), expanded=True):
+            rental_addresses = get_rental_income_addresses()
+            if rental_addresses:
+                link_options = [""] + rental_addresses
+                picked_addr = st.selectbox(
+                    "Link to a rental property address entered under Income (optional)",
+                    link_options, key="prop_addr_link_" + str(pidx),
+                )
+                if picked_addr and picked_addr != prop["address"]:
+                    prop["address"] = picked_addr
+
             prop["address"] = st.text_area(
                 "Property Address", value=prop["address"], placeholder="Enter full property address",
                 key="prop_addr_" + str(pidx), height=70,
@@ -1954,6 +2090,25 @@ def render_debts():
             if prop["prop_type"] == "Other":
                 prop["other_type_desc"] = st.text_input(
                     "Describe property type", value=prop.get("other_type_desc", ""), key="prop_other_" + str(pidx)
+                )
+
+            prop["status"] = st.selectbox(
+                "What's happening with this property?", PROPERTY_STATUS_OPTIONS,
+                index=PROPERTY_STATUS_OPTIONS.index(prop.get("status", "")) if prop.get("status", "") in PROPERTY_STATUS_OPTIONS else 0,
+                key="prop_status_" + str(pidx),
+            )
+            is_firm_sale = prop["status"] == "Being Sold — Firm (Unconditional) Sale Agreement"
+            if is_firm_sale:
+                st.caption(
+                    "✅ Excluded from GDS/TDS — with a firm, unconditional sale agreement in place, "
+                    "Canadian lenders generally exclude this property's carrying costs from qualifying "
+                    "ratios since it won't be an ongoing obligation."
+                )
+            elif prop["status"] == "Being Sold — Not Yet Firm / Listed Only":
+                st.caption(
+                    "⚠️ Still included in GDS/TDS — without a firm, unconditional sale agreement, lenders "
+                    "generally still count this property's carrying costs, since the sale isn't guaranteed "
+                    "to close."
                 )
 
             c1, c2 = st.columns(2)
@@ -1976,17 +2131,33 @@ def render_debts():
                     placeholder="Enter monthly heating amount", key="prop_heat_" + str(pidx),
                 )
 
+            c3, c4 = st.columns(2)
+            with c3:
+                prop["property_value"] = st.text_input(
+                    "Current Property Value ($)", value=prop.get("property_value", ""),
+                    placeholder="Enter estimated value", key="prop_value_" + str(pidx),
+                )
+            with c4:
+                prop["mortgage_balance"] = st.text_input(
+                    "Outstanding Mortgage Balance ($)", value=prop.get("mortgage_balance", ""),
+                    placeholder="Enter current balance owing", key="prop_balance_" + str(pidx),
+                )
+            st.caption("Property value and mortgage balance feed the Combined LTV figure on the Analysis step.")
+
             prop_total, m, t, c, h = compute_property_total(prop)
-            total_property_debt += prop_total
-            total_mortgage_pi_proxy += m
-            total_taxes += t
-            total_condo += c
-            total_heat += h
+            is_firm_sale = prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement"
+            if not is_firm_sale:
+                total_property_debt += prop_total
+                total_mortgage_pi_proxy += m
+                total_taxes += t
+                total_condo += c
+                total_heat += h
 
             st.caption(
                 "Mortgage/Loan " + fmt_money(m) + " + Taxes " + fmt_money(t)
                 + " + Condo " + fmt_money(c) + " + Heat " + fmt_money(h)
                 + " = " + fmt_money(prop_total) + "/month"
+                + (" (excluded from GDS/TDS — firm sale)" if is_firm_sale else "")
             )
             st.markdown(
                 "<div class='property-total'>Total Monthly Property Debt: " + fmt_money(prop_total) + "</div>",
@@ -2111,8 +2282,14 @@ def render_debts():
     has_any_debt = len(st.session_state.properties) > 0 or len(selected) > 0
     is_valid = has_any_debt and not property_errors_any and not other_debt_errors_any
 
+    debts_missing_items = []
     if not has_any_debt:
-        st.caption(":red[Please add at least one property or select at least one debt type.]")
+        debts_missing_items.append("At least one property or debt type")
+    if property_errors_any:
+        debts_missing_items.append("Property address (see property section(s) above)")
+    if other_debt_errors_any:
+        debts_missing_items.append("Balance/payment amount for selected debt type(s) above")
+    render_missing_fields_warning(debts_missing_items)
 
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
@@ -2278,8 +2455,11 @@ def render_analysis():
         dt = get_debt_type(dkey)
         amounts = st.session_state.debt_amounts.get(dkey, {})
         other_debt_monthly += compute_debt_payment(dt, amounts)
-    # All properties listed in the Debts step are treated as additional (non-subject) properties
+    # All properties listed in the Debts step are treated as additional (non-subject) properties,
+    # except those marked as a firm/unconditional sale (excluded per standard Canadian lending practice)
     for prop in st.session_state.properties:
+        if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+            continue
         p_total, _, _, _, _ = compute_property_total(prop)
         other_debt_monthly += p_total
 
@@ -2302,6 +2482,31 @@ def render_analysis():
         "<div class='metric-value'>" + fmt_money(pi_payment + taxes + heat + condo) + "</div></div>"
         "</div>",
         unsafe_allow_html=True,
+    )
+
+    # --- Combined LTV: subject property + all other (non-firm-sale) properties from Debts ---
+    combined_loan = loan_amount
+    combined_value = purchase_price
+    for prop in st.session_state.properties:
+        if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+            continue
+        combined_loan += parse_money(prop.get("mortgage_balance", "")) or 0.0
+        combined_value += parse_money(prop.get("property_value", "")) or 0.0
+    combined_ltv = (combined_loan / combined_value * 100) if combined_value else None
+    combined_ltv_display = "{:.2f}%".format(combined_ltv) if combined_ltv is not None else "—"
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>Combined LTV (Subject + Other Properties)</div>"
+        "<div class='metric-value'>" + combined_ltv_display + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Combined LTV = (subject loan " + fmt_money(loan_amount) + " + other property mortgage balances "
+        + fmt_money(combined_loan - loan_amount) + ") ÷ (subject purchase price " + fmt_money(purchase_price)
+        + " + other property values " + fmt_money(combined_value - purchase_price) + "). Properties being "
+        "sold under a firm agreement are excluded, matching how they're excluded from GDS/TDS. Enter "
+        "property value and mortgage balance for each property under Debts & Liabilities to populate this."
     )
 
     st.divider()
@@ -2988,6 +3193,8 @@ def build_system_notes():
         amounts = st.session_state.debt_amounts.get(dkey, {})
         other_debt_monthly += compute_debt_payment(dt, amounts)
     for prop in st.session_state.properties:
+        if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+            continue
         p_total, _, _, _, _ = compute_property_total(prop)
         other_debt_monthly += p_total
 
