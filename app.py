@@ -1602,7 +1602,7 @@ def compute_income_source_value(key, amounts):
     if key in EXCLUDED_INCOME_KEYS:
         return 0.0
     elif key == "rental":
-        if amounts.get("occupancy") == "To Be Sold":
+        if amounts.get("status", "").startswith("Being Sold"):
             return 0.0
         gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "50%")
@@ -1620,8 +1620,8 @@ def explain_income_source(key, source, amounts):
         return source["label"] + ": excluded from qualifying income (not treated as stable, recurring income)."
 
     if key == "rental":
-        if amounts.get("occupancy") == "To Be Sold":
-            return source["label"] + ": $0 — property is marked \"To Be Sold\", so this income is not used."
+        if amounts.get("status", "").startswith("Being Sold"):
+            return source["label"] + ": $0 — property is marked \"" + amounts.get("status", "") + "\", so this income is not used."
         gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "50%")
         rate = 0.80 if rate_label == "80%" else 0.50
@@ -1862,13 +1862,17 @@ def render_income_category_card(bidx, skey, source, amounts):
         c1, c2 = st.columns(2)
         with c1:
             amounts["property_address"] = st.text_input("Property Address", value=amounts.get("property_address", ""), key=prefix + "property_address")
-            amounts["property_value"] = st.text_input("Property Value ($)", value=amounts.get("property_value", ""), key=prefix + "property_value")
-            occ_options = ["", "Primary", "Secondary", "Investment", "To Be Sold"]
-            cur_occ = amounts.get("occupancy", "")
-            amounts["occupancy"] = st.selectbox(
-                "Intended Occupancy", occ_options,
-                index=occ_options.index(cur_occ) if cur_occ in occ_options else 0,
-                key=prefix + "occupancy",
+            cur_prop_type = amounts.get("prop_type", "")
+            amounts["prop_type"] = st.selectbox(
+                "Property Type", PROPERTY_TYPES,
+                index=PROPERTY_TYPES.index(cur_prop_type) if cur_prop_type in PROPERTY_TYPES else 0,
+                key=prefix + "prop_type",
+            )
+            cur_status = amounts.get("status", "")
+            amounts["status"] = st.selectbox(
+                "What's happening with this property?", PROPERTY_STATUS_OPTIONS,
+                index=PROPERTY_STATUS_OPTIONS.index(cur_status) if cur_status in PROPERTY_STATUS_OPTIONS else 0,
+                key=prefix + "status",
             )
         with c2:
             amounts["gross_rental"] = st.text_input("Gross Annual Rental Income ($)", value=amounts.get("gross_rental", ""), placeholder="Enter annual amount", key=prefix + "gross_rental")
@@ -1879,10 +1883,10 @@ def render_income_category_card(bidx, skey, source, amounts):
                 index=RENTAL_INCLUSION_RATE_OPTIONS.index(cur_rate) if cur_rate in RENTAL_INCLUSION_RATE_OPTIONS else 0,
                 key=prefix + "inclusion_rate",
             )
-        if amounts["occupancy"] == "To Be Sold":
+        if amounts["status"].startswith("Being Sold"):
             st.caption(
-                "⚠️ This property is marked **To Be Sold** — its rental income is excluded from GDS/TDS "
-                "qualification (it won't be an ongoing source of income once sold)."
+                "⚠️ This property is marked **" + amounts["status"] + "** — its rental income is excluded "
+                "from GDS/TDS qualification (it won't be an ongoing source of income once sold)."
             )
         else:
             gross_v = parse_money(amounts.get("gross_rental", "")) or 0.0
@@ -2166,6 +2170,15 @@ def get_rental_income_addresses():
     return addresses
 
 
+def get_rental_income_details(address):
+    """Returns (prop_type, status) entered under Income for a given rental property address, or ("", "") if not found."""
+    for bidx, sources in st.session_state.income_amounts.items():
+        rental_amounts = sources.get("rental")
+        if rental_amounts and rental_amounts.get("property_address", "").strip() == address:
+            return rental_amounts.get("prop_type", ""), rental_amounts.get("status", "")
+    return "", ""
+
+
 def render_debts():
     st.markdown("### Debts & Liabilities")
     st.write("Enter property debts and other liabilities for this application.")
@@ -2205,15 +2218,27 @@ def render_debts():
                 key="prop_addr_source_" + str(pidx),
             )
 
+            sync_key = "prop_addr_synced_" + str(pidx)
             if picked_source == manual_entry_label:
                 prop["address"] = st.text_area(
                     "Enter property address", value=prop["address"] if prop["address"] not in rental_addresses else "",
                     placeholder="Enter full property address (e.g. a cottage or second property)",
                     key="prop_addr_" + str(pidx), height=70,
                 )
+                st.session_state[sync_key] = None
             else:
                 prop["address"] = picked_source
                 st.caption("📍 Auto-filled from the rental income entered under Income: " + picked_source)
+                # Only pull property type / status over from Income the first time this
+                # address is selected here, so the broker can still override afterwards
+                # without it being overwritten on every rerun.
+                if st.session_state.get(sync_key) != picked_source:
+                    inc_prop_type, inc_status = get_rental_income_details(picked_source)
+                    if inc_prop_type:
+                        prop["prop_type"] = inc_prop_type
+                    if inc_status:
+                        prop["status"] = inc_status
+                    st.session_state[sync_key] = picked_source
 
             prop["prop_type"] = st.selectbox(
                 "Property Type", PROPERTY_TYPES,
