@@ -40,7 +40,9 @@ EXTERIOR_FINISH_OPTIONS = [
 ]
 GARAGE_OPTIONS = ["", "None", "Attached", "Detached", "Carport", "Underground Parking", "Other"]
 PROPERTY_STATUS_OPTIONS = [
-    "", "Keeping — Primary Residence", "Keeping — Second Home", "Keeping — Investment Property",
+    "", "Keeping — Primary Residence", "Keeping — Second Home / Cottage", "Keeping — Investment Property",
+    "Converting — Owner-Occupied (Primary) to Rental", "Converting — Second Home / Cottage to Rental",
+    "Converting — Investment Property to Owner-Occupied", "Converting — Investment Property to Second Home / Cottage",
     "Being Sold — Firm (Unconditional) Sale Agreement", "Being Sold — Not Yet Firm / Listed Only",
 ]
 
