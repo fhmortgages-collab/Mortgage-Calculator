@@ -1321,6 +1321,25 @@ def get_subject_property_costs():
     return pi, taxes, condo, heat, housing_total
 
 
+def render_other_description_field(label, session_state_key, widget_key):
+    """
+    Renders a custom 'Other' description field inside a distinct, collapsible
+    expander so it visually stands apart from the standard dropdown fields —
+    clicking it opens up to show exactly what the client typed for that
+    custom answer.
+    """
+    current_value = st.session_state.get(session_state_key, "")
+    if current_value.strip():
+        expander_label = "✏️ Client entered: \"" + current_value.strip() + "\"  (click to edit)"
+    else:
+        expander_label = "✏️ " + label + " — click to enter the client's own description"
+    with st.expander(expander_label, expanded=not current_value.strip()):
+        st.session_state[session_state_key] = st.text_input(
+            label, value=current_value, key=widget_key,
+            placeholder="Type the client's own description here",
+        )
+
+
 def render_property_details():
     st.markdown("### Property Details")
     st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
@@ -1373,9 +1392,8 @@ def render_property_details():
             if st.session_state.subject_title_type in TITLE_TYPE_OPTIONS else 0,
         )
         if st.session_state.subject_title_type == "Other":
-            st.session_state.subject_title_type_other = st.text_input(
-                "Describe title type", value=st.session_state.subject_title_type_other,
-                key="subject_title_type_other_input",
+            render_other_description_field(
+                "Describe title type", "subject_title_type_other", "subject_title_type_other_input",
             )
         st.session_state.subject_sqft = st.text_input(
             "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
@@ -1397,9 +1415,8 @@ def render_property_details():
             if st.session_state.subject_exterior_finish in EXTERIOR_FINISH_OPTIONS else 0,
         )
         if st.session_state.subject_exterior_finish == "Other":
-            st.session_state.subject_exterior_finish_other = st.text_input(
-                "Describe exterior finish", value=st.session_state.subject_exterior_finish_other,
-                key="subject_exterior_finish_other_input",
+            render_other_description_field(
+                "Describe exterior finish", "subject_exterior_finish_other", "subject_exterior_finish_other_input",
             )
         st.session_state.subject_water = st.selectbox(
             "Water", WATER_OPTIONS,
@@ -1407,9 +1424,8 @@ def render_property_details():
             if st.session_state.subject_water in WATER_OPTIONS else 0,
         )
         if st.session_state.subject_water == "Other":
-            st.session_state.subject_water_other = st.text_input(
-                "Describe water source", value=st.session_state.subject_water_other,
-                key="subject_water_other_input",
+            render_other_description_field(
+                "Describe water source", "subject_water_other", "subject_water_other_input",
             )
     with c2:
         st.session_state.subject_prop_type = st.selectbox(
@@ -1419,9 +1435,8 @@ def render_property_details():
             key="subject_prop_type_select",
         )
         if st.session_state.subject_prop_type == "Other":
-            st.session_state.subject_prop_type_other = st.text_input(
-                "Describe property type", value=st.session_state.subject_prop_type_other,
-                key="subject_prop_type_other_input",
+            render_other_description_field(
+                "Describe property type", "subject_prop_type_other", "subject_prop_type_other_input",
             )
         st.session_state.subject_prop_age = st.text_input(
             "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
@@ -1436,9 +1451,8 @@ def render_property_details():
             if st.session_state.subject_garage in GARAGE_OPTIONS else 0,
         )
         if st.session_state.subject_garage == "Other":
-            st.session_state.subject_garage_other = st.text_input(
-                "Describe garage / parking", value=st.session_state.subject_garage_other,
-                key="subject_garage_other_input",
+            render_other_description_field(
+                "Describe garage / parking", "subject_garage_other", "subject_garage_other_input",
             )
         st.session_state.subject_heating_type = st.selectbox(
             "Heating Type", HEATING_TYPE_OPTIONS,
@@ -1446,9 +1460,8 @@ def render_property_details():
             if st.session_state.subject_heating_type in HEATING_TYPE_OPTIONS else 0,
         )
         if st.session_state.subject_heating_type == "Other":
-            st.session_state.subject_heating_type_other = st.text_input(
-                "Describe heating type", value=st.session_state.subject_heating_type_other,
-                key="subject_heating_type_other_input",
+            render_other_description_field(
+                "Describe heating type", "subject_heating_type_other", "subject_heating_type_other_input",
             )
         st.session_state.subject_foundation = st.selectbox(
             "Foundation Type", FOUNDATION_TYPE_OPTIONS,
@@ -1456,9 +1469,8 @@ def render_property_details():
             if st.session_state.subject_foundation in FOUNDATION_TYPE_OPTIONS else 0,
         )
         if st.session_state.subject_foundation == "Other":
-            st.session_state.subject_foundation_other = st.text_input(
-                "Describe foundation type", value=st.session_state.subject_foundation_other,
-                key="subject_foundation_other_input",
+            render_other_description_field(
+                "Describe foundation type", "subject_foundation_other", "subject_foundation_other_input",
             )
         st.session_state.subject_sewer = st.selectbox(
             "Utility Sewer", SEWER_OPTIONS,
@@ -1466,9 +1478,8 @@ def render_property_details():
             if st.session_state.subject_sewer in SEWER_OPTIONS else 0,
         )
         if st.session_state.subject_sewer == "Other":
-            st.session_state.subject_sewer_other = st.text_input(
-                "Describe utility sewer", value=st.session_state.subject_sewer_other,
-                key="subject_sewer_other_input",
+            render_other_description_field(
+                "Describe utility sewer", "subject_sewer_other", "subject_sewer_other_input",
             )
         st.session_state.subject_rural_urban = st.selectbox(
             "Rural / Urban / Agricultural",
@@ -1603,6 +1614,44 @@ def compute_income_source_value(key, amounts):
         return parse_money(amounts.get("amount", "")) or 0.0
 
 
+def explain_income_source(key, source, amounts):
+    """Returns a human-readable string showing the full math behind one income source's qualifying value."""
+    if key in EXCLUDED_INCOME_KEYS:
+        return source["label"] + ": excluded from qualifying income (not treated as stable, recurring income)."
+
+    if key == "rental":
+        if amounts.get("occupancy") == "To Be Sold":
+            return source["label"] + ": $0 — property is marked \"To Be Sold\", so this income is not used."
+        gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
+        rate_label = amounts.get("inclusion_rate", "50%")
+        rate = 0.80 if rate_label == "80%" else 0.50
+        qualifying = gross_rental * rate
+        return (
+            source["label"] + ": " + fmt_money(gross_rental) + " gross annual rental × " + rate_label
+            + " inclusion rate = " + fmt_money(qualifying)
+        )
+
+    if key in VARIABLE_INCOME_KEYS:
+        recent_v = parse_money(amounts.get("recent_year", "")) or 0.0
+        prior_v = parse_money(amounts.get("prior_year", "")) or 0.0
+        qualifying = compute_qualifying_variable_income(amounts)
+        if recent_v < prior_v:
+            return (
+                source["label"] + ": most recent year (" + fmt_money(recent_v) + ") is lower than the "
+                "prior year (" + fmt_money(prior_v) + "), so the lower, most recent year is used = "
+                + fmt_money(qualifying)
+            )
+        else:
+            return (
+                source["label"] + ": " + fmt_money(recent_v) + " (recent year) + " + fmt_money(prior_v)
+                + " (prior year), 2-year average = (" + fmt_money(recent_v) + " + " + fmt_money(prior_v)
+                + ") ÷ 2 = " + fmt_money(qualifying)
+            )
+
+    amount = parse_money(amounts.get("amount", "")) or 0.0
+    return source["label"] + ": stated annual amount = " + fmt_money(amount)
+
+
 def compute_borrower_income(borrower_idx):
     bidx = str(borrower_idx)
     selected_keys = st.session_state.income_selected.get(bidx, [])
@@ -1655,10 +1704,16 @@ def render_income_category_card(bidx, skey, source, amounts):
         if recent_v is not None and prior_v is not None:
             if recent_v < prior_v:
                 qualifying = recent_v
-                rule_note = "most recent year is lower, so the most recent year's income is used."
+                rule_note = (
+                    "most recent year (" + fmt_money(recent_v) + ") is lower than the prior year ("
+                    + fmt_money(prior_v) + "), so the lower, most recent year is used"
+                )
             else:
                 qualifying = (recent_v + prior_v) / 2.0
-                rule_note = "most recent year is higher (or equal), so the 2-year average is used."
+                rule_note = (
+                    "(" + fmt_money(recent_v) + " + " + fmt_money(prior_v) + ") ÷ 2 = "
+                    + fmt_money(qualifying) + " (2-year average, since the most recent year is higher or equal)"
+                )
             st.caption("Qualifying Income (used for GDS/TDS): **" + fmt_money(qualifying) + "** — " + rule_note)
         elif recent_v is not None or prior_v is not None:
             st.caption("Enter both years to calculate qualifying income for GDS/TDS.")
@@ -1963,9 +2018,10 @@ def render_income():
                 amounts = st.session_state.income_amounts[bidx][skey]
                 st.markdown("---")
                 render_income_category_card(bidx, skey, source, amounts)
-                if skey not in VARIABLE_INCOME_KEYS and skey not in ("rental", "capital_gains"):
-                    qualifying_value = compute_income_source_value(skey, amounts)
-                    st.caption("Qualifying Income (used for GDS/TDS): **" + fmt_money(qualifying_value) + "**")
+                if skey not in VARIABLE_INCOME_KEYS:
+                    # Variable-income sources already show their own full-calculation
+                    # caption inline within the card (2-year rule breakdown).
+                    st.caption(explain_income_source(skey, source, amounts))
                 st.session_state.income_amounts[bidx][skey] = amounts
 
             borrower_total, breakdown = compute_borrower_income(idx)
@@ -2131,19 +2187,34 @@ def render_debts():
     for pidx, prop in enumerate(st.session_state.properties):
         with st.expander("Property " + str(pidx + 1), expanded=True):
             rental_addresses = get_rental_income_addresses()
-            if rental_addresses:
-                link_options = [""] + rental_addresses
-                picked_addr = st.selectbox(
-                    "Link to a rental property address entered under Income (optional)",
-                    link_options, key="prop_addr_link_" + str(pidx),
-                )
-                if picked_addr and picked_addr != prop["address"]:
-                    prop["address"] = picked_addr
+            manual_entry_label = "Other property (enter address manually)"
+            address_source_options = rental_addresses + [manual_entry_label]
 
-            prop["address"] = st.text_area(
-                "Property Address", value=prop["address"], placeholder="Enter full property address",
-                key="prop_addr_" + str(pidx), height=70,
+            # Figure out which option this property is currently associated with,
+            # so the dropdown reflects prior selections instead of resetting.
+            if prop["address"] in rental_addresses:
+                default_source = prop["address"]
+            else:
+                default_source = manual_entry_label
+
+            picked_source = st.selectbox(
+                "Property Address",
+                address_source_options,
+                index=address_source_options.index(default_source)
+                if default_source in address_source_options else len(address_source_options) - 1,
+                key="prop_addr_source_" + str(pidx),
             )
+
+            if picked_source == manual_entry_label:
+                prop["address"] = st.text_area(
+                    "Enter property address", value=prop["address"] if prop["address"] not in rental_addresses else "",
+                    placeholder="Enter full property address (e.g. a cottage or second property)",
+                    key="prop_addr_" + str(pidx), height=70,
+                )
+            else:
+                prop["address"] = picked_source
+                st.caption("📍 Auto-filled from the rental income entered under Income: " + picked_source)
+
             prop["prop_type"] = st.selectbox(
                 "Property Type", PROPERTY_TYPES,
                 index=PROPERTY_TYPES.index(prop["prop_type"]) if prop["prop_type"] in PROPERTY_TYPES else 0,
