@@ -851,9 +851,10 @@ def render_transaction_type():
     if st.session_state.transaction_type_error:
         st.markdown(":red[" + st.session_state.transaction_type_error + "]")
 
-    render_missing_fields_warning(
-        [] if st.session_state.transaction_type else ["Transaction type"]
-    )
+    if st.session_state.get("p0_show_warning"):
+        render_missing_fields_warning(
+            [] if st.session_state.transaction_type else ["Transaction type"]
+        )
 
     st.divider()
 
@@ -882,8 +883,10 @@ def render_transaction_type():
         if st.button("Continue →", type="primary", use_container_width=True, key="p0_continue"):
             if not st.session_state.transaction_type:
                 st.session_state.transaction_type_error = "Please select a transaction type before continuing."
+                st.session_state["p0_show_warning"] = True
                 st.rerun()
             else:
+                st.session_state["p0_show_warning"] = False
                 st.session_state.step = 1
                 st.rerun()
 
@@ -997,7 +1000,8 @@ def render_client_details():
             missing_items.append("Borrower " + str(idx + 1) + " — " + field_labels.get(fkey, fkey))
     if not st.session_state.consent:
         missing_items.append("Consent checkbox")
-    render_missing_fields_warning(missing_items)
+    if st.session_state.get("p1_show_warning"):
+        render_missing_fields_warning(missing_items)
 
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
@@ -1031,9 +1035,11 @@ def render_client_details():
                 consent_error_slot.markdown(":red[You must acknowledge and consent before continuing.]")
 
             if is_valid and st.session_state.consent:
+                st.session_state["p1_show_warning"] = False
                 st.session_state.step = 2
                 st.rerun()
             else:
+                st.session_state["p1_show_warning"] = True
                 st.rerun()
 
 
@@ -1196,7 +1202,8 @@ def render_down_payment():
         missing_items.append("At least one Down Payment Source")
     if selected and down_payment is not None and not totals_match:
         missing_items.append("Source amounts must sum to the Down Payment Amount")
-    render_missing_fields_warning(missing_items)
+    if st.session_state.get("p2_show_warning"):
+        render_missing_fields_warning(missing_items)
 
     back_col, refresh_col, continue_col = st.columns(3)
     with refresh_col:
@@ -1225,9 +1232,11 @@ def render_down_payment():
                 and totals_match
             )
             if valid:
+                st.session_state["p2_show_warning"] = False
                 st.session_state.step = 3
                 st.rerun()
             else:
+                st.session_state["p2_show_warning"] = True
                 st.error("Please resolve the issues above before continuing.")
 
 
@@ -1446,9 +1455,10 @@ def render_property_details():
 
     st.divider()
 
-    render_missing_fields_warning(
-        [] if st.session_state.subject_address.strip() else ["Property Address"]
-    )
+    if st.session_state.get("p2b_show_warning"):
+        render_missing_fields_warning(
+            [] if st.session_state.subject_address.strip() else ["Property Address"]
+        )
 
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
@@ -1475,9 +1485,11 @@ def render_property_details():
     with continue_col:
         if st.button("Continue →", type="primary", use_container_width=True, key="p2b_continue"):
             if st.session_state.subject_address.strip():
+                st.session_state["p2b_show_warning"] = False
                 st.session_state.step = 4
                 st.rerun()
             else:
+                st.session_state["p2b_show_warning"] = True
                 st.error("Please enter the property address before continuing.")
 
 
@@ -1951,7 +1963,8 @@ def render_income():
     for bidx_key, errs in st.session_state.income_errors.items():
         for msg in errs.values():
             income_missing_items.append(msg)
-    render_missing_fields_warning(income_missing_items)
+    if st.session_state.get("p3_show_warning"):
+        render_missing_fields_warning(income_missing_items)
 
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
@@ -1978,9 +1991,11 @@ def render_income():
     with continue_col:
         if st.button("Continue →", type="primary", use_container_width=True, key="p3_continue"):
             if all_valid:
+                st.session_state["p3_show_warning"] = False
                 st.session_state.step = 5
                 st.rerun()
             else:
+                st.session_state["p3_show_warning"] = True
                 st.error("Please resolve the issues above before continuing.")
 
 
@@ -2289,7 +2304,8 @@ def render_debts():
         debts_missing_items.append("Property address (see property section(s) above)")
     if other_debt_errors_any:
         debts_missing_items.append("Balance/payment amount for selected debt type(s) above")
-    render_missing_fields_warning(debts_missing_items)
+    if st.session_state.get("p4_show_warning"):
+        render_missing_fields_warning(debts_missing_items)
 
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
@@ -2316,9 +2332,11 @@ def render_debts():
     with continue_col:
         if st.button("Continue →", type="primary", use_container_width=True, key="p4_continue"):
             if is_valid:
+                st.session_state["p4_show_warning"] = False
                 st.session_state.step = 6
                 st.rerun()
             else:
+                st.session_state["p4_show_warning"] = True
                 st.error("Please resolve the issues above before continuing.")
 
 
@@ -2494,19 +2512,29 @@ def render_analysis():
         combined_value += parse_money(prop.get("property_value", "")) or 0.0
     combined_ltv = (combined_loan / combined_value * 100) if combined_value else None
     combined_ltv_display = "{:.2f}%".format(combined_ltv) if combined_ltv is not None else "—"
+
+    def help_combined_ltv_text():
+        return (
+            "Combined LTV = (subject loan " + fmt_money(loan_amount) + " + other property mortgage balances "
+            + fmt_money(combined_loan - loan_amount) + ") ÷ (subject purchase price " + fmt_money(purchase_price)
+            + " + other property values " + fmt_money(combined_value - purchase_price) + "). Properties being "
+            "sold under a firm agreement are excluded, matching how they're excluded from GDS/TDS. Enter "
+            "property value and mortgage balance for each property under Debts & Liabilities to populate this."
+        )
+
+    ltv_header_col, ltv_help_col = st.columns([12, 1])
+    with ltv_header_col:
+        st.markdown("**Combined LTV (Subject + Other Properties)**")
+    with ltv_help_col:
+        with st.container(key="helpbtn_help_combined_ltv"):
+            with st.popover("?", key="help_combined_ltv"):
+                st.caption(help_combined_ltv_text())
     st.markdown(
         "<div class='metric-row'>"
         "<div class='metric-card'><div class='metric-label'>Combined LTV (Subject + Other Properties)</div>"
         "<div class='metric-value'>" + combined_ltv_display + "</div></div>"
         "</div>",
         unsafe_allow_html=True,
-    )
-    st.caption(
-        "Combined LTV = (subject loan " + fmt_money(loan_amount) + " + other property mortgage balances "
-        + fmt_money(combined_loan - loan_amount) + ") ÷ (subject purchase price " + fmt_money(purchase_price)
-        + " + other property values " + fmt_money(combined_value - purchase_price) + "). Properties being "
-        "sold under a firm agreement are excluded, matching how they're excluded from GDS/TDS. Enter "
-        "property value and mortgage balance for each property under Debts & Liabilities to populate this."
     )
 
     st.divider()
