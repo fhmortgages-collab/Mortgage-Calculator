@@ -517,6 +517,14 @@ def init_state():
         st.session_state.switch_other_mortgage_lender = ""
     if "switch_other_mortgage_balance_raw" not in st.session_state:
         st.session_state.switch_other_mortgage_balance_raw = ""
+    if "switch_third_mortgage_exists" not in st.session_state:
+        st.session_state.switch_third_mortgage_exists = ""
+    if "switch_third_mortgage_lender" not in st.session_state:
+        st.session_state.switch_third_mortgage_lender = ""
+    if "switch_third_mortgage_balance_raw" not in st.session_state:
+        st.session_state.switch_third_mortgage_balance_raw = ""
+    if "switch_requested_loan_amount_raw" not in st.session_state:
+        st.session_state.switch_requested_loan_amount_raw = ""
     if "switch_mortgages_good_standing" not in st.session_state:
         st.session_state.switch_mortgages_good_standing = ""
     if "switch_taxes_up_to_date" not in st.session_state:
@@ -527,6 +535,11 @@ def init_state():
         st.session_state.switch_insurance_good_standing = ""
     if "switch_fees_estimate_raw" not in st.session_state:
         st.session_state.switch_fees_estimate_raw = ""
+    # --- Debt payout tracking (Refinance - New Lender) ---
+    if "debt_payout_selected" not in st.session_state:
+        st.session_state.debt_payout_selected = {}
+    if "debt_payout_balance" not in st.session_state:
+        st.session_state.debt_payout_balance = {}
 
 
 SAVE_STATE_KEYS = [
@@ -551,9 +564,12 @@ SAVE_STATE_KEYS = [
     "switch_amortization_unchanged", "switch_additional_funds",
     "switch_amortization_changed", "switch_borrowers_changed", "switch_fees_estimate_raw",
     "switch_other_mortgage_exists", "switch_other_mortgage_lender", "switch_other_mortgage_balance_raw",
+    "switch_third_mortgage_exists", "switch_third_mortgage_lender", "switch_third_mortgage_balance_raw",
+    "switch_requested_loan_amount_raw",
     "switch_mortgages_good_standing", "switch_taxes_up_to_date",
     "switch_insurance_provider", "switch_insurance_good_standing",
     "refinance_balance_raw", "subject_property_value_raw",
+    "debt_payout_selected", "debt_payout_balance",
 ]
 
 
@@ -684,6 +700,10 @@ def refresh_all():
     st.session_state.switch_other_mortgage_exists = ""
     st.session_state.switch_other_mortgage_lender = ""
     st.session_state.switch_other_mortgage_balance_raw = ""
+    st.session_state.switch_third_mortgage_exists = ""
+    st.session_state.switch_third_mortgage_lender = ""
+    st.session_state.switch_third_mortgage_balance_raw = ""
+    st.session_state.switch_requested_loan_amount_raw = ""
     st.session_state.switch_mortgages_good_standing = ""
     st.session_state.switch_taxes_up_to_date = ""
     st.session_state.switch_insurance_provider = ""
@@ -698,16 +718,44 @@ def is_refinance():
 def get_loan_amount():
     """
     Purchase/Builder Purchase: purchase price - down payment.
-    Refinance - New Lender: the balance being switched in (from Switch-In Details).
+    Refinance - New Lender: the loan amount the client is requesting (from Switch-In Details),
+    falling back to the OFI balance being switched in if the requested amount hasn't been entered.
     Refinance - Existing Lender: the current balance being refinanced (own field, no down payment).
     """
     if st.session_state.transaction_type == "refinance_new_lender":
+        requested = parse_money(st.session_state.switch_requested_loan_amount_raw)
+        if requested is not None:
+            return requested
         return parse_money(st.session_state.switch_current_balance_raw) or 0.0
     if st.session_state.transaction_type == "refinance_existing_lender":
         return parse_money(st.session_state.refinance_balance_raw) or 0.0
     purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
     down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
     return max(purchase_price - down_payment, 0.0)
+
+
+def get_switch_total_mortgage_balance():
+    """Sum of all mortgages/LOCs being paid out on the switch-in (OFI first mortgage + any 2nd/3rd)."""
+    total = parse_money(st.session_state.switch_current_balance_raw) or 0.0
+    if st.session_state.switch_other_mortgage_exists == "Yes":
+        total += parse_money(st.session_state.switch_other_mortgage_balance_raw) or 0.0
+    if st.session_state.switch_third_mortgage_exists == "Yes":
+        total += parse_money(st.session_state.switch_third_mortgage_balance_raw) or 0.0
+    return total
+
+
+def get_debts_payout_total():
+    """Sum of balances for debts the broker has flagged to be paid out from the mortgage proceeds."""
+    total = 0.0
+    for dkey, included in st.session_state.debt_payout_selected.items():
+        if included:
+            total += parse_money(st.session_state.debt_payout_balance.get(dkey, "")) or 0.0
+    return total
+
+
+def get_switch_net_proceeds():
+    """What's left of the requested loan amount after all mortgages/LOCs and flagged debts are paid out."""
+    return get_loan_amount() - get_switch_total_mortgage_balance() - get_debts_payout_total()
 
 
 def render_stepper(active_index):
@@ -1028,6 +1076,10 @@ def refresh_switch_in():
     st.session_state.switch_other_mortgage_exists = ""
     st.session_state.switch_other_mortgage_lender = ""
     st.session_state.switch_other_mortgage_balance_raw = ""
+    st.session_state.switch_third_mortgage_exists = ""
+    st.session_state.switch_third_mortgage_lender = ""
+    st.session_state.switch_third_mortgage_balance_raw = ""
+    st.session_state.switch_requested_loan_amount_raw = ""
     st.session_state.switch_mortgages_good_standing = ""
     st.session_state.switch_taxes_up_to_date = ""
     st.session_state.switch_insurance_provider = ""
@@ -1086,6 +1138,10 @@ def render_switch_in_step():
             "Current Outstanding Balance at OFI ($)", value=st.session_state.switch_current_balance_raw,
             placeholder="e.g. 425,000", key="switch_current_balance_input",
         )
+        st.session_state.switch_requested_loan_amount_raw = st.text_input(
+            "Loan Amount Being Requested ($)", value=st.session_state.switch_requested_loan_amount_raw,
+            placeholder="Defaults to the OFI balance above if left blank", key="switch_requested_loan_amount_input",
+        )
         st.session_state.switch_remaining_amortization = st.text_input(
             "Remaining Amortization at OFI (years)", value=st.session_state.switch_remaining_amortization,
             placeholder="e.g. 22", key="switch_remaining_amortization_input",
@@ -1118,18 +1174,33 @@ def render_switch_in_step():
     c1, c2 = st.columns(2)
     with c1:
         st.session_state.switch_other_mortgage_exists = st.selectbox(
-            "Is there another mortgage or secured line of credit on the property?", YES_NO_OPTIONS,
+            "Is there a second mortgage or secured line of credit on the property?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_other_mortgage_exists),
             key="switch_other_mortgage_exists_input",
         )
         if st.session_state.switch_other_mortgage_exists == "Yes":
             st.session_state.switch_other_mortgage_lender = st.text_input(
-                "Who is the other mortgage/LOC with?", value=st.session_state.switch_other_mortgage_lender,
+                "Who is the second mortgage/LOC with?", value=st.session_state.switch_other_mortgage_lender,
                 placeholder="e.g. Bank of Example", key="switch_other_mortgage_lender_input",
             )
             st.session_state.switch_other_mortgage_balance_raw = st.text_input(
-                "Balance of the other mortgage/LOC ($)", value=st.session_state.switch_other_mortgage_balance_raw,
+                "Balance of the second mortgage/LOC ($)", value=st.session_state.switch_other_mortgage_balance_raw,
                 placeholder="e.g. 45,000", key="switch_other_mortgage_balance_input",
+            )
+
+        st.session_state.switch_third_mortgage_exists = st.selectbox(
+            "Is there a third mortgage or secured line of credit on the property?", YES_NO_OPTIONS,
+            index=YES_NO_OPTIONS.index(st.session_state.switch_third_mortgage_exists),
+            key="switch_third_mortgage_exists_input",
+        )
+        if st.session_state.switch_third_mortgage_exists == "Yes":
+            st.session_state.switch_third_mortgage_lender = st.text_input(
+                "Who is the third mortgage/LOC with?", value=st.session_state.switch_third_mortgage_lender,
+                placeholder="e.g. Bank of Example", key="switch_third_mortgage_lender_input",
+            )
+            st.session_state.switch_third_mortgage_balance_raw = st.text_input(
+                "Balance of the third mortgage/LOC ($)", value=st.session_state.switch_third_mortgage_balance_raw,
+                placeholder="e.g. 20,000", key="switch_third_mortgage_balance_input",
             )
     with c2:
         st.session_state.switch_mortgages_good_standing = st.selectbox(
@@ -1146,6 +1217,14 @@ def render_switch_in_step():
         )
         if st.session_state.switch_taxes_up_to_date == "No":
             st.caption(":red[Outstanding property taxes may need to be paid out or added to the switch — see Fees & Costs.]")
+
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>Total Mortgage Balance (all mortgages/LOCs being paid out)</div>"
+        "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     st.divider()
 
@@ -2848,6 +2927,8 @@ def render_debts():
         elif not new_checked and dkey in selected:
             selected.remove(dkey)
             st.session_state.debt_amounts.pop(dkey, None)
+            st.session_state.debt_payout_selected.pop(dkey, None)
+            st.session_state.debt_payout_balance.pop(dkey, None)
 
         if new_checked:
             if dkey not in st.session_state.debt_amounts:
@@ -2881,6 +2962,19 @@ def render_debts():
             payment_value = compute_debt_payment(debt_type, amounts)
             total_other_debt += payment_value
 
+            if st.session_state.transaction_type == "refinance_new_lender":
+                payout_checked = st.checkbox(
+                    "Include in payout from mortgage proceeds",
+                    value=st.session_state.debt_payout_selected.get(dkey, False),
+                    key="debt_payout_" + dkey,
+                )
+                st.session_state.debt_payout_selected[dkey] = payout_checked
+                if payout_checked:
+                    st.session_state.debt_payout_balance[dkey] = st.text_input(
+                        "Balance to Pay Out ($)", value=st.session_state.debt_payout_balance.get(dkey, ""),
+                        placeholder="Enter the payoff balance for this debt", key="debt_payout_bal_" + dkey,
+                    )
+
             docs_html = ""
             for d in debt_type["documents"]:
                 docs_html += "<li>" + d + "</li>"
@@ -2909,6 +3003,25 @@ def render_debts():
     st.markdown("#### Total Monthly Debt Obligations (Other Properties + Debts): " + fmt_money(total_monthly_debt))
     st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
     st.caption("Full GDS/TDS qualification is calculated on the Analysis step, after financing terms are set.")
+
+    if st.session_state.transaction_type == "refinance_new_lender":
+        st.divider()
+        st.markdown("#### Switch-In Payout Summary")
+        st.markdown(
+            "<div class='metric-row'>"
+            "<div class='metric-card'><div class='metric-label'>Requested Loan Amount</div>"
+            "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
+            "<div class='metric-card'><div class='metric-label'>Total Mortgages/LOCs Paid Out</div>"
+            "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
+            "<div class='metric-card'><div class='metric-label'>Total Debts Paid Out</div>"
+            "<div class='metric-value'>" + fmt_money(get_debts_payout_total()) + "</div></div>"
+            "<div class='metric-card'><div class='metric-label'>Net Proceeds Remaining</div>"
+            "<div class='metric-value'>" + fmt_money(get_switch_net_proceeds()) + "</div></div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        if get_switch_net_proceeds() < 0:
+            st.caption(":red[Requested loan amount is less than the mortgages/LOCs and debts being paid out — this shortfall needs to be resolved before proceeding.]")
 
     st.divider()
 
@@ -3157,6 +3270,24 @@ def render_analysis():
         unsafe_allow_html=True,
     )
     st.caption(help_combined_ltv_text())
+
+    if st.session_state.transaction_type == "refinance_new_lender":
+        st.markdown("**Switch-In Payout Summary**")
+        st.markdown(
+            "<div class='metric-row'>"
+            "<div class='metric-card'><div class='metric-label'>Requested Loan Amount</div>"
+            "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
+            "<div class='metric-card'><div class='metric-label'>Total Mortgages/LOCs Paid Out</div>"
+            "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
+            "<div class='metric-card'><div class='metric-label'>Total Debts Paid Out</div>"
+            "<div class='metric-value'>" + fmt_money(get_debts_payout_total()) + "</div></div>"
+            "<div class='metric-card'><div class='metric-label'>Net Proceeds Remaining</div>"
+            "<div class='metric-value'>" + fmt_money(get_switch_net_proceeds()) + "</div></div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        if get_switch_net_proceeds() < 0:
+            st.caption(":red[Requested loan amount is less than the mortgages/LOCs and debts being paid out — this shortfall needs to be resolved before proceeding.]")
 
     st.divider()
 
@@ -3423,6 +3554,7 @@ OTHER_PROPERTY_DOC_LABELS = [
 ALL_CHECKLIST_CATEGORIES = [
     "Application & Consent", "Identification", "Down Payment", "Income",
     "Property Being Purchased", "Other Properties Owned", "Other Debts & Liabilities",
+    "Switch-In (Refinance - New Lender)",
 ]
 
 
@@ -3501,6 +3633,37 @@ def build_document_checklist_data():
                 debt_items.append({"subcategory": dt["label"], "text": doc})
     if debt_items:
         categories.append({"name": "Other Debts & Liabilities", "items": debt_items})
+
+    # Switch-In (Refinance - New Lender) — mandatory documents/business case notes from the
+    # switch-in rules module, plus conditional items driven by the due-diligence answers.
+    if st.session_state.transaction_type == "refinance_new_lender":
+        switch_items = []
+        reqs = switch_in_document_requirements()
+        for doc in reqs["documents"]:
+            switch_items.append({"subcategory": "OFI Mortgage Verification", "text": doc})
+        for note in reqs["business_case_notes"]:
+            switch_items.append({"subcategory": "Business Case Notes", "text": note})
+        if st.session_state.switch_other_mortgage_exists == "Yes":
+            switch_items.append({
+                "subcategory": "Second Mortgage/LOC",
+                "text": "Statement confirming balance and lender for the second mortgage/LOC",
+            })
+        if st.session_state.switch_third_mortgage_exists == "Yes":
+            switch_items.append({
+                "subcategory": "Third Mortgage/LOC",
+                "text": "Statement confirming balance and lender for the third mortgage/LOC",
+            })
+        if st.session_state.switch_mortgages_good_standing == "No":
+            switch_items.append({
+                "subcategory": "Standing", "text": "Written explanation for mortgage/LOC not in good standing",
+            })
+        if st.session_state.switch_taxes_up_to_date == "No":
+            switch_items.append({
+                "subcategory": "Property Taxes", "text": "Current property tax statement showing amount owing",
+            })
+        switch_items.append({"subcategory": "Property Insurance", "text": "Proof of current property insurance"})
+        if switch_items:
+            categories.append({"name": "Switch-In (Refinance - New Lender)", "items": switch_items})
 
     return {"categories": categories}
 
@@ -4007,9 +4170,14 @@ def build_system_notes():
             other_lender = st.session_state.switch_other_mortgage_lender or "unspecified lender"
             other_balance = parse_money(st.session_state.switch_other_mortgage_balance_raw)
             other_balance_str = fmt_money(other_balance) if other_balance is not None else "balance not specified"
-            due_diligence_bits.append("another mortgage/LOC with " + other_lender + " (" + other_balance_str + ")")
+            due_diligence_bits.append("second mortgage/LOC with " + other_lender + " (" + other_balance_str + ")")
         elif st.session_state.switch_other_mortgage_exists == "No":
-            due_diligence_bits.append("no other mortgages/LOCs on the property")
+            due_diligence_bits.append("no second mortgage/LOC on the property")
+        if st.session_state.switch_third_mortgage_exists == "Yes":
+            third_lender = st.session_state.switch_third_mortgage_lender or "unspecified lender"
+            third_balance = parse_money(st.session_state.switch_third_mortgage_balance_raw)
+            third_balance_str = fmt_money(third_balance) if third_balance is not None else "balance not specified"
+            due_diligence_bits.append("third mortgage/LOC with " + third_lender + " (" + third_balance_str + ")")
         if st.session_state.switch_mortgages_good_standing:
             due_diligence_bits.append(
                 "mortgages/LOCs in good standing: " + st.session_state.switch_mortgages_good_standing
@@ -4024,6 +4192,13 @@ def build_system_notes():
             due_diligence_bits.append(insurer_bit)
         if due_diligence_bits:
             lines.append("SWITCH-IN DUE DILIGENCE: " + "; ".join(due_diligence_bits) + ".")
+
+        lines.append(
+            "SWITCH-IN PAYOUT: Requested loan amount " + fmt_money(get_loan_amount())
+            + " less total mortgages/LOCs paid out " + fmt_money(get_switch_total_mortgage_balance())
+            + " less debts paid out " + fmt_money(get_debts_payout_total())
+            + " = net proceeds remaining of " + fmt_money(get_switch_net_proceeds()) + "."
+        )
 
     if not lines:
         return "No application data entered yet — complete the earlier steps to generate a summary."
