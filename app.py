@@ -12,9 +12,6 @@ from switch_in_rules import (
     REGISTRATION_TYPES,
     MORTGAGE_TYPES,
     SWITCH_TIMING_OPTIONS,
-    MAX_FEES_ADDED_AT_MATURITY,
-    MAX_DISCHARGE_SWITCH_OUT_FEE,
-    MAX_PER_DIEM_AUTO_ADJUST,
     CONVENTIONAL_MAX_LTV,
     is_straight_switch,
     requires_discharge_and_reregistration,
@@ -511,18 +508,26 @@ def init_state():
         st.session_state.switch_amortization_changed = ""
     if "switch_borrowers_changed" not in st.session_state:
         st.session_state.switch_borrowers_changed = ""
-    if "switch_other_mortgage_exists" not in st.session_state:
-        st.session_state.switch_other_mortgage_exists = ""
-    if "switch_other_mortgage_lender" not in st.session_state:
-        st.session_state.switch_other_mortgage_lender = ""
-    if "switch_other_mortgage_balance_raw" not in st.session_state:
-        st.session_state.switch_other_mortgage_balance_raw = ""
-    if "switch_third_mortgage_exists" not in st.session_state:
-        st.session_state.switch_third_mortgage_exists = ""
-    if "switch_third_mortgage_lender" not in st.session_state:
-        st.session_state.switch_third_mortgage_lender = ""
-    if "switch_third_mortgage_balance_raw" not in st.session_state:
-        st.session_state.switch_third_mortgage_balance_raw = ""
+    if "switch_lender_count" not in st.session_state:
+        st.session_state.switch_lender_count = "1"
+    if "switch_lender2_name" not in st.session_state:
+        st.session_state.switch_lender2_name = ""
+    if "switch_lender2_reg_type" not in st.session_state:
+        st.session_state.switch_lender2_reg_type = ""
+    if "switch_lender2_balance_raw" not in st.session_state:
+        st.session_state.switch_lender2_balance_raw = ""
+    if "switch_lender3_name" not in st.session_state:
+        st.session_state.switch_lender3_name = ""
+    if "switch_lender3_reg_type" not in st.session_state:
+        st.session_state.switch_lender3_reg_type = ""
+    if "switch_lender3_balance_raw" not in st.session_state:
+        st.session_state.switch_lender3_balance_raw = ""
+    if "switch_lender4_name" not in st.session_state:
+        st.session_state.switch_lender4_name = ""
+    if "switch_lender4_reg_type" not in st.session_state:
+        st.session_state.switch_lender4_reg_type = ""
+    if "switch_lender4_balance_raw" not in st.session_state:
+        st.session_state.switch_lender4_balance_raw = ""
     if "switch_requested_loan_amount_raw" not in st.session_state:
         st.session_state.switch_requested_loan_amount_raw = ""
     if "switch_mortgages_good_standing" not in st.session_state:
@@ -533,8 +538,6 @@ def init_state():
         st.session_state.switch_insurance_provider = ""
     if "switch_insurance_good_standing" not in st.session_state:
         st.session_state.switch_insurance_good_standing = ""
-    if "switch_fees_estimate_raw" not in st.session_state:
-        st.session_state.switch_fees_estimate_raw = ""
     # --- Debt payout tracking (Refinance - New Lender) ---
     if "debt_payout_selected" not in st.session_state:
         st.session_state.debt_payout_selected = {}
@@ -562,9 +565,11 @@ SAVE_STATE_KEYS = [
     "switch_ofi_name", "switch_ofi_is_frfi", "switch_reg_type", "switch_mortgage_type",
     "switch_timing", "switch_current_balance_raw", "switch_remaining_amortization",
     "switch_amortization_unchanged", "switch_additional_funds",
-    "switch_amortization_changed", "switch_borrowers_changed", "switch_fees_estimate_raw",
-    "switch_other_mortgage_exists", "switch_other_mortgage_lender", "switch_other_mortgage_balance_raw",
-    "switch_third_mortgage_exists", "switch_third_mortgage_lender", "switch_third_mortgage_balance_raw",
+    "switch_amortization_changed", "switch_borrowers_changed",
+    "switch_lender_count",
+    "switch_lender2_name", "switch_lender2_reg_type", "switch_lender2_balance_raw",
+    "switch_lender3_name", "switch_lender3_reg_type", "switch_lender3_balance_raw",
+    "switch_lender4_name", "switch_lender4_reg_type", "switch_lender4_balance_raw",
     "switch_requested_loan_amount_raw",
     "switch_mortgages_good_standing", "switch_taxes_up_to_date",
     "switch_insurance_provider", "switch_insurance_good_standing",
@@ -697,18 +702,21 @@ def refresh_all():
     st.session_state.switch_additional_funds = ""
     st.session_state.switch_amortization_changed = ""
     st.session_state.switch_borrowers_changed = ""
-    st.session_state.switch_other_mortgage_exists = ""
-    st.session_state.switch_other_mortgage_lender = ""
-    st.session_state.switch_other_mortgage_balance_raw = ""
-    st.session_state.switch_third_mortgage_exists = ""
-    st.session_state.switch_third_mortgage_lender = ""
-    st.session_state.switch_third_mortgage_balance_raw = ""
+    st.session_state.switch_lender_count = "1"
+    st.session_state.switch_lender2_name = ""
+    st.session_state.switch_lender2_reg_type = ""
+    st.session_state.switch_lender2_balance_raw = ""
+    st.session_state.switch_lender3_name = ""
+    st.session_state.switch_lender3_reg_type = ""
+    st.session_state.switch_lender3_balance_raw = ""
+    st.session_state.switch_lender4_name = ""
+    st.session_state.switch_lender4_reg_type = ""
+    st.session_state.switch_lender4_balance_raw = ""
     st.session_state.switch_requested_loan_amount_raw = ""
     st.session_state.switch_mortgages_good_standing = ""
     st.session_state.switch_taxes_up_to_date = ""
     st.session_state.switch_insurance_provider = ""
     st.session_state.switch_insurance_good_standing = ""
-    st.session_state.switch_fees_estimate_raw = ""
 
 
 def is_refinance():
@@ -735,13 +743,38 @@ def get_loan_amount():
 
 
 def get_switch_total_mortgage_balance():
-    """Sum of all mortgages/LOCs being paid out on the switch-in (OFI first mortgage + any 2nd/3rd)."""
+    """Sum of all mortgages/LOCs being paid out on the switch-in, across as many lenders as selected (1-4)."""
     total = parse_money(st.session_state.switch_current_balance_raw) or 0.0
-    if st.session_state.switch_other_mortgage_exists == "Yes":
-        total += parse_money(st.session_state.switch_other_mortgage_balance_raw) or 0.0
-    if st.session_state.switch_third_mortgage_exists == "Yes":
-        total += parse_money(st.session_state.switch_third_mortgage_balance_raw) or 0.0
+    count = int(st.session_state.switch_lender_count) if st.session_state.switch_lender_count else 1
+    if count >= 2:
+        total += parse_money(st.session_state.switch_lender2_balance_raw) or 0.0
+    if count >= 3:
+        total += parse_money(st.session_state.switch_lender3_balance_raw) or 0.0
+    if count >= 4:
+        total += parse_money(st.session_state.switch_lender4_balance_raw) or 0.0
     return total
+
+
+def get_switch_additional_lenders():
+    """Returns a list of (name, reg_type, balance) for lenders 2-4, based on switch_lender_count."""
+    count = int(st.session_state.switch_lender_count) if st.session_state.switch_lender_count else 1
+    lenders = []
+    if count >= 2:
+        lenders.append((
+            st.session_state.switch_lender2_name, st.session_state.switch_lender2_reg_type,
+            parse_money(st.session_state.switch_lender2_balance_raw),
+        ))
+    if count >= 3:
+        lenders.append((
+            st.session_state.switch_lender3_name, st.session_state.switch_lender3_reg_type,
+            parse_money(st.session_state.switch_lender3_balance_raw),
+        ))
+    if count >= 4:
+        lenders.append((
+            st.session_state.switch_lender4_name, st.session_state.switch_lender4_reg_type,
+            parse_money(st.session_state.switch_lender4_balance_raw),
+        ))
+    return lenders
 
 
 def get_debts_payout_total():
@@ -1073,18 +1106,21 @@ def refresh_switch_in():
     st.session_state.switch_additional_funds = ""
     st.session_state.switch_amortization_changed = ""
     st.session_state.switch_borrowers_changed = ""
-    st.session_state.switch_other_mortgage_exists = ""
-    st.session_state.switch_other_mortgage_lender = ""
-    st.session_state.switch_other_mortgage_balance_raw = ""
-    st.session_state.switch_third_mortgage_exists = ""
-    st.session_state.switch_third_mortgage_lender = ""
-    st.session_state.switch_third_mortgage_balance_raw = ""
+    st.session_state.switch_lender_count = "1"
+    st.session_state.switch_lender2_name = ""
+    st.session_state.switch_lender2_reg_type = ""
+    st.session_state.switch_lender2_balance_raw = ""
+    st.session_state.switch_lender3_name = ""
+    st.session_state.switch_lender3_reg_type = ""
+    st.session_state.switch_lender3_balance_raw = ""
+    st.session_state.switch_lender4_name = ""
+    st.session_state.switch_lender4_reg_type = ""
+    st.session_state.switch_lender4_balance_raw = ""
     st.session_state.switch_requested_loan_amount_raw = ""
     st.session_state.switch_mortgages_good_standing = ""
     st.session_state.switch_taxes_up_to_date = ""
     st.session_state.switch_insurance_provider = ""
     st.session_state.switch_insurance_good_standing = ""
-    st.session_state.switch_fees_estimate_raw = ""
 
 
 def render_switch_in_step():
@@ -1102,8 +1138,17 @@ def render_switch_in_step():
     )
     render_calculator_popover("switchin")
 
-    # --- Section 1: Lender & Registration being switched ---
-    st.markdown("#### Current Lender & Registration")
+    # --- Section 1: Current lenders & registration ---
+    st.markdown("#### Current Lenders & Registration")
+    st.session_state.switch_lender_count = st.selectbox(
+        "How many current lenders (mortgages/LOCs) are on this property?", ["1", "2", "3", "4"],
+        index=["1", "2", "3", "4"].index(st.session_state.switch_lender_count)
+        if st.session_state.switch_lender_count in ["1", "2", "3", "4"] else 0,
+        key="switch_lender_count_input",
+    )
+    lender_count = int(st.session_state.switch_lender_count)
+
+    st.markdown("**Lender 1 (being switched in)**")
     c1, c2 = st.columns(2)
     with c1:
         st.session_state.switch_ofi_name = st.text_input(
@@ -1127,21 +1172,77 @@ def render_switch_in_step():
             "Switch Timing", SWITCH_TIMING_OPTIONS,
             index=SWITCH_TIMING_OPTIONS.index(st.session_state.switch_timing), key="switch_timing_input",
         )
-
-    st.divider()
-
-    # --- Section 2: Balance, amortization & change requests ---
-    st.markdown("#### Balance & Amortization")
-    c1, c2 = st.columns(2)
-    with c1:
         st.session_state.switch_current_balance_raw = st.text_input(
             "Current Outstanding Balance at OFI ($)", value=st.session_state.switch_current_balance_raw,
             placeholder="e.g. 425,000", key="switch_current_balance_input",
         )
-        st.session_state.switch_requested_loan_amount_raw = st.text_input(
-            "Loan Amount Being Requested ($)", value=st.session_state.switch_requested_loan_amount_raw,
-            placeholder="Defaults to the OFI balance above if left blank", key="switch_requested_loan_amount_input",
-        )
+
+    if lender_count >= 2:
+        st.markdown("**Lender 2**")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.session_state.switch_lender2_name = st.text_input(
+                "Financial Institution Name", value=st.session_state.switch_lender2_name,
+                placeholder="e.g. Bank of Example", key="switch_lender2_name_input",
+            )
+        with c2:
+            st.session_state.switch_lender2_reg_type = st.selectbox(
+                "Registration Type", REGISTRATION_TYPES,
+                index=REGISTRATION_TYPES.index(st.session_state.switch_lender2_reg_type),
+                key="switch_lender2_reg_type_input",
+            )
+        with c3:
+            st.session_state.switch_lender2_balance_raw = st.text_input(
+                "Balance ($)", value=st.session_state.switch_lender2_balance_raw,
+                placeholder="e.g. 45,000", key="switch_lender2_balance_input",
+            )
+
+    if lender_count >= 3:
+        st.markdown("**Lender 3**")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.session_state.switch_lender3_name = st.text_input(
+                "Financial Institution Name", value=st.session_state.switch_lender3_name,
+                placeholder="e.g. Bank of Example", key="switch_lender3_name_input",
+            )
+        with c2:
+            st.session_state.switch_lender3_reg_type = st.selectbox(
+                "Registration Type", REGISTRATION_TYPES,
+                index=REGISTRATION_TYPES.index(st.session_state.switch_lender3_reg_type),
+                key="switch_lender3_reg_type_input",
+            )
+        with c3:
+            st.session_state.switch_lender3_balance_raw = st.text_input(
+                "Balance ($)", value=st.session_state.switch_lender3_balance_raw,
+                placeholder="e.g. 20,000", key="switch_lender3_balance_input",
+            )
+
+    if lender_count >= 4:
+        st.markdown("**Lender 4**")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.session_state.switch_lender4_name = st.text_input(
+                "Financial Institution Name", value=st.session_state.switch_lender4_name,
+                placeholder="e.g. Bank of Example", key="switch_lender4_name_input",
+            )
+        with c2:
+            st.session_state.switch_lender4_reg_type = st.selectbox(
+                "Registration Type", REGISTRATION_TYPES,
+                index=REGISTRATION_TYPES.index(st.session_state.switch_lender4_reg_type),
+                key="switch_lender4_reg_type_input",
+            )
+        with c3:
+            st.session_state.switch_lender4_balance_raw = st.text_input(
+                "Balance ($)", value=st.session_state.switch_lender4_balance_raw,
+                placeholder="e.g. 15,000", key="switch_lender4_balance_input",
+            )
+
+    st.divider()
+
+    # --- Section 2: Amortization & change requests ---
+    st.markdown("#### Amortization & Change Requests")
+    c1, c2 = st.columns(2)
+    with c1:
         st.session_state.switch_remaining_amortization = st.text_input(
             "Remaining Amortization at OFI (years)", value=st.session_state.switch_remaining_amortization,
             placeholder="e.g. 22", key="switch_remaining_amortization_input",
@@ -1151,15 +1252,15 @@ def render_switch_in_step():
             index=YES_NO_OPTIONS.index(st.session_state.switch_amortization_unchanged),
             key="switch_amortization_unchanged_input",
         )
-    with c2:
-        st.session_state.switch_additional_funds = st.selectbox(
-            "Is the client requesting additional funds (cash out)?", YES_NO_OPTIONS,
-            index=YES_NO_OPTIONS.index(st.session_state.switch_additional_funds), key="switch_additional_funds_input",
-        )
         st.session_state.switch_amortization_changed = st.selectbox(
             "Is the client requesting an extended or reduced amortization?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_amortization_changed),
             key="switch_amortization_changed_input",
+        )
+    with c2:
+        st.session_state.switch_additional_funds = st.selectbox(
+            "Is the client requesting additional funds (cash out)?", YES_NO_OPTIONS,
+            index=YES_NO_OPTIONS.index(st.session_state.switch_additional_funds), key="switch_additional_funds_input",
         )
         st.session_state.switch_borrowers_changed = st.selectbox(
             "Are the borrowers/guarantors on title changing from the OFI mortgage?", YES_NO_OPTIONS,
@@ -1169,40 +1270,10 @@ def render_switch_in_step():
 
     st.divider()
 
-    # --- Section 3: Other mortgages / standing ---
-    st.markdown("#### Other Mortgages & Standing")
+    # --- Section 3: Standing ---
+    st.markdown("#### Standing")
     c1, c2 = st.columns(2)
     with c1:
-        st.session_state.switch_other_mortgage_exists = st.selectbox(
-            "Is there a second mortgage or secured line of credit on the property?", YES_NO_OPTIONS,
-            index=YES_NO_OPTIONS.index(st.session_state.switch_other_mortgage_exists),
-            key="switch_other_mortgage_exists_input",
-        )
-        if st.session_state.switch_other_mortgage_exists == "Yes":
-            st.session_state.switch_other_mortgage_lender = st.text_input(
-                "Who is the second mortgage/LOC with?", value=st.session_state.switch_other_mortgage_lender,
-                placeholder="e.g. Bank of Example", key="switch_other_mortgage_lender_input",
-            )
-            st.session_state.switch_other_mortgage_balance_raw = st.text_input(
-                "Balance of the second mortgage/LOC ($)", value=st.session_state.switch_other_mortgage_balance_raw,
-                placeholder="e.g. 45,000", key="switch_other_mortgage_balance_input",
-            )
-
-        st.session_state.switch_third_mortgage_exists = st.selectbox(
-            "Is there a third mortgage or secured line of credit on the property?", YES_NO_OPTIONS,
-            index=YES_NO_OPTIONS.index(st.session_state.switch_third_mortgage_exists),
-            key="switch_third_mortgage_exists_input",
-        )
-        if st.session_state.switch_third_mortgage_exists == "Yes":
-            st.session_state.switch_third_mortgage_lender = st.text_input(
-                "Who is the third mortgage/LOC with?", value=st.session_state.switch_third_mortgage_lender,
-                placeholder="e.g. Bank of Example", key="switch_third_mortgage_lender_input",
-            )
-            st.session_state.switch_third_mortgage_balance_raw = st.text_input(
-                "Balance of the third mortgage/LOC ($)", value=st.session_state.switch_third_mortgage_balance_raw,
-                placeholder="e.g. 20,000", key="switch_third_mortgage_balance_input",
-            )
-    with c2:
         st.session_state.switch_mortgages_good_standing = st.selectbox(
             "Are all mortgages/LOCs on the property in good standing?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_mortgages_good_standing),
@@ -1210,21 +1281,14 @@ def render_switch_in_step():
         )
         if st.session_state.switch_mortgages_good_standing == "No":
             st.caption(":red[Flag for underwriting — a mortgage/LOC not in good standing needs review before proceeding.]")
+    with c2:
         st.session_state.switch_taxes_up_to_date = st.selectbox(
             "Are property taxes up to date?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_taxes_up_to_date),
             key="switch_taxes_up_to_date_input",
         )
         if st.session_state.switch_taxes_up_to_date == "No":
-            st.caption(":red[Outstanding property taxes may need to be paid out or added to the switch — see Fees & Costs.]")
-
-    st.markdown(
-        "<div class='metric-row'>"
-        "<div class='metric-card'><div class='metric-label'>Total Mortgage Balance (all mortgages/LOCs being paid out)</div>"
-        "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
+            st.caption(":red[Outstanding property taxes may need to be paid out or added to the switch.]")
 
     st.divider()
 
@@ -1247,28 +1311,21 @@ def render_switch_in_step():
 
     st.divider()
 
-    # --- Section 5: Fees & costs ---
-    st.markdown("#### Fees & Costs")
-    st.session_state.switch_fees_estimate_raw = st.text_input(
-        "Estimated Client Fees/Costs to Switch (prepayment charge, per diem, etc.) ($)",
-        value=st.session_state.switch_fees_estimate_raw, placeholder="e.g. 1,200",
-        key="switch_fees_estimate_input",
+    # --- Section 5: Loan amount being requested ---
+    st.markdown("#### Loan Amount Requested")
+    st.session_state.switch_requested_loan_amount_raw = st.text_input(
+        "Loan Amount Being Requested ($)", value=st.session_state.switch_requested_loan_amount_raw,
+        placeholder="Defaults to the OFI balance above if left blank", key="switch_requested_loan_amount_input",
     )
-    fees_est = parse_money(st.session_state.switch_fees_estimate_raw)
-    if fees_est is not None:
-        if fees_est > MAX_FEES_ADDED_AT_MATURITY:
-            st.caption(
-                ":orange[Estimated fees (" + fmt_money(fees_est) + ") exceed the "
-                + fmt_money(MAX_FEES_ADDED_AT_MATURITY) + " maximum that can typically be added to the balance "
-                "at maturity — the excess would need to come from the client's own resources.]"
-            )
-        else:
-            st.caption(
-                "Up to " + fmt_money(MAX_FEES_ADDED_AT_MATURITY) + " in switch fees/costs can generally be "
-                "added to the mortgage balance at maturity; discharge/switch-out fee exceptions are typically "
-                "capped at " + fmt_money(MAX_DISCHARGE_SWITCH_OUT_FEE) + ", and per diem can be auto-adjusted "
-                "up to " + fmt_money(MAX_PER_DIEM_AUTO_ADJUST) + " without re-approval."
-            )
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>Loan Amount Requested</div>"
+        "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>Combined Existing Mortgages (all lenders)</div>"
+        "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     st.divider()
 
@@ -1293,17 +1350,9 @@ def render_switch_in_step():
         if st.session_state.switch_mortgage_type == "Conventional":
             st.caption(
                 "Conventional switch-in balances must not exceed {:.0f}% of the current appraised value "
-                "(clients may pay down the balance to reach this if fees push it over).".format(CONVENTIONAL_MAX_LTV)
+                "(clients may pay down the balance to reach this if it's pushed over).".format(CONVENTIONAL_MAX_LTV)
             )
-
-        with st.expander("Mandatory documents & business case notes for this switch-in"):
-            reqs = switch_in_document_requirements()
-            st.markdown("**Documents**")
-            for d in reqs["documents"]:
-                st.markdown("- " + d)
-            st.markdown("**Business case notes required**")
-            for n in reqs["business_case_notes"]:
-                st.markdown("- " + n)
+        st.caption("Mandatory documents and business case notes for this switch-in are listed on the Documents step.")
 
     switch_missing = [] if analysis is not None else ["Complete all Switch-In Details questions"]
     if st.session_state.get("p2_show_warning"):
@@ -3643,15 +3692,13 @@ def build_document_checklist_data():
             switch_items.append({"subcategory": "OFI Mortgage Verification", "text": doc})
         for note in reqs["business_case_notes"]:
             switch_items.append({"subcategory": "Business Case Notes", "text": note})
-        if st.session_state.switch_other_mortgage_exists == "Yes":
+        for name, reg_type, balance in get_switch_additional_lenders():
+            label = name.strip() if name and name.strip() else "Additional Lender"
             switch_items.append({
-                "subcategory": "Second Mortgage/LOC",
-                "text": "Statement confirming balance and lender for the second mortgage/LOC",
-            })
-        if st.session_state.switch_third_mortgage_exists == "Yes":
-            switch_items.append({
-                "subcategory": "Third Mortgage/LOC",
-                "text": "Statement confirming balance and lender for the third mortgage/LOC",
+                "subcategory": label,
+                "text": "Statement confirming balance ("
+                + (fmt_money(balance) if balance is not None else "amount not specified")
+                + ") and registration (" + (reg_type or "not specified") + ") for this mortgage/LOC",
             })
         if st.session_state.switch_mortgages_good_standing == "No":
             switch_items.append({
@@ -4166,18 +4213,16 @@ def build_system_notes():
                 + analysis["explanation"]
             )
         due_diligence_bits = []
-        if st.session_state.switch_other_mortgage_exists == "Yes":
-            other_lender = st.session_state.switch_other_mortgage_lender or "unspecified lender"
-            other_balance = parse_money(st.session_state.switch_other_mortgage_balance_raw)
-            other_balance_str = fmt_money(other_balance) if other_balance is not None else "balance not specified"
-            due_diligence_bits.append("second mortgage/LOC with " + other_lender + " (" + other_balance_str + ")")
-        elif st.session_state.switch_other_mortgage_exists == "No":
-            due_diligence_bits.append("no second mortgage/LOC on the property")
-        if st.session_state.switch_third_mortgage_exists == "Yes":
-            third_lender = st.session_state.switch_third_mortgage_lender or "unspecified lender"
-            third_balance = parse_money(st.session_state.switch_third_mortgage_balance_raw)
-            third_balance_str = fmt_money(third_balance) if third_balance is not None else "balance not specified"
-            due_diligence_bits.append("third mortgage/LOC with " + third_lender + " (" + third_balance_str + ")")
+        additional_lenders = get_switch_additional_lenders()
+        if additional_lenders:
+            lender_bits = []
+            for name, reg_type, balance in additional_lenders:
+                lender_name = name or "unspecified lender"
+                balance_str = fmt_money(balance) if balance is not None else "balance not specified"
+                lender_bits.append(lender_name + " (" + balance_str + ", " + (reg_type or "registration not specified") + ")")
+            due_diligence_bits.append("additional lenders on title: " + "; ".join(lender_bits))
+        else:
+            due_diligence_bits.append("no additional lenders on the property besides the OFI")
         if st.session_state.switch_mortgages_good_standing:
             due_diligence_bits.append(
                 "mortgages/LOCs in good standing: " + st.session_state.switch_mortgages_good_standing
