@@ -65,9 +65,9 @@ TRANSACTION_TYPE_OPTIONS = [
         "description": "Refinancing the current mortgage with the same lender already on title.",
     },
     {
-        "key": "refinance_new_lender",
-        "label": "Refinance — New Lender",
-        "description": "Refinancing (switching) the mortgage to a different lender than the one currently on title.",
+        "key": "switch_new_lender",
+        "label": "Switch/Refinance — New Lender",
+        "description": "Switching mortgage from another lender (may include additional funds, amortization changes, or borrower changes).",
     },
 ]
 
@@ -471,6 +471,25 @@ def init_state():
         st.session_state.subject_sewer_other = ""
     if "subject_water_other" not in st.session_state:
         st.session_state.subject_water_other = ""
+    # --- Switch/Refinance specific fields ---
+    if "current_lender_name" not in st.session_state:
+        st.session_state.current_lender_name = ""
+    if "current_mortgage_balance_raw" not in st.session_state:
+        st.session_state.current_mortgage_balance_raw = ""
+    if "current_amortization_remaining" not in st.session_state:
+        st.session_state.current_amortization_remaining = ""
+    if "current_maturity_date" not in st.session_state:
+        st.session_state.current_maturity_date = None
+    if "is_switch_at_maturity" not in st.session_state:
+        st.session_state.is_switch_at_maturity = True
+    if "is_collateral_mortgage" not in st.session_state:
+        st.session_state.is_collateral_mortgage = False
+    if "is_federally_regulated" not in st.session_state:
+        st.session_state.is_federally_regulated = True
+    if "prepayment_penalty_raw" not in st.session_state:
+        st.session_state.prepayment_penalty_raw = ""
+    if "discharge_fee_raw" not in st.session_state:
+        st.session_state.discharge_fee_raw = ""
 
 
 SAVE_STATE_KEYS = [
@@ -490,6 +509,10 @@ SAVE_STATE_KEYS = [
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
     "doc_text_overrides", "doc_custom_items",
     "broker_notes", "combined_notes", "mortgage_term", "rate_type",
+    # Switch/Refinance fields
+    "current_lender_name", "current_mortgage_balance_raw", "current_amortization_remaining",
+    "current_maturity_date", "is_switch_at_maturity", "is_collateral_mortgage",
+    "is_federally_regulated", "prepayment_penalty_raw", "discharge_fee_raw",
 ]
 
 
@@ -604,6 +627,16 @@ def refresh_all():
     st.session_state.contract_rate = 5.0
     st.session_state.amortization_years = 25
     st.session_state.benchmark_rate = 5.25
+    # Reset switch/refinance fields
+    st.session_state.current_lender_name = ""
+    st.session_state.current_mortgage_balance_raw = ""
+    st.session_state.current_amortization_remaining = ""
+    st.session_state.current_maturity_date = None
+    st.session_state.is_switch_at_maturity = True
+    st.session_state.is_collateral_mortgage = False
+    st.session_state.is_federally_regulated = True
+    st.session_state.prepayment_penalty_raw = ""
+    st.session_state.discharge_fee_raw = ""
 
 
 def render_stepper(active_index):
@@ -1070,7 +1103,7 @@ def render_client_details():
 
 
 # ---------------------------------------------------------------------------
-# STEP 1 — Down Payment
+# STEP 2 — Down Payment / Equity
 # ---------------------------------------------------------------------------
 
 def refresh_page2():
@@ -1080,38 +1113,54 @@ def refresh_page2():
     st.session_state.source_amounts = {}
     st.session_state.other_source_desc = ""
     st.session_state.dp_errors = {}
+    # Do not reset switch/refinance fields here — they live in property details.
 
 
 def render_down_payment():
-    st.markdown("### Down Payment")
-    st.write("Enter property price, down payment, and the sources funding it.")
+    st.markdown("### Down Payment / Equity")
+    st.write("Enter the property value and the mortgage amount you're seeking.")
     render_calculator_popover("downpayment")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.session_state.purchase_price_raw = st.text_input(
-            "Purchase Price ($)", value=st.session_state.purchase_price_raw, placeholder="e.g., 500,000"
-        )
-    with col2:
-        st.session_state.down_payment_raw = st.text_input(
-            "Down Payment Amount ($)", value=st.session_state.down_payment_raw, placeholder="e.g., 100,000"
-        )
+    is_switch = st.session_state.transaction_type == "switch_new_lender"
+
+    if not is_switch:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.session_state.purchase_price_raw = st.text_input(
+                "Purchase Price ($)", value=st.session_state.purchase_price_raw, placeholder="e.g., 500,000"
+            )
+        with col2:
+            st.session_state.down_payment_raw = st.text_input(
+                "Down Payment Amount ($)", value=st.session_state.down_payment_raw, placeholder="e.g., 100,000"
+            )
+    else:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.session_state.purchase_price_raw = st.text_input(
+                "Current Property Value (Appraised) ($)", value=st.session_state.purchase_price_raw,
+                placeholder="e.g., 600,000"
+            )
+        with col2:
+            st.session_state.down_payment_raw = st.text_input(
+                "New Mortgage Amount ($)", value=st.session_state.down_payment_raw,
+                placeholder="e.g., 400,000"
+            )
 
     purchase_price = parse_money(st.session_state.purchase_price_raw)
-    down_payment = parse_money(st.session_state.down_payment_raw)
+    down_payment = parse_money(st.session_state.down_payment_raw)  # For switch, this is the new loan
 
     price_error = None
     dp_error = None
     if st.session_state.purchase_price_raw.strip() and purchase_price is None:
         price_error = "Enter a valid number."
     elif purchase_price is not None and purchase_price <= 0:
-        price_error = "Purchase price must be greater than zero."
+        price_error = "Value must be greater than zero."
 
     if st.session_state.down_payment_raw.strip() and down_payment is None:
         dp_error = "Enter a valid number."
     elif down_payment is not None and down_payment < 0:
-        dp_error = "Down payment cannot be negative."
-    elif purchase_price is not None and down_payment is not None and down_payment > purchase_price:
+        dp_error = "Amount cannot be negative."
+    elif not is_switch and purchase_price is not None and down_payment is not None and down_payment > purchase_price:
         dp_error = "Down payment cannot exceed the purchase price."
 
     if price_error:
@@ -1120,17 +1169,17 @@ def render_down_payment():
         st.caption(":red[" + dp_error + "]")
 
     if purchase_price and down_payment is not None and not price_error and not dp_error:
-        loan_amount = purchase_price - down_payment
-        ltv = (loan_amount / purchase_price) * 100
+        loan_amount = down_payment if is_switch else (purchase_price - down_payment)
+        ltv = (loan_amount / purchase_price) * 100 if purchase_price else None
         loan_display = fmt_money(loan_amount)
-        ltv_display = "{:.2f}%".format(ltv)
+        ltv_display = "{:.2f}%".format(ltv) if ltv is not None else "—"
     else:
         loan_display = "—"
         ltv_display = "—"
 
     st.markdown(
         "<div class='metric-row'>"
-        "<div class='metric-card'><div class='metric-label'>Mortgage Loan Amount</div>"
+        "<div class='metric-card'><div class='metric-label'>" + ("Mortgage Loan Amount" if not is_switch else "New Loan Amount") + "</div>"
         "<div class='metric-value'>" + loan_display + "</div></div>"
         "<div class='metric-card'><div class='metric-label'>LTV Ratio</div>"
         "<div class='metric-value'>" + ltv_display + "</div></div>"
@@ -1138,100 +1187,105 @@ def render_down_payment():
         unsafe_allow_html=True,
     )
 
-    st.divider()
+    if not is_switch:
+        st.divider()
+        st.write("**Select Down Payment Sources**")
+        selected = st.session_state.selected_sources
+        for source in DOWN_PAYMENT_SOURCES:
+            checked = source["key"] in selected
+            new_checked = st.checkbox(source["label"], value=checked, key="src_" + source["key"])
+            if new_checked and source["key"] not in selected:
+                selected.append(source["key"])
+            elif not new_checked and source["key"] in selected:
+                selected.remove(source["key"])
+                st.session_state.source_amounts.pop(source["key"], None)
 
-    st.write("**Select Down Payment Sources**")
+            if new_checked:
+                if not source["eligible"]:
+                    st.markdown(
+                        "<div class='doc-list'>⚠️ " + source["notes"] + "</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    amount_raw = st.text_input(
+                        source["label"] + " Amount ($)",
+                        value=st.session_state.source_amounts.get(source["key"], ""),
+                        placeholder="Enter amount",
+                        key="amt_" + source["key"],
+                    )
+                    st.session_state.source_amounts[source["key"]] = amount_raw
 
-    selected = st.session_state.selected_sources
-    for source in DOWN_PAYMENT_SOURCES:
-        checked = source["key"] in selected
-        new_checked = st.checkbox(source["label"], value=checked, key="src_" + source["key"])
+                    if source["key"] == "other":
+                        st.session_state.other_source_desc = st.text_input(
+                            "Describe the other source",
+                            value=st.session_state.other_source_desc,
+                            key="other_source_desc_input",
+                        )
 
-        if new_checked and source["key"] not in selected:
-            selected.append(source["key"])
-        elif not new_checked and source["key"] in selected:
-            selected.remove(source["key"])
-            st.session_state.source_amounts.pop(source["key"], None)
-
-        if new_checked:
-            if not source["eligible"]:
-                st.markdown(
-                    "<div class='doc-list'>⚠️ " + source["notes"] + "</div>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                amount_raw = st.text_input(
-                    source["label"] + " Amount ($)",
-                    value=st.session_state.source_amounts.get(source["key"], ""),
-                    placeholder="Enter amount",
-                    key="amt_" + source["key"],
-                )
-                st.session_state.source_amounts[source["key"]] = amount_raw
-
-                if source["key"] == "other":
-                    st.session_state.other_source_desc = st.text_input(
-                        "Describe the other source",
-                        value=st.session_state.other_source_desc,
-                        key="other_source_desc_input",
+                    docs_html = ""
+                    for d in source["documents"]:
+                        docs_html += "<li>" + d + "</li>"
+                    notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
+                    st.markdown(
+                        "<div class='doc-list'><b>Required Documentation</b>"
+                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
+                        unsafe_allow_html=True,
                     )
 
-                docs_html = ""
-                for d in source["documents"]:
-                    docs_html += "<li>" + d + "</li>"
-                notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
-                st.markdown(
-                    "<div class='doc-list'><b>Required Documentation</b>"
-                    "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
-                    unsafe_allow_html=True,
-                )
+        st.session_state.selected_sources = selected
 
-    st.session_state.selected_sources = selected
-
-    st.divider()
-
-    eligible_selected = []
-    for s in selected:
-        for src in DOWN_PAYMENT_SOURCES:
-            if src["key"] == s and src["eligible"]:
-                eligible_selected.append(s)
-
-    total_sources = 0.0
-    for key in eligible_selected:
-        amt = parse_money(st.session_state.source_amounts.get(key, ""))
-        total_sources += amt or 0.0
-
-    st.write("**Total from Sources: " + fmt_money(total_sources) + "**")
-
-    totals_match = False
-    if not selected:
-        st.caption(":red[Please select at least one source.]")
-    elif down_payment is None:
-        st.caption(":gray[Enter a down payment amount above to check totals.]")
-    else:
-        if round(total_sources, 2) == round(down_payment, 2):
-            st.success("✓ Source amounts match the down payment amount.")
-            totals_match = True
+        # Validate source totals
+        total_sources = 0.0
+        for key in selected:
+            amt = parse_money(st.session_state.source_amounts.get(key, ""))
+            if amt:
+                total_sources += amt
+        st.write("**Total from Sources: " + fmt_money(total_sources) + "**")
+        totals_match = False
+        if not selected:
+            st.caption(":red[Please select at least one source.]")
+        elif down_payment is None:
+            st.caption(":gray[Enter a down payment amount above to check totals.]")
         else:
-            st.error(
-                "✗ The total down payment amount (" + fmt_money(down_payment) + ") does not match "
-                "the sum of the sources (" + fmt_money(total_sources) + "). Please adjust your entries."
-            )
+            if round(total_sources, 2) == round(down_payment, 2):
+                st.success("✓ Source amounts match the down payment amount.")
+                totals_match = True
+            else:
+                st.error(
+                    "✗ The total down payment amount (" + fmt_money(down_payment) + ") does not match "
+                    "the sum of the sources (" + fmt_money(total_sources) + "). Please adjust your entries."
+                )
+    else:
+        st.divider()
+        st.caption("For a switch/refinance, down payment sources are not applicable. The new loan is based on the property value and existing equity.")
 
     st.divider()
 
     missing_items = []
     if purchase_price is None or purchase_price <= 0:
-        missing_items.append("Purchase Price")
-    if down_payment is None:
-        missing_items.append("Down Payment Amount")
-    if not selected:
-        missing_items.append("At least one Down Payment Source")
-    if selected and down_payment is not None and not totals_match:
-        missing_items.append("Source amounts must sum to the Down Payment Amount")
+        missing_items.append("Property Value" if is_switch else "Purchase Price")
+    if down_payment is None or down_payment <= 0:
+        missing_items.append("New Loan Amount" if is_switch else "Down Payment Amount")
+    if not is_switch:
+        if not selected:
+            missing_items.append("At least one Down Payment Source")
+        if selected and down_payment is not None:
+            # Recalculate total for validation
+            total_sources = 0.0
+            for key in selected:
+                amt = parse_money(st.session_state.source_amounts.get(key, ""))
+                if amt:
+                    total_sources += amt
+            if round(total_sources, 2) != round(down_payment, 2):
+                missing_items.append("Source amounts must sum to the Down Payment Amount")
     if st.session_state.get("p2_show_warning"):
         render_missing_fields_warning(missing_items)
 
     back_col, refresh_col, continue_col = st.columns(3)
+    with back_col:
+        if st.button("← Back", use_container_width=True, key="p2_back"):
+            st.session_state.step = 1
+            st.rerun()
     with refresh_col:
         if st.button("Refresh", use_container_width=True, key="p2_refresh"):
             st.session_state["p2_show_refresh_confirm"] = True
@@ -1254,9 +1308,9 @@ def render_down_payment():
             valid = (
                 purchase_price is not None and purchase_price > 0 and not price_error
                 and down_payment is not None and not dp_error
-                and len(selected) > 0
-                and totals_match
             )
+            if not is_switch:
+                valid = valid and len(selected) > 0 and (down_payment is None or round(total_sources, 2) == round(down_payment, 2))
             if valid:
                 st.session_state["p2_show_warning"] = False
                 st.session_state.step = 3
@@ -1267,7 +1321,7 @@ def render_down_payment():
 
 
 # ---------------------------------------------------------------------------
-# STEP 2 — Property Details (subject property being purchased)
+# STEP 3 — Property Details (subject property being purchased)
 # ---------------------------------------------------------------------------
 
 def monthly_mortgage_payment(principal, annual_rate_percent, amortization_years):
@@ -1315,13 +1369,23 @@ def refresh_property_details():
     st.session_state.subject_heating_type_other = ""
     st.session_state.subject_sewer_other = ""
     st.session_state.subject_water_other = ""
+    # Reset switch/refinance fields (they live here)
+    st.session_state.current_lender_name = ""
+    st.session_state.current_mortgage_balance_raw = ""
+    st.session_state.current_amortization_remaining = ""
+    st.session_state.current_maturity_date = None
+    st.session_state.is_switch_at_maturity = True
+    st.session_state.is_collateral_mortgage = False
+    st.session_state.is_federally_regulated = True
+    st.session_state.prepayment_penalty_raw = ""
+    st.session_state.discharge_fee_raw = ""
 
 
 def get_subject_property_costs():
     """Returns (pi_payment, taxes, condo, heat, monthly_housing_total) for the property being purchased."""
     purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
     down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
-    loan_amount = max(purchase_price - down_payment, 0.0)
+    loan_amount = down_payment if st.session_state.transaction_type == "switch_new_lender" else max(purchase_price - down_payment, 0.0)
     pi = monthly_mortgage_payment(loan_amount, st.session_state.contract_rate, st.session_state.amortization_years)
     taxes = parse_money(st.session_state.subject_taxes_raw) or 0.0
     condo = parse_money(st.session_state.subject_condo_raw) or 0.0
@@ -1356,18 +1420,21 @@ def render_property_details():
 
     purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
     down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
-    loan_amount = max(purchase_price - down_payment, 0.0)
+    loan_amount = down_payment if st.session_state.transaction_type == "switch_new_lender" else max(purchase_price - down_payment, 0.0)
 
     st.markdown(
         "<div class='metric-row'>"
-        "<div class='metric-card'><div class='metric-label'>Purchase Price (from Down Payment step)</div>"
+        "<div class='metric-card'><div class='metric-label'>" + ("Property Value" if st.session_state.transaction_type == "switch_new_lender" else "Purchase Price") + " (from Down Payment step)</div>"
         "<div class='metric-value'>" + fmt_money(purchase_price) + "</div></div>"
         "<div class='metric-card'><div class='metric-label'>Mortgage Loan Amount</div>"
         "<div class='metric-value'>" + fmt_money(loan_amount) + "</div></div>"
         "</div>",
         unsafe_allow_html=True,
     )
-    st.caption("To change the purchase price or down payment, go back to the Down Payment step.")
+    if st.session_state.transaction_type == "switch_new_lender":
+        st.caption("To change the property value or new loan amount, go back to the Down Payment step.")
+    else:
+        st.caption("To change the purchase price or down payment, go back to the Down Payment step.")
 
     st.divider()
 
@@ -1377,6 +1444,63 @@ def render_property_details():
     )
     if not st.session_state.subject_address.strip():
         st.caption(":red[Please enter the property address.]")
+
+    # --- Existing Mortgage Details (only for switch/refinance) ---
+    if st.session_state.transaction_type == "switch_new_lender":
+        st.divider()
+        st.markdown("#### Existing Mortgage Details (from current lender)")
+        st.caption("Provide the details of the mortgage the client currently has with their other lender.")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.session_state.current_lender_name = st.text_input(
+                "Current Lender Name", value=st.session_state.current_lender_name,
+                placeholder="e.g., ABC Bank"
+            )
+            st.session_state.current_mortgage_balance_raw = st.text_input(
+                "Current Outstanding Balance ($)", value=st.session_state.current_mortgage_balance_raw,
+                placeholder="Enter the remaining balance"
+            )
+            st.session_state.current_amortization_remaining = st.text_input(
+                "Remaining Amortization (years)", value=st.session_state.current_amortization_remaining,
+                placeholder="e.g., 22"
+            )
+            st.session_state.prepayment_penalty_raw = st.text_input(
+                "Estimated Prepayment Penalty ($)", value=st.session_state.prepayment_penalty_raw,
+                placeholder="e.g., 3,500"
+            )
+        with c2:
+            st.session_state.current_maturity_date = st.date_input(
+                "Mortgage Maturity Date", value=st.session_state.current_maturity_date or date.today(),
+                min_value=date.today(), key="switch_maturity_date"
+            )
+            st.session_state.is_switch_at_maturity = st.checkbox(
+                "Switching at maturity (renewal)", value=st.session_state.is_switch_at_maturity,
+                help="If switching before maturity, prepayment penalties will apply."
+            )
+            if not st.session_state.is_switch_at_maturity:
+                st.warning("⚠️ Switching before maturity typically incurs prepayment penalties (3 months' interest or IRD).")
+
+            st.session_state.is_collateral_mortgage = st.checkbox(
+                "Is this a collateral charge mortgage?", value=st.session_state.is_collateral_mortgage,
+                help="Collateral mortgages (common with HELOCs) must be discharged and re-registered."
+            )
+            if st.session_state.is_collateral_mortgage:
+                st.info("Collateral mortgages require full discharge and re-registration — additional legal fees apply.")
+
+            st.session_state.is_federally_regulated = st.checkbox(
+                "Is the current lender a Federally Regulated Financial Institution (FRFI)?",
+                value=st.session_state.is_federally_regulated,
+                help="Switches from provincially regulated lenders (e.g. credit unions) are treated as refinances."
+            )
+            if not st.session_state.is_federally_regulated:
+                st.warning("⚠️ Mortgages from non-FRFI lenders require full MQR qualification (treated as refinance).")
+
+            st.session_state.discharge_fee_raw = st.text_input(
+                "Estimated Discharge Fee ($)", value=st.session_state.discharge_fee_raw,
+                placeholder="e.g., 300"
+            )
+
+        st.caption("Up to $3,000 in switch fees may be added to the new mortgage balance at maturity.")
 
     st.caption(
         "Financing terms (contract rate, amortization) are now collected on the Analysis "
@@ -1561,7 +1685,7 @@ def render_property_details():
 
 
 # ---------------------------------------------------------------------------
-# STEP 2 — Income
+# STEP 4 — Income
 # ---------------------------------------------------------------------------
 
 def refresh_page3():
@@ -2136,7 +2260,7 @@ def render_income():
 
 
 # ---------------------------------------------------------------------------
-# STEP 3 — Debts & Liabilities
+# STEP 5 — Debts & Liabilities
 # ---------------------------------------------------------------------------
 
 def refresh_page4():
@@ -2513,7 +2637,7 @@ def render_debts():
 
 
 # ---------------------------------------------------------------------------
-# STEP 4 — Analysis (GDS/TDS Qualification Summary)
+# STEP 6 — Analysis (GDS/TDS Qualification Summary)
 # ---------------------------------------------------------------------------
 
 STRESS_TEST_ADDON = 2.0  # commonly: contract rate + 2%, per public stress-test convention
@@ -2629,13 +2753,66 @@ def render_analysis():
             lambda: help_rate_type_text(st.session_state.rate_type),
             "help_rate_type",
         )
+
+    # --- Switch/Refinance Summary (conditional) ---
+    if st.session_state.transaction_type == "switch_new_lender":
+        st.divider()
+        st.markdown("#### Switch/Refinance Summary")
+        current_balance = parse_money(st.session_state.current_mortgage_balance_raw) or 0.0
+        property_value = parse_money(st.session_state.purchase_price_raw) or 0.0
+        new_loan = parse_money(st.session_state.down_payment_raw) or 0.0
+        additional_funds = new_loan - current_balance
+        remaining_amort = parse_money(st.session_state.current_amortization_remaining) or 0.0
+
+        st.markdown(
+            f"""
+            <div class='metric-row'>
+            <div class='metric-card'><div class='metric-label'>Current Balance</div>
+            <div class='metric-value'>{fmt_money(current_balance)}</div></div>
+            <div class='metric-card'><div class='metric-label'>New Loan Amount</div>
+            <div class='metric-value'>{fmt_money(new_loan)}</div></div>
+            <div class='metric-card'><div class='metric-label'>Additional Funds</div>
+            <div class='metric-value'>{fmt_money(additional_funds)}</div></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.caption(f"Property Value: {fmt_money(property_value)} | Remaining Amortization: {remaining_amort:.0f} years (if provided)")
+
+        # Determine straight switch eligibility
+        is_straight_switch = (
+            st.session_state.is_switch_at_maturity and
+            additional_funds <= 0 and
+            (remaining_amort == 0 or abs(remaining_amort - st.session_state.amortization_years) < 0.1) and
+            st.session_state.is_federally_regulated and
+            not st.session_state.is_collateral_mortgage
+            # Also need borrower unchanged – we assume they are the same as per policy.
+        )
+        if is_straight_switch:
+            st.success("✅ This qualifies as a **straight switch** – eligible for AMQR (contract rate + 1%).")
+        else:
+            st.warning("⚠️ This is **not** a straight switch – full MQR (contract + 2% or benchmark) applies.")
+            reasons = []
+            if not st.session_state.is_switch_at_maturity:
+                reasons.append("switching before maturity")
+            if additional_funds > 0:
+                reasons.append("additional funds requested")
+            if remaining_amort > 0 and abs(remaining_amort - st.session_state.amortization_years) > 0.1:
+                reasons.append("amortization changed")
+            if not st.session_state.is_federally_regulated:
+                reasons.append("lender not FRFI")
+            if st.session_state.is_collateral_mortgage:
+                reasons.append("collateral mortgage (requires discharge/re-register)")
+            if reasons:
+                st.caption("Reason: " + ", ".join(reasons))
+
     st.divider()
 
     # --- Aggregate data ---
     total_income = compute_total_income()
     purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
     down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
-    loan_amount = max(purchase_price - down_payment, 0.0)
+    loan_amount = down_payment if st.session_state.transaction_type == "switch_new_lender" else max(purchase_price - down_payment, 0.0)
     ltv = (loan_amount / purchase_price * 100) if purchase_price else None
 
     pi_payment, taxes, condo, heat, _ = get_subject_property_costs()
@@ -2712,11 +2889,31 @@ def render_analysis():
 
     st.divider()
 
-    # --- Stress test numbers (computed early so they can sit next to contract GDS/TDS) ---
-    qualifying_rate = max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate)
+    # --- Qualifying Rate Logic for Switch ---
+    # Determine qualifying rate based on transaction type and switch status
+    if st.session_state.transaction_type == "switch_new_lender":
+        current_balance = parse_money(st.session_state.current_mortgage_balance_raw) or 0.0
+        new_loan = parse_money(st.session_state.down_payment_raw) or 0.0
+        additional_funds = new_loan - current_balance
+        remaining_amort = parse_money(st.session_state.current_amortization_remaining) or 0.0
+        is_straight = (
+            st.session_state.is_switch_at_maturity and
+            additional_funds <= 0 and
+            (remaining_amort == 0 or abs(remaining_amort - st.session_state.amortization_years) < 0.1) and
+            st.session_state.is_federally_regulated and
+            not st.session_state.is_collateral_mortgage
+        )
+        if is_straight:
+            qualifying_rate = st.session_state.contract_rate + 1.0  # AMQR
+        else:
+            qualifying_rate = max(st.session_state.contract_rate + 2.0, st.session_state.benchmark_rate)
+    else:
+        qualifying_rate = max(st.session_state.contract_rate + 2.0, st.session_state.benchmark_rate)
+
+    # --- Stress test numbers ---
     st.caption(
         "Qualifying Rate Used for Stress Test: " + "{:.2f}%".format(qualifying_rate)
-        + " (greater of contract + " + str(int(STRESS_TEST_ADDON)) + "%, or benchmark)"
+        + (" (AMQR)" if st.session_state.transaction_type == "switch_new_lender" and is_straight else " (MQR)")
     )
     stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, st.session_state.amortization_years)
 
@@ -2747,7 +2944,7 @@ def render_analysis():
         "<div class='metric-row'>"
         "<div class='metric-card'><div class='metric-label'>GDS — Contract Rate</div>"
         "<div class='metric-value'>" + gds_display + "</div></div>"
-        "<div class='metric-card'><div class='metric-label'>GDS — Stressed</div>"
+        "<div class='metric-card'><div class='metric-label'>GDS — Stressed (" + "{:.2f}%".format(qualifying_rate) + ")</div>"
         "<div class='metric-value'>" + stressed_gds_display + "</div></div>"
         "</div>",
         unsafe_allow_html=True,
@@ -2756,7 +2953,7 @@ def render_analysis():
         "<div class='metric-row'>"
         "<div class='metric-card'><div class='metric-label'>TDS — Contract Rate</div>"
         "<div class='metric-value'>" + tds_display + "</div></div>"
-        "<div class='metric-card'><div class='metric-label'>TDS — Stressed</div>"
+        "<div class='metric-card'><div class='metric-label'>TDS — Stressed (" + "{:.2f}%".format(qualifying_rate) + ")</div>"
         "<div class='metric-value'>" + stressed_tds_display + "</div></div>"
         "</div>",
         unsafe_allow_html=True,
@@ -2919,11 +3116,11 @@ def render_analysis():
 
 
 # ---------------------------------------------------------------------------
-# STEP 5 — Documents Checklist
+# STEP 7 — Documents Checklist
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# STEP 5 — Documents Checklist
+# STEP 7 — Documents Checklist
 # ---------------------------------------------------------------------------
 #
 # This step is a generic, data-driven checklist component. The renderer
@@ -2975,6 +3172,16 @@ OTHER_PROPERTY_DOC_LABELS = [
 ALL_CHECKLIST_CATEGORIES = [
     "Application & Consent", "Identification", "Down Payment", "Income",
     "Property Being Purchased", "Other Properties Owned", "Other Debts & Liabilities",
+]
+
+# Switch/Refinance specific documents
+SWITCH_REFINANCE_DOCS = [
+    "Current mortgage statement from existing lender",
+    "Mortgage renewal letter (if switching at maturity)",
+    "Payout statement from current lender",
+    "Proof of mortgage default insurance (if applicable)",
+    "Discharge statement or fee confirmation",
+    "Title search or property valuation (if required)",
 ]
 
 
@@ -3053,6 +3260,13 @@ def build_document_checklist_data():
                 debt_items.append({"subcategory": dt["label"], "text": doc})
     if debt_items:
         categories.append({"name": "Other Debts & Liabilities", "items": debt_items})
+
+    # --- Switch/Refinance specific (if applicable) ---
+    if st.session_state.transaction_type == "switch_new_lender":
+        categories.append({
+            "name": "Switch/Refinance Documents",
+            "items": [{"text": d} for d in SWITCH_REFINANCE_DOCS],
+        })
 
     return {"categories": categories}
 
@@ -3499,6 +3713,22 @@ def build_system_notes():
     if prop_bits:
         lines.append("SUBJECT PROPERTY: " + ", ".join(prop_bits) + ".")
 
+    # --- Switch/Refinance details ---
+    if st.session_state.transaction_type == "switch_new_lender":
+        current_balance = parse_money(st.session_state.current_mortgage_balance_raw) or 0.0
+        new_loan = parse_money(st.session_state.down_payment_raw) or 0.0
+        additional = new_loan - current_balance
+        lines.append(
+            f"SWITCH/REFINANCE: Client is switching from {st.session_state.current_lender_name or 'another lender'}. "
+            f"Current balance: {fmt_money(current_balance)}. "
+            f"Switching {'at' if st.session_state.is_switch_at_maturity else 'before'} maturity. "
+            f"Collateral: {'Yes' if st.session_state.is_collateral_mortgage else 'No'}. "
+            f"FRFI lender: {'Yes' if st.session_state.is_federally_regulated else 'No'}. "
+            f"Additional funds requested: {fmt_money(additional)}."
+        )
+        if st.session_state.current_amortization_remaining:
+            lines.append(f"Remaining amortization from current lender: {st.session_state.current_amortization_remaining} years.")
+
     # --- GDS/TDS ---
     pi_payment, taxes, condo, heat, _ = get_subject_property_costs()
     other_debt_monthly = 0.0
@@ -3513,10 +3743,32 @@ def build_system_notes():
         other_debt_monthly += p_total
 
     gds, tds, _, _ = compute_gds_tds(pi_payment, taxes, heat, condo, other_debt_monthly, total_income)
-    qualifying_rate = max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate)
+    # Determine qualifying rate for note
+    if st.session_state.transaction_type == "switch_new_lender":
+        current_balance = parse_money(st.session_state.current_mortgage_balance_raw) or 0.0
+        new_loan = parse_money(st.session_state.down_payment_raw) or 0.0
+        additional_funds = new_loan - current_balance
+        remaining_amort = parse_money(st.session_state.current_amortization_remaining) or 0.0
+        is_straight = (
+            st.session_state.is_switch_at_maturity and
+            additional_funds <= 0 and
+            (remaining_amort == 0 or abs(remaining_amort - st.session_state.amortization_years) < 0.1) and
+            st.session_state.is_federally_regulated and
+            not st.session_state.is_collateral_mortgage
+        )
+        if is_straight:
+            qualifying_rate = st.session_state.contract_rate + 1.0
+            rate_note = "AMQR"
+        else:
+            qualifying_rate = max(st.session_state.contract_rate + 2.0, st.session_state.benchmark_rate)
+            rate_note = "MQR"
+    else:
+        qualifying_rate = max(st.session_state.contract_rate + 2.0, st.session_state.benchmark_rate)
+        rate_note = "MQR"
+
     purchase_price_v = parse_money(st.session_state.purchase_price_raw) or 0.0
     down_payment_v = parse_money(st.session_state.down_payment_raw) or 0.0
-    loan_amount = max(purchase_price_v - down_payment_v, 0.0)
+    loan_amount = down_payment_v if st.session_state.transaction_type == "switch_new_lender" else max(purchase_price_v - down_payment_v, 0.0)
     stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, st.session_state.amortization_years)
     stressed_gds, stressed_tds, _, _ = compute_gds_tds(stressed_pi, taxes, heat, condo, other_debt_monthly, total_income)
 
@@ -3524,15 +3776,8 @@ def build_system_notes():
         qualifies = gds <= GDS_LIMIT and tds <= TDS_LIMIT
         stress_qualifies = stressed_gds is not None and stressed_tds is not None and stressed_gds <= GDS_LIMIT and stressed_tds <= TDS_LIMIT
         lines.append(
-            "GDS/TDS: At the contract rate of {:.2f}%, GDS is {:.2f}% and TDS is {:.2f}% (limits: {:.0f}%/{:.0f}%) — {}. "
-            "Stressed at the qualifying rate of {:.2f}%, GDS is {} and TDS is {} — {}.".format(
-                st.session_state.contract_rate, gds, tds, GDS_LIMIT, TDS_LIMIT,
-                "within limits" if qualifies else "exceeds limits",
-                qualifying_rate,
-                "{:.2f}%".format(stressed_gds) if stressed_gds is not None else "—",
-                "{:.2f}%".format(stressed_tds) if stressed_tds is not None else "—",
-                "within limits" if stress_qualifies else "exceeds limits",
-            )
+            f"GDS/TDS: At the contract rate of {st.session_state.contract_rate:.2f}%, GDS is {gds:.2f}% and TDS is {tds:.2f}% (limits: {GDS_LIMIT:.0f}%/{TDS_LIMIT:.0f}%) — {'within limits' if qualifies else 'exceeds limits'}. "
+            f"Stressed at the qualifying rate of {qualifying_rate:.2f}% ({rate_note}), GDS is {stressed_gds:.2f}% if stressed_gds is not None else '—'} and TDS is {stressed_tds:.2f}% if stressed_tds is not None else '—'} — {'within limits' if stress_qualifies else 'exceeds limits'}."
         )
 
     if not lines:
