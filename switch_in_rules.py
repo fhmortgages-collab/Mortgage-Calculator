@@ -78,7 +78,6 @@ def requires_discharge_and_reregistration(reg_type, straight_switch):
 def determine_qualifying_path(
     mortgage_type,
     timing,
-    program,
     additional_funds_requested,
     amortization_changed,
     amortization_unchanged_from_ofi,
@@ -89,14 +88,6 @@ def determine_qualifying_path(
 
     qualifying_rate_label is one of: 'MQR', 'AMQR', 'Contract Rate (subject to confirmation)'.
     """
-    if program in SWITCH_IN_INELIGIBLE_PROGRAMS:
-        return (
-            "MQR",
-            True,
-            "Program '" + program + "' is on the ineligible list — must be completed as a refinance "
-            "with full new registration, qualified at the Minimum Qualifying Rate.",
-        )
-
     if borrowers_changed:
         return (
             "MQR",
