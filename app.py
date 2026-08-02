@@ -3775,9 +3775,12 @@ def build_system_notes():
     if gds is not None and tds is not None:
         qualifies = gds <= GDS_LIMIT and tds <= TDS_LIMIT
         stress_qualifies = stressed_gds is not None and stressed_tds is not None and stressed_gds <= GDS_LIMIT and stressed_tds <= TDS_LIMIT
+        # Format stressed values safely
+        gds_stress_str = f"{stressed_gds:.2f}%" if stressed_gds is not None else "—"
+        tds_stress_str = f"{stressed_tds:.2f}%" if stressed_tds is not None else "—"
         lines.append(
             f"GDS/TDS: At the contract rate of {st.session_state.contract_rate:.2f}%, GDS is {gds:.2f}% and TDS is {tds:.2f}% (limits: {GDS_LIMIT:.0f}%/{TDS_LIMIT:.0f}%) — {'within limits' if qualifies else 'exceeds limits'}. "
-            f"Stressed at the qualifying rate of {qualifying_rate:.2f}% ({rate_note}), GDS is {stressed_gds:.2f}% if stressed_gds is not None else '—'} and TDS is {stressed_tds:.2f}% if stressed_tds is not None else '—'} — {'within limits' if stress_qualifies else 'exceeds limits'}."
+            f"Stressed at the qualifying rate of {qualifying_rate:.2f}% ({rate_note}), GDS is {gds_stress_str} and TDS is {tds_stress_str} — {'within limits' if stress_qualifies else 'exceeds limits'}."
         )
 
     if not lines:
