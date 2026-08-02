@@ -396,6 +396,10 @@ def init_state():
         st.session_state.purchase_price_raw = ""
     if "down_payment_raw" not in st.session_state:
         st.session_state.down_payment_raw = ""
+    if "refinance_balance_raw" not in st.session_state:
+        st.session_state.refinance_balance_raw = ""
+    if "subject_property_value_raw" not in st.session_state:
+        st.session_state.subject_property_value_raw = ""
     if "selected_sources" not in st.session_state:
         st.session_state.selected_sources = []
     if "source_amounts" not in st.session_state:
@@ -538,6 +542,7 @@ SAVE_STATE_KEYS = [
     "switch_timing", "switch_program", "switch_current_balance_raw", "switch_remaining_amortization",
     "switch_amount_unchanged", "switch_amortization_unchanged", "switch_additional_funds",
     "switch_amortization_changed", "switch_borrowers_changed", "switch_fees_estimate_raw",
+    "refinance_balance_raw", "subject_property_value_raw",
 ]
 
 
@@ -607,6 +612,8 @@ def refresh_all():
     st.session_state.consent = False
     st.session_state.purchase_price_raw = ""
     st.session_state.down_payment_raw = ""
+    st.session_state.refinance_balance_raw = ""
+    st.session_state.subject_property_value_raw = ""
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
     st.session_state.other_source_desc = ""
@@ -668,16 +675,41 @@ def refresh_all():
     st.session_state.switch_fees_estimate_raw = ""
 
 
+def is_refinance():
+    return st.session_state.transaction_type in ("refinance_existing_lender", "refinance_new_lender")
+
+
+def get_loan_amount():
+    """
+    Purchase/Builder Purchase: purchase price - down payment.
+    Refinance - New Lender: the balance being switched in (from Switch-In Details).
+    Refinance - Existing Lender: the current balance being refinanced (own field, no down payment).
+    """
+    if st.session_state.transaction_type == "refinance_new_lender":
+        return parse_money(st.session_state.switch_current_balance_raw) or 0.0
+    if st.session_state.transaction_type == "refinance_existing_lender":
+        return parse_money(st.session_state.refinance_balance_raw) or 0.0
+    purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
+    down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
+    return max(purchase_price - down_payment, 0.0)
+
+
 def render_stepper(active_index):
     with st.container(key="stepper_row"):
         cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
             btn_type = "primary" if i == active_index else "secondary"
+            display_label = label
+            if i == 2 and is_refinance():
+                display_label = label + " (N/A)"
             with cols[i]:
                 with st.container(key="stepbtn_" + str(i)):
-                    if st.button(label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
-                        st.session_state.step = i
-                        st.rerun()
+                    if st.button(display_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
+                        if i == 2 and is_refinance():
+                            st.info("Down Payment doesn't apply to a refinance — this application uses the mortgage balance instead.")
+                        else:
+                            st.session_state.step = i
+                            st.rerun()
 
 
 st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout="centered")
@@ -1313,7 +1345,7 @@ def render_client_details():
 
             if is_valid and st.session_state.consent:
                 st.session_state["p1_show_warning"] = False
-                st.session_state.step = 2
+                st.session_state.step = 3 if is_refinance() else 2
                 st.rerun()
             else:
                 st.session_state["p1_show_warning"] = True
@@ -1327,6 +1359,7 @@ def render_client_details():
 def refresh_page2():
     st.session_state.purchase_price_raw = ""
     st.session_state.down_payment_raw = ""
+    st.session_state.refinance_balance_raw = ""
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
     st.session_state.other_source_desc = ""
@@ -1569,10 +1602,8 @@ def refresh_property_details():
 
 
 def get_subject_property_costs():
-    """Returns (pi_payment, taxes, condo, heat, monthly_housing_total) for the property being purchased."""
-    purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
-    down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
-    loan_amount = max(purchase_price - down_payment, 0.0)
+    """Returns (pi_payment, taxes, condo, heat, monthly_housing_total) for the subject property."""
+    loan_amount = get_loan_amount()
     pi = monthly_mortgage_payment(loan_amount, st.session_state.contract_rate, st.session_state.amortization_years)
     taxes = parse_money(st.session_state.subject_taxes_raw) or 0.0
     condo = parse_money(st.session_state.subject_condo_raw) or 0.0
@@ -1602,23 +1633,56 @@ def render_other_description_field(label, session_state_key, widget_key):
 
 def render_property_details():
     st.markdown("### Property Details")
-    st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
+    if is_refinance():
+        st.write("Tell us about the property being refinanced — this feeds directly into your GDS/TDS calculation.")
+    else:
+        st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
     render_calculator_popover("property")
 
-    purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
-    down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
-    loan_amount = max(purchase_price - down_payment, 0.0)
-
-    st.markdown(
-        "<div class='metric-row'>"
-        "<div class='metric-card'><div class='metric-label'>Purchase Price (from Down Payment step)</div>"
-        "<div class='metric-value'>" + fmt_money(purchase_price) + "</div></div>"
-        "<div class='metric-card'><div class='metric-label'>Mortgage Loan Amount</div>"
-        "<div class='metric-value'>" + fmt_money(loan_amount) + "</div></div>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-    st.caption("To change the purchase price or down payment, go back to the Down Payment step.")
+    if st.session_state.transaction_type == "refinance_new_lender":
+        loan_amount = get_loan_amount()
+        st.session_state.subject_property_value_raw = st.text_input(
+            "Current Estimated Property Value ($)", value=st.session_state.subject_property_value_raw,
+            placeholder="e.g. 650,000",
+        )
+        st.markdown(
+            "<div class='metric-row'>"
+            "<div class='metric-card'><div class='metric-label'>Balance Being Switched In (from Switch-In Details)</div>"
+            "<div class='metric-value'>" + fmt_money(loan_amount) + "</div></div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        st.caption("To change this amount, go back to the Deal step and update the Switch-In Details.")
+    elif st.session_state.transaction_type == "refinance_existing_lender":
+        st.session_state.refinance_balance_raw = st.text_input(
+            "Current Mortgage Balance to Refinance ($)", value=st.session_state.refinance_balance_raw,
+            placeholder="e.g. 380,000",
+        )
+        st.session_state.subject_property_value_raw = st.text_input(
+            "Current Estimated Property Value ($)", value=st.session_state.subject_property_value_raw,
+            placeholder="e.g. 650,000",
+        )
+        loan_amount = get_loan_amount()
+        st.markdown(
+            "<div class='metric-row'>"
+            "<div class='metric-card'><div class='metric-label'>Mortgage Loan Amount</div>"
+            "<div class='metric-value'>" + fmt_money(loan_amount) + "</div></div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
+        loan_amount = get_loan_amount()
+        st.markdown(
+            "<div class='metric-row'>"
+            "<div class='metric-card'><div class='metric-label'>Purchase Price (from Down Payment step)</div>"
+            "<div class='metric-value'>" + fmt_money(purchase_price) + "</div></div>"
+            "<div class='metric-card'><div class='metric-label'>Mortgage Loan Amount</div>"
+            "<div class='metric-value'>" + fmt_money(loan_amount) + "</div></div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        st.caption("To change the purchase price or down payment, go back to the Down Payment step.")
 
     st.divider()
 
@@ -1781,7 +1845,7 @@ def render_property_details():
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
         if st.button("← Back", use_container_width=True, key="p2b_back"):
-            st.session_state.step = 2
+            st.session_state.step = 1 if is_refinance() else 2
             st.rerun()
     with refresh_col:
         if st.button("Refresh", use_container_width=True, key="p2b_refresh"):
@@ -2884,9 +2948,11 @@ def render_analysis():
 
     # --- Aggregate data ---
     total_income = compute_total_income()
-    purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
-    down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
-    loan_amount = max(purchase_price - down_payment, 0.0)
+    loan_amount = get_loan_amount()
+    if is_refinance():
+        purchase_price = parse_money(st.session_state.subject_property_value_raw) or 0.0
+    else:
+        purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
     ltv = (loan_amount / purchase_price * 100) if purchase_price else None
 
     pi_payment, taxes, condo, heat, _ = get_subject_property_costs()
@@ -3698,23 +3764,33 @@ def build_system_notes():
             + " borrower(s): " + "; ".join(borrower_bits) + "."
         )
 
-    # --- Down payment source ---
-    dp_amount = parse_money(st.session_state.down_payment_raw) or 0.0
-    purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
-    dp_sources = []
-    for key in st.session_state.selected_sources:
-        src = next((s for s in DOWN_PAYMENT_SOURCES if s["key"] == key), None)
-        if src:
-            amt = parse_money(st.session_state.source_amounts.get(key, "")) or 0.0
-            dp_sources.append(src["label"] + " (" + fmt_money(amt) + ")")
-    if purchase_price or dp_sources:
-        dp_pct = (dp_amount / purchase_price * 100) if purchase_price else None
-        pct_str = " ({:.1f}% of purchase price)".format(dp_pct) if dp_pct is not None else ""
-        source_str = ", ".join(dp_sources) if dp_sources else "not yet specified"
-        lines.append(
-            "DOWN PAYMENT: " + fmt_money(dp_amount) + pct_str + " on a purchase price of " + fmt_money(purchase_price)
-            + ". Source(s): " + source_str + "."
-        )
+    # --- Down payment source (Purchase / Builder Purchase only) ---
+    if not is_refinance():
+        dp_amount = parse_money(st.session_state.down_payment_raw) or 0.0
+        purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
+        dp_sources = []
+        for key in st.session_state.selected_sources:
+            src = next((s for s in DOWN_PAYMENT_SOURCES if s["key"] == key), None)
+            if src:
+                amt = parse_money(st.session_state.source_amounts.get(key, "")) or 0.0
+                dp_sources.append(src["label"] + " (" + fmt_money(amt) + ")")
+        if purchase_price or dp_sources:
+            dp_pct = (dp_amount / purchase_price * 100) if purchase_price else None
+            pct_str = " ({:.1f}% of purchase price)".format(dp_pct) if dp_pct is not None else ""
+            source_str = ", ".join(dp_sources) if dp_sources else "not yet specified"
+            lines.append(
+                "DOWN PAYMENT: " + fmt_money(dp_amount) + pct_str + " on a purchase price of " + fmt_money(purchase_price)
+                + ". Source(s): " + source_str + "."
+            )
+    else:
+        loan_amount_note = get_loan_amount()
+        property_value_note = parse_money(st.session_state.subject_property_value_raw) or 0.0
+        if loan_amount_note or property_value_note:
+            ltv_note = " (LTV: {:.1f}%)".format(loan_amount_note / property_value_note * 100) if property_value_note else ""
+            lines.append(
+                "REFINANCE: Mortgage loan amount of " + fmt_money(loan_amount_note) + " against an estimated "
+                "property value of " + fmt_money(property_value_note) + ltv_note + "."
+            )
 
     # --- Income ---
     income_bits = []
@@ -3765,9 +3841,7 @@ def build_system_notes():
 
     gds, tds, _, _ = compute_gds_tds(pi_payment, taxes, heat, condo, other_debt_monthly, total_income)
     qualifying_rate = max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate)
-    purchase_price_v = parse_money(st.session_state.purchase_price_raw) or 0.0
-    down_payment_v = parse_money(st.session_state.down_payment_raw) or 0.0
-    loan_amount = max(purchase_price_v - down_payment_v, 0.0)
+    loan_amount = get_loan_amount()
     stressed_pi = monthly_mortgage_payment(loan_amount, qualifying_rate, st.session_state.amortization_years)
     stressed_gds, stressed_tds, _, _ = compute_gds_tds(stressed_pi, taxes, heat, condo, other_debt_monthly, total_income)
 
