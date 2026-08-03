@@ -393,6 +393,8 @@ def init_state():
         st.session_state.down_payment_raw = ""
     if "refinance_balance_raw" not in st.session_state:
         st.session_state.refinance_balance_raw = ""
+    if "refinance_remaining_amortization" not in st.session_state:
+        st.session_state.refinance_remaining_amortization = ""
     if "subject_property_value_raw" not in st.session_state:
         st.session_state.subject_property_value_raw = ""
     if "selected_sources" not in st.session_state:
@@ -593,7 +595,7 @@ SAVE_STATE_KEYS = [
     "switch_requested_loan_amount_raw",
     "switch_mortgages_good_standing", "switch_taxes_up_to_date",
     "switch_insurance_provider", "switch_insurance_good_standing",
-    "refinance_balance_raw", "subject_property_value_raw",
+    "refinance_balance_raw", "refinance_remaining_amortization", "subject_property_value_raw",
     "debt_payout_selected", "debt_payout_balance",
 ]
 
@@ -665,7 +667,9 @@ def refresh_all():
     st.session_state.purchase_price_raw = ""
     st.session_state.down_payment_raw = ""
     st.session_state.refinance_balance_raw = ""
+    st.session_state.refinance_remaining_amortization = ""
     st.session_state.subject_property_value_raw = ""
+    st.session_state["amortization_prefilled"] = False
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
     st.session_state.other_source_desc = ""
@@ -816,7 +820,10 @@ def get_debts_payout_total():
     total = 0.0
     for dkey, included in st.session_state.debt_payout_selected.items():
         if included:
-            total += parse_money(st.session_state.debt_payout_balance.get(dkey, "")) or 0.0
+            dt = get_debt_type(dkey)
+            amounts = st.session_state.debt_amounts.get(dkey, {})
+            if dt:
+                total += get_debt_balance(dt, amounts) or 0.0
     return total
 
 
@@ -846,7 +853,8 @@ def get_switch_payout_breakdown():
     for dkey, included in st.session_state.debt_payout_selected.items():
         if included:
             dt = get_debt_type(dkey)
-            amt = parse_money(st.session_state.debt_payout_balance.get(dkey, ""))
+            amounts = st.session_state.debt_amounts.get(dkey, {})
+            amt = get_debt_balance(dt, amounts) if dt else None
             if amt is not None:
                 items.append({"label": (dt["label"] if dt else dkey) + " (payout)", "amount": amt})
     return items
@@ -1216,12 +1224,6 @@ def render_switch_in_step():
         "<div class='metric-card'><div class='metric-label'>Loan Amount Requested</div>"
         "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
     )
-    if st.session_state.switch_additional_funds == "Yes":
-        funds_amt = parse_money(st.session_state.switch_additional_funds_amount_raw)
-        glance_cols += (
-            "<div class='metric-card'><div class='metric-label'>Additional Funds Requested</div>"
-            "<div class='metric-value'>" + (fmt_money(funds_amt) if funds_amt is not None else "—") + "</div></div>"
-        )
     if st.session_state.switch_amortization_changed == "Yes":
         years_amt = st.session_state.switch_amortization_change_years_raw or "—"
         glance_cols += (
@@ -1340,12 +1342,6 @@ def render_switch_in_step():
             "Is the client requesting additional funds (cash out)?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_additional_funds), key="switch_additional_funds_input",
         )
-        if st.session_state.switch_additional_funds == "Yes":
-            st.session_state.switch_additional_funds_amount_raw = st.text_input(
-                "How much additional funds does the client need ($)?",
-                value=st.session_state.switch_additional_funds_amount_raw,
-                placeholder="e.g. 30,000", key="switch_additional_funds_amount_input",
-            )
         st.session_state.switch_borrowers_changed = st.selectbox(
             "Are the borrowers/guarantors on title changing from the OFI mortgage?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_borrowers_changed),
@@ -1995,6 +1991,10 @@ def render_property_details():
         st.session_state.refinance_balance_raw = st.text_input(
             "Current Mortgage Balance to Refinance ($)", value=st.session_state.refinance_balance_raw,
             placeholder="e.g. 380,000",
+        )
+        st.session_state.refinance_remaining_amortization = st.text_input(
+            "Current Remaining Amortization (years)", value=st.session_state.refinance_remaining_amortization,
+            placeholder="e.g. 22",
         )
         st.session_state.subject_property_value_raw = st.text_input(
             "Current Estimated Property Value ($)", value=st.session_state.subject_property_value_raw,
@@ -2823,6 +2823,13 @@ def compute_debt_payment(debt_type, amounts):
         return parse_money(amounts.get("payment", "")) or 0.0
 
 
+def get_debt_balance(debt_type, amounts):
+    """The outstanding balance for a debt, regardless of which field type it's stored under."""
+    if debt_type["calc"] == "percent_of_balance":
+        return parse_money(amounts.get("balance", ""))
+    return parse_money(amounts.get("total_balance", ""))
+
+
 def explain_debt_payment(debt_type, amounts):
     """Returns (payment, explanation_string) showing the math behind a debt's monthly payment."""
     if debt_type["calc"] == "percent_of_balance":
@@ -3077,6 +3084,10 @@ def render_debts():
                 )
                 if amounts.get("payment", "").strip() == "":
                     other_debt_errors_any = True
+                amounts["total_balance"] = st.text_input(
+                    "Total Balance Owing ($)", value=amounts.get("total_balance", ""),
+                    placeholder="Enter total balance owing", key="debt_totalbal_" + dkey,
+                )
 
             _, debt_explanation = explain_debt_payment(debt_type, amounts)
             st.caption(debt_explanation)
@@ -3098,9 +3109,10 @@ def render_debts():
                 )
                 st.session_state.debt_payout_selected[dkey] = payout_checked
                 if payout_checked:
-                    st.session_state.debt_payout_balance[dkey] = st.text_input(
-                        "Balance to Pay Out ($)", value=st.session_state.debt_payout_balance.get(dkey, ""),
-                        placeholder="Enter the payoff balance for this debt", key="debt_payout_bal_" + dkey,
+                    payout_bal = get_debt_balance(debt_type, amounts)
+                    st.caption(
+                        "Balance included in payout: "
+                        + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
                     )
 
             docs_html = ""
@@ -3257,6 +3269,23 @@ def render_analysis():
     st.markdown("### Qualification Summary")
     st.write("This page aggregates data from all previous steps — nothing to re-enter here.")
     render_calculator_popover("analysis")
+
+    # --- For switch/refinance deals, prefill amortization from what the client previously had,
+    # adjusted for any requested change, instead of leaving the generic default in place. ---
+    if not st.session_state.get("amortization_prefilled") and is_refinance():
+        prior_years = None
+        if st.session_state.transaction_type == "refinance_new_lender":
+            base = parse_money(st.session_state.switch_remaining_amortization)
+            if base is not None:
+                if st.session_state.switch_amortization_changed == "Yes":
+                    change = parse_money(st.session_state.switch_amortization_change_years_raw) or 0.0
+                    base += change
+                prior_years = base
+        elif st.session_state.transaction_type == "refinance_existing_lender":
+            prior_years = parse_money(st.session_state.refinance_remaining_amortization)
+        if prior_years is not None:
+            st.session_state.amortization_years = int(round(min(max(prior_years, 1), 35)))
+        st.session_state["amortization_prefilled"] = True
 
     # --- Financing Terms (moved here from Property Details) ---
     st.markdown("#### Financing Terms")
@@ -3724,15 +3753,17 @@ def build_document_checklist_data():
     if id_items:
         categories.append({"name": "Identification", "items": id_items})
 
-    # Down Payment — one item per selected source per its required document
-    dp_items = []
-    for key in st.session_state.selected_sources:
-        src = next((s for s in DOWN_PAYMENT_SOURCES if s["key"] == key), None)
-        if src:
-            for doc in src["documents"]:
-                dp_items.append({"subcategory": src["label"], "text": doc})
-    if dp_items:
-        categories.append({"name": "Down Payment", "items": dp_items})
+    # Down Payment — one item per selected source per its required document (purchase deals only;
+    # switch/refinance deals have no down payment).
+    if not is_refinance():
+        dp_items = []
+        for key in st.session_state.selected_sources:
+            src = next((s for s in DOWN_PAYMENT_SOURCES if s["key"] == key), None)
+            if src:
+                for doc in src["documents"]:
+                    dp_items.append({"subcategory": src["label"], "text": doc})
+        if dp_items:
+            categories.append({"name": "Down Payment", "items": dp_items})
 
     # Income — one item per borrower per selected income source per document
     income_items = []
@@ -3747,10 +3778,11 @@ def build_document_checklist_data():
     if income_items:
         categories.append({"name": "Income", "items": income_items})
 
-    categories.append({
-        "name": "Property Being Purchased",
-        "items": [{"text": d} for d in SUBJECT_PROPERTY_DOCS],
-    })
+    if not is_refinance():
+        categories.append({
+            "name": "Property Being Purchased",
+            "items": [{"text": d} for d in SUBJECT_PROPERTY_DOCS],
+        })
 
     # Other Properties Owned — one item per property per standard doc label
     other_prop_items = []
@@ -3778,8 +3810,6 @@ def build_document_checklist_data():
         reqs = switch_in_document_requirements()
         for doc in reqs["documents"]:
             switch_items.append({"subcategory": "OFI Mortgage Verification", "text": doc})
-        for note in reqs["business_case_notes"]:
-            switch_items.append({"subcategory": "Business Case Notes", "text": note})
         for lender in get_switch_additional_lenders():
             label = lender["name"].strip() if lender["name"] and lender["name"].strip() else "Additional Lender"
             switch_items.append({
