@@ -7,6 +7,8 @@ import streamlit as st
 
 from downpayment_sources import DOWN_PAYMENT_SOURCES
 from income_sources import INCOME_SOURCES
+
+INCOME_SOURCES_ALPHA = sorted(INCOME_SOURCES, key=lambda s: s["label"])
 from debt_types import DEBT_TYPES
 from switch_in_rules import (
     REGISTRATION_TYPES,
@@ -2052,7 +2054,7 @@ def render_property_details():
 
     st.divider()
 
-    st.write("**Rental Component**")
+    st.markdown("#### Rental Component")
     st.caption("Does this property have a secondary suite or unit being rented out (e.g. a basement apartment)?")
     st.session_state.subject_has_rental_component = st.selectbox(
         "Does this property have a rental unit?", YES_NO_OPTIONS,
@@ -2089,7 +2091,9 @@ def render_property_details():
         "step, alongside the stress test."
     )
 
-    st.write("**Property Characteristics**")
+    st.divider()
+
+    st.markdown("#### Property Characteristics")
     st.caption(
         "Best-effort is fine here — the client may only have what's on the MLS listing "
         "or heard secondhand, not a formal appraisal. Leave anything unknown blank."
@@ -2203,7 +2207,9 @@ def render_property_details():
             if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
         )
 
-    st.write("**Monthly Carrying Costs**")
+    st.divider()
+
+    st.markdown("#### Monthly Carrying Costs")
     c1, c2, c3 = st.columns(3)
     with c1:
         st.session_state.subject_taxes_raw = st.text_input(
@@ -2720,7 +2726,7 @@ def render_income():
             selected = st.session_state.income_selected[bidx]
 
             # --- Phase 1: plain checkbox list only (unchanged layout) ---
-            for source in INCOME_SOURCES:
+            for source in INCOME_SOURCES_ALPHA:
                 skey = source["key"]
                 checked = skey in selected
                 new_checked = st.checkbox(
@@ -2736,7 +2742,7 @@ def render_income():
             st.session_state.income_selected[bidx] = selected
 
             # --- Phase 2: detail card for every selected source, injected here, sequentially ---
-            for source in INCOME_SOURCES:
+            for source in INCOME_SOURCES_ALPHA:
                 skey = source["key"]
                 if skey not in selected:
                     continue
@@ -3123,62 +3129,62 @@ def render_debts():
                 st.session_state.debt_amounts[dkey] = {}
             amounts = st.session_state.debt_amounts[dkey]
 
-            if debt_type["calc"] == "percent_of_balance":
-                amounts["balance"] = st.text_input(
-                    "Total Outstanding Balance ($)", value=amounts.get("balance", ""),
-                    placeholder="Enter total balance", key="debt_bal_" + dkey,
-                )
-                if amounts.get("balance", "").strip() == "":
-                    other_debt_errors_any = True
-            else:
-                amounts["payment"] = st.text_input(
-                    "Monthly Payment Amount ($)", value=amounts.get("payment", ""),
-                    placeholder="Enter monthly payment amount", key="debt_pay_" + dkey,
-                )
-                if amounts.get("payment", "").strip() == "":
-                    other_debt_errors_any = True
-                indent_spacer, indent_content = st.columns([0.4, 9.6])
-                with indent_content:
+            indent_spacer, indent_content = st.columns([0.4, 9.6])
+            with indent_content:
+                if debt_type["calc"] == "percent_of_balance":
+                    amounts["balance"] = st.text_input(
+                        "Total Outstanding Balance ($)", value=amounts.get("balance", ""),
+                        placeholder="Enter total balance", key="debt_bal_" + dkey,
+                    )
+                    if amounts.get("balance", "").strip() == "":
+                        other_debt_errors_any = True
+                else:
+                    amounts["payment"] = st.text_input(
+                        "Monthly Payment Amount ($)", value=amounts.get("payment", ""),
+                        placeholder="Enter monthly payment amount", key="debt_pay_" + dkey,
+                    )
+                    if amounts.get("payment", "").strip() == "":
+                        other_debt_errors_any = True
                     amounts["total_balance"] = st.text_input(
                         "Total Balance Owing ($)", value=amounts.get("total_balance", ""),
                         placeholder="Enter total balance owing", key="debt_totalbal_" + dkey,
                     )
 
-            _, debt_explanation = explain_debt_payment(debt_type, amounts)
-            st.caption(debt_explanation)
+                _, debt_explanation = explain_debt_payment(debt_type, amounts)
+                st.caption(debt_explanation)
 
-            if dkey == "other":
-                st.session_state.debt_other_desc = st.text_input(
-                    "Describe the other obligation", value=st.session_state.debt_other_desc,
-                    key="debt_other_desc_input",
-                )
-
-            payment_value = compute_debt_payment(debt_type, amounts)
-            total_other_debt += payment_value
-
-            if st.session_state.transaction_type == "refinance_new_lender":
-                payout_checked = st.checkbox(
-                    "Include in payout from mortgage proceeds",
-                    value=st.session_state.debt_payout_selected.get(dkey, False),
-                    key="debt_payout_" + dkey,
-                )
-                st.session_state.debt_payout_selected[dkey] = payout_checked
-                if payout_checked:
-                    payout_bal = get_debt_balance(debt_type, amounts)
-                    st.caption(
-                        "Balance included in payout: "
-                        + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
+                if dkey == "other":
+                    st.session_state.debt_other_desc = st.text_input(
+                        "Describe the other obligation", value=st.session_state.debt_other_desc,
+                        key="debt_other_desc_input",
                     )
 
-            docs_html = ""
-            for d in debt_type["documents"]:
-                docs_html += "<li>" + d + "</li>"
-            notes_html = "<div style='margin-top:6px;'>" + debt_type["notes"] + "</div>" if debt_type["notes"] else ""
-            st.markdown(
-                "<div class='doc-list'><b>Required Documentation</b>"
-                "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
-                unsafe_allow_html=True,
-            )
+                payment_value = compute_debt_payment(debt_type, amounts)
+                total_other_debt += payment_value
+
+                if st.session_state.transaction_type == "refinance_new_lender":
+                    payout_checked = st.checkbox(
+                        "Include in payout from mortgage proceeds",
+                        value=st.session_state.debt_payout_selected.get(dkey, False),
+                        key="debt_payout_" + dkey,
+                    )
+                    st.session_state.debt_payout_selected[dkey] = payout_checked
+                    if payout_checked:
+                        payout_bal = get_debt_balance(debt_type, amounts)
+                        st.caption(
+                            "Balance included in payout: "
+                            + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
+                        )
+
+                docs_html = ""
+                for d in debt_type["documents"]:
+                    docs_html += "<li>" + d + "</li>"
+                notes_html = "<div style='margin-top:6px;'>" + debt_type["notes"] + "</div>" if debt_type["notes"] else ""
+                st.markdown(
+                    "<div class='doc-list'><b>Required Documentation</b>"
+                    "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
+                    unsafe_allow_html=True,
+                )
 
             st.session_state.debt_amounts[dkey] = amounts
 
