@@ -512,24 +512,40 @@ def init_state():
         st.session_state.switch_lender_count = "1"
     if "switch_lender2_name" not in st.session_state:
         st.session_state.switch_lender2_name = ""
+    if "switch_lender2_is_frfi" not in st.session_state:
+        st.session_state.switch_lender2_is_frfi = ""
     if "switch_lender2_reg_type" not in st.session_state:
         st.session_state.switch_lender2_reg_type = ""
+    if "switch_lender2_mortgage_type" not in st.session_state:
+        st.session_state.switch_lender2_mortgage_type = ""
     if "switch_lender2_balance_raw" not in st.session_state:
         st.session_state.switch_lender2_balance_raw = ""
     if "switch_lender3_name" not in st.session_state:
         st.session_state.switch_lender3_name = ""
+    if "switch_lender3_is_frfi" not in st.session_state:
+        st.session_state.switch_lender3_is_frfi = ""
     if "switch_lender3_reg_type" not in st.session_state:
         st.session_state.switch_lender3_reg_type = ""
+    if "switch_lender3_mortgage_type" not in st.session_state:
+        st.session_state.switch_lender3_mortgage_type = ""
     if "switch_lender3_balance_raw" not in st.session_state:
         st.session_state.switch_lender3_balance_raw = ""
     if "switch_lender4_name" not in st.session_state:
         st.session_state.switch_lender4_name = ""
+    if "switch_lender4_is_frfi" not in st.session_state:
+        st.session_state.switch_lender4_is_frfi = ""
     if "switch_lender4_reg_type" not in st.session_state:
         st.session_state.switch_lender4_reg_type = ""
+    if "switch_lender4_mortgage_type" not in st.session_state:
+        st.session_state.switch_lender4_mortgage_type = ""
     if "switch_lender4_balance_raw" not in st.session_state:
         st.session_state.switch_lender4_balance_raw = ""
     if "switch_requested_loan_amount_raw" not in st.session_state:
         st.session_state.switch_requested_loan_amount_raw = ""
+    if "switch_amortization_change_years_raw" not in st.session_state:
+        st.session_state.switch_amortization_change_years_raw = ""
+    if "switch_additional_funds_amount_raw" not in st.session_state:
+        st.session_state.switch_additional_funds_amount_raw = ""
     if "switch_mortgages_good_standing" not in st.session_state:
         st.session_state.switch_mortgages_good_standing = ""
     if "switch_taxes_up_to_date" not in st.session_state:
@@ -566,10 +582,14 @@ SAVE_STATE_KEYS = [
     "switch_timing", "switch_current_balance_raw", "switch_remaining_amortization",
     "switch_amortization_unchanged", "switch_additional_funds",
     "switch_amortization_changed", "switch_borrowers_changed",
+    "switch_amortization_change_years_raw", "switch_additional_funds_amount_raw",
     "switch_lender_count",
-    "switch_lender2_name", "switch_lender2_reg_type", "switch_lender2_balance_raw",
-    "switch_lender3_name", "switch_lender3_reg_type", "switch_lender3_balance_raw",
-    "switch_lender4_name", "switch_lender4_reg_type", "switch_lender4_balance_raw",
+    "switch_lender2_name", "switch_lender2_is_frfi", "switch_lender2_reg_type",
+    "switch_lender2_mortgage_type", "switch_lender2_balance_raw",
+    "switch_lender3_name", "switch_lender3_is_frfi", "switch_lender3_reg_type",
+    "switch_lender3_mortgage_type", "switch_lender3_balance_raw",
+    "switch_lender4_name", "switch_lender4_is_frfi", "switch_lender4_reg_type",
+    "switch_lender4_mortgage_type", "switch_lender4_balance_raw",
     "switch_requested_loan_amount_raw",
     "switch_mortgages_good_standing", "switch_taxes_up_to_date",
     "switch_insurance_provider", "switch_insurance_good_standing",
@@ -702,15 +722,23 @@ def refresh_all():
     st.session_state.switch_additional_funds = ""
     st.session_state.switch_amortization_changed = ""
     st.session_state.switch_borrowers_changed = ""
+    st.session_state.switch_amortization_change_years_raw = ""
+    st.session_state.switch_additional_funds_amount_raw = ""
     st.session_state.switch_lender_count = "1"
     st.session_state.switch_lender2_name = ""
+    st.session_state.switch_lender2_is_frfi = ""
     st.session_state.switch_lender2_reg_type = ""
+    st.session_state.switch_lender2_mortgage_type = ""
     st.session_state.switch_lender2_balance_raw = ""
     st.session_state.switch_lender3_name = ""
+    st.session_state.switch_lender3_is_frfi = ""
     st.session_state.switch_lender3_reg_type = ""
+    st.session_state.switch_lender3_mortgage_type = ""
     st.session_state.switch_lender3_balance_raw = ""
     st.session_state.switch_lender4_name = ""
+    st.session_state.switch_lender4_is_frfi = ""
     st.session_state.switch_lender4_reg_type = ""
+    st.session_state.switch_lender4_mortgage_type = ""
     st.session_state.switch_lender4_balance_raw = ""
     st.session_state.switch_requested_loan_amount_raw = ""
     st.session_state.switch_mortgages_good_standing = ""
@@ -756,24 +784,30 @@ def get_switch_total_mortgage_balance():
 
 
 def get_switch_additional_lenders():
-    """Returns a list of (name, reg_type, balance) for lenders 2-4, based on switch_lender_count."""
+    """Returns a list of dicts (name, is_frfi, reg_type, mortgage_type, balance) for lenders 2-4."""
     count = int(st.session_state.switch_lender_count) if st.session_state.switch_lender_count else 1
     lenders = []
     if count >= 2:
-        lenders.append((
-            st.session_state.switch_lender2_name, st.session_state.switch_lender2_reg_type,
-            parse_money(st.session_state.switch_lender2_balance_raw),
-        ))
+        lenders.append({
+            "name": st.session_state.switch_lender2_name, "is_frfi": st.session_state.switch_lender2_is_frfi,
+            "reg_type": st.session_state.switch_lender2_reg_type,
+            "mortgage_type": st.session_state.switch_lender2_mortgage_type,
+            "balance": parse_money(st.session_state.switch_lender2_balance_raw),
+        })
     if count >= 3:
-        lenders.append((
-            st.session_state.switch_lender3_name, st.session_state.switch_lender3_reg_type,
-            parse_money(st.session_state.switch_lender3_balance_raw),
-        ))
+        lenders.append({
+            "name": st.session_state.switch_lender3_name, "is_frfi": st.session_state.switch_lender3_is_frfi,
+            "reg_type": st.session_state.switch_lender3_reg_type,
+            "mortgage_type": st.session_state.switch_lender3_mortgage_type,
+            "balance": parse_money(st.session_state.switch_lender3_balance_raw),
+        })
     if count >= 4:
-        lenders.append((
-            st.session_state.switch_lender4_name, st.session_state.switch_lender4_reg_type,
-            parse_money(st.session_state.switch_lender4_balance_raw),
-        ))
+        lenders.append({
+            "name": st.session_state.switch_lender4_name, "is_frfi": st.session_state.switch_lender4_is_frfi,
+            "reg_type": st.session_state.switch_lender4_reg_type,
+            "mortgage_type": st.session_state.switch_lender4_mortgage_type,
+            "balance": parse_money(st.session_state.switch_lender4_balance_raw),
+        })
     return lenders
 
 
@@ -789,6 +823,33 @@ def get_debts_payout_total():
 def get_switch_net_proceeds():
     """What's left of the requested loan amount after all mortgages/LOCs and flagged debts are paid out."""
     return get_loan_amount() - get_switch_total_mortgage_balance() - get_debts_payout_total()
+
+
+def get_switch_payout_breakdown():
+    """
+    Itemized list of {label, amount} for everything being paid out of the switch-in proceeds:
+    Lender 1 + any additional lenders, then each debt flagged for payout.
+    """
+    items = []
+    balance1 = parse_money(st.session_state.switch_current_balance_raw)
+    if balance1 is not None:
+        items.append({
+            "label": "Lender 1 — " + (st.session_state.switch_ofi_name or "OFI") + " (first mortgage)",
+            "amount": balance1,
+        })
+    for idx, lender in enumerate(get_switch_additional_lenders(), start=2):
+        if lender["balance"] is not None:
+            items.append({
+                "label": "Lender " + str(idx) + " — " + (lender["name"] or "unspecified"),
+                "amount": lender["balance"],
+            })
+    for dkey, included in st.session_state.debt_payout_selected.items():
+        if included:
+            dt = get_debt_type(dkey)
+            amt = parse_money(st.session_state.debt_payout_balance.get(dkey, ""))
+            if amt is not None:
+                items.append({"label": (dt["label"] if dt else dkey) + " (payout)", "amount": amt})
+    return items
 
 
 def render_stepper(active_index):
@@ -1106,15 +1167,23 @@ def refresh_switch_in():
     st.session_state.switch_additional_funds = ""
     st.session_state.switch_amortization_changed = ""
     st.session_state.switch_borrowers_changed = ""
+    st.session_state.switch_amortization_change_years_raw = ""
+    st.session_state.switch_additional_funds_amount_raw = ""
     st.session_state.switch_lender_count = "1"
     st.session_state.switch_lender2_name = ""
+    st.session_state.switch_lender2_is_frfi = ""
     st.session_state.switch_lender2_reg_type = ""
+    st.session_state.switch_lender2_mortgage_type = ""
     st.session_state.switch_lender2_balance_raw = ""
     st.session_state.switch_lender3_name = ""
+    st.session_state.switch_lender3_is_frfi = ""
     st.session_state.switch_lender3_reg_type = ""
+    st.session_state.switch_lender3_mortgage_type = ""
     st.session_state.switch_lender3_balance_raw = ""
     st.session_state.switch_lender4_name = ""
+    st.session_state.switch_lender4_is_frfi = ""
     st.session_state.switch_lender4_reg_type = ""
+    st.session_state.switch_lender4_mortgage_type = ""
     st.session_state.switch_lender4_balance_raw = ""
     st.session_state.switch_requested_loan_amount_raw = ""
     st.session_state.switch_mortgages_good_standing = ""
@@ -1137,6 +1206,32 @@ def render_switch_in_step():
         "determine whether this qualifies as a straight switch and which qualifying rate applies."
     )
     render_calculator_popover("switchin")
+
+    # --- Deal at a Glance: always visible at the top so the key numbers are a moment's glance away ---
+    st.markdown("#### Deal at a Glance")
+    glance_cols = "<div class='metric-row'>"
+    glance_cols += (
+        "<div class='metric-card'><div class='metric-label'>Combined Existing Mortgages</div>"
+        "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>Loan Amount Requested</div>"
+        "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
+    )
+    if st.session_state.switch_additional_funds == "Yes":
+        funds_amt = parse_money(st.session_state.switch_additional_funds_amount_raw)
+        glance_cols += (
+            "<div class='metric-card'><div class='metric-label'>Additional Funds Requested</div>"
+            "<div class='metric-value'>" + (fmt_money(funds_amt) if funds_amt is not None else "—") + "</div></div>"
+        )
+    if st.session_state.switch_amortization_changed == "Yes":
+        years_amt = st.session_state.switch_amortization_change_years_raw or "—"
+        glance_cols += (
+            "<div class='metric-card'><div class='metric-label'>Amortization Change</div>"
+            "<div class='metric-value'>" + years_amt + " yrs</div></div>"
+        )
+    glance_cols += "</div>"
+    st.markdown(glance_cols, unsafe_allow_html=True)
+
+    st.divider()
 
     # --- Section 1: Current lenders & registration ---
     st.markdown("#### Current Lenders & Registration")
@@ -1176,66 +1271,44 @@ def render_switch_in_step():
             "Current Outstanding Balance at OFI ($)", value=st.session_state.switch_current_balance_raw,
             placeholder="e.g. 425,000", key="switch_current_balance_input",
         )
+    st.caption("Running Combined Existing Mortgages so far: " + fmt_money(get_switch_total_mortgage_balance()))
+
+    def render_additional_lender(n):
+        st.markdown("**Lender " + str(n) + "**")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.session_state["switch_lender" + str(n) + "_name"] = st.text_input(
+                "Financial Institution Name", value=st.session_state["switch_lender" + str(n) + "_name"],
+                placeholder="e.g. Bank of Example", key="switch_lender" + str(n) + "_name_input",
+            )
+            st.session_state["switch_lender" + str(n) + "_is_frfi"] = st.selectbox(
+                "Is this lender a Federally Regulated Financial Institution (FRFI)?", YES_NO_OPTIONS,
+                index=YES_NO_OPTIONS.index(st.session_state["switch_lender" + str(n) + "_is_frfi"]),
+                key="switch_lender" + str(n) + "_is_frfi_input",
+            )
+            st.session_state["switch_lender" + str(n) + "_reg_type"] = st.selectbox(
+                "Registration Type", REGISTRATION_TYPES,
+                index=REGISTRATION_TYPES.index(st.session_state["switch_lender" + str(n) + "_reg_type"]),
+                key="switch_lender" + str(n) + "_reg_type_input",
+            )
+        with c2:
+            st.session_state["switch_lender" + str(n) + "_mortgage_type"] = st.selectbox(
+                "Mortgage Type", MORTGAGE_TYPES,
+                index=MORTGAGE_TYPES.index(st.session_state["switch_lender" + str(n) + "_mortgage_type"]),
+                key="switch_lender" + str(n) + "_mortgage_type_input",
+            )
+            st.session_state["switch_lender" + str(n) + "_balance_raw"] = st.text_input(
+                "Balance ($)", value=st.session_state["switch_lender" + str(n) + "_balance_raw"],
+                placeholder="e.g. 45,000", key="switch_lender" + str(n) + "_balance_input",
+            )
+        st.caption("Running Combined Existing Mortgages so far: " + fmt_money(get_switch_total_mortgage_balance()))
 
     if lender_count >= 2:
-        st.markdown("**Lender 2**")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.session_state.switch_lender2_name = st.text_input(
-                "Financial Institution Name", value=st.session_state.switch_lender2_name,
-                placeholder="e.g. Bank of Example", key="switch_lender2_name_input",
-            )
-        with c2:
-            st.session_state.switch_lender2_reg_type = st.selectbox(
-                "Registration Type", REGISTRATION_TYPES,
-                index=REGISTRATION_TYPES.index(st.session_state.switch_lender2_reg_type),
-                key="switch_lender2_reg_type_input",
-            )
-        with c3:
-            st.session_state.switch_lender2_balance_raw = st.text_input(
-                "Balance ($)", value=st.session_state.switch_lender2_balance_raw,
-                placeholder="e.g. 45,000", key="switch_lender2_balance_input",
-            )
-
+        render_additional_lender(2)
     if lender_count >= 3:
-        st.markdown("**Lender 3**")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.session_state.switch_lender3_name = st.text_input(
-                "Financial Institution Name", value=st.session_state.switch_lender3_name,
-                placeholder="e.g. Bank of Example", key="switch_lender3_name_input",
-            )
-        with c2:
-            st.session_state.switch_lender3_reg_type = st.selectbox(
-                "Registration Type", REGISTRATION_TYPES,
-                index=REGISTRATION_TYPES.index(st.session_state.switch_lender3_reg_type),
-                key="switch_lender3_reg_type_input",
-            )
-        with c3:
-            st.session_state.switch_lender3_balance_raw = st.text_input(
-                "Balance ($)", value=st.session_state.switch_lender3_balance_raw,
-                placeholder="e.g. 20,000", key="switch_lender3_balance_input",
-            )
-
+        render_additional_lender(3)
     if lender_count >= 4:
-        st.markdown("**Lender 4**")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.session_state.switch_lender4_name = st.text_input(
-                "Financial Institution Name", value=st.session_state.switch_lender4_name,
-                placeholder="e.g. Bank of Example", key="switch_lender4_name_input",
-            )
-        with c2:
-            st.session_state.switch_lender4_reg_type = st.selectbox(
-                "Registration Type", REGISTRATION_TYPES,
-                index=REGISTRATION_TYPES.index(st.session_state.switch_lender4_reg_type),
-                key="switch_lender4_reg_type_input",
-            )
-        with c3:
-            st.session_state.switch_lender4_balance_raw = st.text_input(
-                "Balance ($)", value=st.session_state.switch_lender4_balance_raw,
-                placeholder="e.g. 15,000", key="switch_lender4_balance_input",
-            )
+        render_additional_lender(4)
 
     st.divider()
 
@@ -1257,11 +1330,22 @@ def render_switch_in_step():
             index=YES_NO_OPTIONS.index(st.session_state.switch_amortization_changed),
             key="switch_amortization_changed_input",
         )
+        if st.session_state.switch_amortization_changed == "Yes":
+            st.session_state.switch_amortization_change_years_raw = st.text_input(
+                "By how many years?", value=st.session_state.switch_amortization_change_years_raw,
+                placeholder="e.g. 5", key="switch_amortization_change_years_input",
+            )
     with c2:
         st.session_state.switch_additional_funds = st.selectbox(
             "Is the client requesting additional funds (cash out)?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_additional_funds), key="switch_additional_funds_input",
         )
+        if st.session_state.switch_additional_funds == "Yes":
+            st.session_state.switch_additional_funds_amount_raw = st.text_input(
+                "How much additional funds does the client need ($)?",
+                value=st.session_state.switch_additional_funds_amount_raw,
+                placeholder="e.g. 30,000", key="switch_additional_funds_amount_input",
+            )
         st.session_state.switch_borrowers_changed = st.selectbox(
             "Are the borrowers/guarantors on title changing from the OFI mortgage?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_borrowers_changed),
@@ -1317,14 +1401,9 @@ def render_switch_in_step():
         "Loan Amount Being Requested ($)", value=st.session_state.switch_requested_loan_amount_raw,
         placeholder="Defaults to the OFI balance above if left blank", key="switch_requested_loan_amount_input",
     )
-    st.markdown(
-        "<div class='metric-row'>"
-        "<div class='metric-card'><div class='metric-label'>Loan Amount Requested</div>"
-        "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
-        "<div class='metric-card'><div class='metric-label'>Combined Existing Mortgages (all lenders)</div>"
-        "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
-        "</div>",
-        unsafe_allow_html=True,
+    st.caption(
+        "Combined Existing Mortgages: " + fmt_money(get_switch_total_mortgage_balance())
+        + " · Loan Amount Requested: " + fmt_money(get_loan_amount())
     )
 
     st.divider()
@@ -3056,6 +3135,11 @@ def render_debts():
     if st.session_state.transaction_type == "refinance_new_lender":
         st.divider()
         st.markdown("#### Switch-In Payout Summary")
+        breakdown = get_switch_payout_breakdown()
+        if breakdown:
+            st.markdown("**Being paid out from proceeds:**")
+            for item in breakdown:
+                st.markdown("- " + item["label"] + ": " + fmt_money(item["amount"]))
         st.markdown(
             "<div class='metric-row'>"
             "<div class='metric-card'><div class='metric-label'>Requested Loan Amount</div>"
@@ -3322,6 +3406,10 @@ def render_analysis():
 
     if st.session_state.transaction_type == "refinance_new_lender":
         st.markdown("**Switch-In Payout Summary**")
+        breakdown = get_switch_payout_breakdown()
+        if breakdown:
+            for item in breakdown:
+                st.caption(item["label"] + ": " + fmt_money(item["amount"]))
         st.markdown(
             "<div class='metric-row'>"
             "<div class='metric-card'><div class='metric-label'>Requested Loan Amount</div>"
@@ -3692,13 +3780,14 @@ def build_document_checklist_data():
             switch_items.append({"subcategory": "OFI Mortgage Verification", "text": doc})
         for note in reqs["business_case_notes"]:
             switch_items.append({"subcategory": "Business Case Notes", "text": note})
-        for name, reg_type, balance in get_switch_additional_lenders():
-            label = name.strip() if name and name.strip() else "Additional Lender"
+        for lender in get_switch_additional_lenders():
+            label = lender["name"].strip() if lender["name"] and lender["name"].strip() else "Additional Lender"
             switch_items.append({
                 "subcategory": label,
                 "text": "Statement confirming balance ("
-                + (fmt_money(balance) if balance is not None else "amount not specified")
-                + ") and registration (" + (reg_type or "not specified") + ") for this mortgage/LOC",
+                + (fmt_money(lender["balance"]) if lender["balance"] is not None else "amount not specified")
+                + "), registration (" + (lender["reg_type"] or "not specified")
+                + ") and mortgage type (" + (lender["mortgage_type"] or "not specified") + ") for this mortgage/LOC",
             })
         if st.session_state.switch_mortgages_good_standing == "No":
             switch_items.append({
@@ -4216,10 +4305,13 @@ def build_system_notes():
         additional_lenders = get_switch_additional_lenders()
         if additional_lenders:
             lender_bits = []
-            for name, reg_type, balance in additional_lenders:
-                lender_name = name or "unspecified lender"
-                balance_str = fmt_money(balance) if balance is not None else "balance not specified"
-                lender_bits.append(lender_name + " (" + balance_str + ", " + (reg_type or "registration not specified") + ")")
+            for lender in additional_lenders:
+                lender_name = lender["name"] or "unspecified lender"
+                balance_str = fmt_money(lender["balance"]) if lender["balance"] is not None else "balance not specified"
+                lender_bits.append(
+                    lender_name + " (" + balance_str + ", " + (lender["reg_type"] or "registration not specified")
+                    + ", " + (lender["mortgage_type"] or "type not specified") + ")"
+                )
             due_diligence_bits.append("additional lenders on title: " + "; ".join(lender_bits))
         else:
             due_diligence_bits.append("no additional lenders on the property besides the OFI")
@@ -4238,11 +4330,14 @@ def build_system_notes():
         if due_diligence_bits:
             lines.append("SWITCH-IN DUE DILIGENCE: " + "; ".join(due_diligence_bits) + ".")
 
+        breakdown = get_switch_payout_breakdown()
+        breakdown_str = "; ".join(item["label"] + ": " + fmt_money(item["amount"]) for item in breakdown)
         lines.append(
             "SWITCH-IN PAYOUT: Requested loan amount " + fmt_money(get_loan_amount())
-            + " less total mortgages/LOCs paid out " + fmt_money(get_switch_total_mortgage_balance())
-            + " less debts paid out " + fmt_money(get_debts_payout_total())
-            + " = net proceeds remaining of " + fmt_money(get_switch_net_proceeds()) + "."
+            + ". Being paid out — " + (breakdown_str if breakdown_str else "nothing entered yet") + "."
+            + " Total mortgages/LOCs paid out " + fmt_money(get_switch_total_mortgage_balance())
+            + ", total debts paid out " + fmt_money(get_debts_payout_total())
+            + ", net proceeds remaining " + fmt_money(get_switch_net_proceeds()) + "."
         )
 
     if not lines:
