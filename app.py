@@ -50,7 +50,8 @@ EXTERIOR_FINISH_OPTIONS = [
 ]
 GARAGE_OPTIONS = ["", "None", "Attached", "Detached", "Carport", "Underground Parking", "Other"]
 PROPERTY_STATUS_OPTIONS = [
-    "", "Keeping — Primary Residence", "Keeping — Second Home / Cottage", "Keeping — Investment Property",
+    "", "Keeping — Primary Residence", "Keeping — Primary Residence with Rental Unit (Secondary Suite)",
+    "Keeping — Second Home / Cottage", "Keeping — Investment Property",
     "Converting — Owner-Occupied (Primary) to Rental", "Converting — Second Home / Cottage to Rental",
     "Converting — Investment Property to Owner-Occupied", "Converting — Investment Property to Second Home / Cottage",
     "Being Sold — Firm (Unconditional) Sale Agreement", "Being Sold — Not Yet Firm / Listed Only",
@@ -427,6 +428,14 @@ def init_state():
         st.session_state.debt_errors = {}
     if "subject_address" not in st.session_state:
         st.session_state.subject_address = ""
+    if "subject_has_rental_component" not in st.session_state:
+        st.session_state.subject_has_rental_component = ""
+    if "subject_rental_kitchen" not in st.session_state:
+        st.session_state.subject_rental_kitchen = False
+    if "subject_rental_bathroom" not in st.session_state:
+        st.session_state.subject_rental_bathroom = False
+    if "subject_rental_entrance" not in st.session_state:
+        st.session_state.subject_rental_entrance = False
     if "subject_taxes_raw" not in st.session_state:
         st.session_state.subject_taxes_raw = ""
     if "subject_condo_raw" not in st.session_state:
@@ -570,6 +579,7 @@ SAVE_STATE_KEYS = [
     "income_selected", "income_amounts", "income_special", "income_other_desc", "income_errors",
     "properties", "debt_selected", "debt_amounts", "debt_other_desc", "debt_errors",
     "subject_address", "subject_taxes_raw", "subject_condo_raw", "subject_heat_raw",
+    "subject_has_rental_component", "subject_rental_kitchen", "subject_rental_bathroom", "subject_rental_entrance",
     "subject_prop_type", "subject_prop_purpose", "subject_prop_age", "subject_garage",
     "subject_rural_urban", "subject_sqft", "subject_storeys", "subject_heating_type",
     "subject_cooling", "subject_foundation", "subject_foundation_other",
@@ -669,7 +679,7 @@ def refresh_all():
     st.session_state.refinance_balance_raw = ""
     st.session_state.refinance_remaining_amortization = ""
     st.session_state.subject_property_value_raw = ""
-    st.session_state["amortization_prefilled"] = False
+    st.session_state["amortization_synced_from"] = None
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
     st.session_state.other_source_desc = ""
@@ -685,6 +695,10 @@ def refresh_all():
     st.session_state.debt_other_desc = ""
     st.session_state.debt_errors = {}
     st.session_state.subject_address = ""
+    st.session_state.subject_has_rental_component = ""
+    st.session_state.subject_rental_kitchen = False
+    st.session_state.subject_rental_bathroom = False
+    st.session_state.subject_rental_entrance = False
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
@@ -1227,7 +1241,7 @@ def render_switch_in_step():
     if st.session_state.switch_amortization_changed == "Yes":
         years_amt = st.session_state.switch_amortization_change_years_raw or "—"
         glance_cols += (
-            "<div class='metric-card'><div class='metric-label'>Amortization Change</div>"
+            "<div class='metric-card'><div class='metric-label'>Amortization Requested</div>"
             "<div class='metric-value'>" + years_amt + " yrs</div></div>"
         )
     glance_cols += "</div>"
@@ -1334,8 +1348,9 @@ def render_switch_in_step():
         )
         if st.session_state.switch_amortization_changed == "Yes":
             st.session_state.switch_amortization_change_years_raw = st.text_input(
-                "By how many years?", value=st.session_state.switch_amortization_change_years_raw,
-                placeholder="e.g. 5", key="switch_amortization_change_years_input",
+                "What amortization does the client require (years)?",
+                value=st.session_state.switch_amortization_change_years_raw,
+                placeholder="e.g. 30", key="switch_amortization_change_years_input",
             )
     with c2:
         st.session_state.switch_additional_funds = st.selectbox(
@@ -1906,6 +1921,10 @@ def monthly_mortgage_payment(principal, annual_rate_percent, amortization_years)
 
 def refresh_property_details():
     st.session_state.subject_address = ""
+    st.session_state.subject_has_rental_component = ""
+    st.session_state.subject_rental_kitchen = False
+    st.session_state.subject_rental_bathroom = False
+    st.session_state.subject_rental_entrance = False
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
@@ -2030,6 +2049,40 @@ def render_property_details():
     )
     if not st.session_state.subject_address.strip():
         st.caption(":red[Please enter the property address.]")
+
+    st.divider()
+
+    st.write("**Rental Component**")
+    st.caption("Does this property have a secondary suite or unit being rented out (e.g. a basement apartment)?")
+    st.session_state.subject_has_rental_component = st.selectbox(
+        "Does this property have a rental unit?", YES_NO_OPTIONS,
+        index=YES_NO_OPTIONS.index(st.session_state.subject_has_rental_component)
+        if st.session_state.subject_has_rental_component in YES_NO_OPTIONS else 0,
+        key="subject_has_rental_component_input",
+    )
+    if st.session_state.subject_has_rental_component == "Yes":
+        st.caption("For the rental income to be usable for qualification, the unit must be self-contained:")
+        rc1, rc2, rc3 = st.columns(3)
+        with rc1:
+            st.session_state.subject_rental_kitchen = st.checkbox(
+                "Has its own kitchen", value=st.session_state.subject_rental_kitchen, key="subject_rental_kitchen_input",
+            )
+        with rc2:
+            st.session_state.subject_rental_bathroom = st.checkbox(
+                "Has its own bathroom", value=st.session_state.subject_rental_bathroom, key="subject_rental_bathroom_input",
+            )
+        with rc3:
+            st.session_state.subject_rental_entrance = st.checkbox(
+                "Has a separate entrance", value=st.session_state.subject_rental_entrance, key="subject_rental_entrance_input",
+            )
+        is_self_contained = (
+            st.session_state.subject_rental_kitchen and st.session_state.subject_rental_bathroom
+            and st.session_state.subject_rental_entrance
+        )
+        if is_self_contained:
+            st.caption(":green[Self-contained unit confirmed — rental income can be used for qualification under Income → Rental Income (Component of Primary Residence).]")
+        else:
+            st.caption(":red[Not self-contained — a kitchen, bathroom, and separate entrance are all required. Rental income from this unit cannot be used for qualification until all three are confirmed.]")
 
     st.caption(
         "Financing terms (contract rate, amortization) are now collected on the Analysis "
@@ -3084,10 +3137,12 @@ def render_debts():
                 )
                 if amounts.get("payment", "").strip() == "":
                     other_debt_errors_any = True
-                amounts["total_balance"] = st.text_input(
-                    "Total Balance Owing ($)", value=amounts.get("total_balance", ""),
-                    placeholder="Enter total balance owing", key="debt_totalbal_" + dkey,
-                )
+                indent_spacer, indent_content = st.columns([0.4, 9.6])
+                with indent_content:
+                    amounts["total_balance"] = st.text_input(
+                        "Total Balance Owing ($)", value=amounts.get("total_balance", ""),
+                        placeholder="Enter total balance owing", key="debt_totalbal_" + dkey,
+                    )
 
             _, debt_explanation = explain_debt_payment(debt_type, amounts)
             st.caption(debt_explanation)
@@ -3270,22 +3325,24 @@ def render_analysis():
     st.write("This page aggregates data from all previous steps — nothing to re-enter here.")
     render_calculator_popover("analysis")
 
-    # --- For switch/refinance deals, prefill amortization from what the client previously had,
-    # adjusted for any requested change, instead of leaving the generic default in place. ---
-    if not st.session_state.get("amortization_prefilled") and is_refinance():
-        prior_years = None
+    # --- For switch/refinance deals, keep amortization synced to what the client indicated on the
+    # Switch-In / Property Details step, so a later change there flows through automatically. This
+    # only overrides the field when the underlying source value itself changes — a manual edit made
+    # directly on this page is left alone until the source changes again. ---
+    if is_refinance():
+        source_years = None
         if st.session_state.transaction_type == "refinance_new_lender":
-            base = parse_money(st.session_state.switch_remaining_amortization)
-            if base is not None:
-                if st.session_state.switch_amortization_changed == "Yes":
-                    change = parse_money(st.session_state.switch_amortization_change_years_raw) or 0.0
-                    base += change
-                prior_years = base
+            if st.session_state.switch_amortization_changed == "Yes":
+                source_years = parse_money(st.session_state.switch_amortization_change_years_raw)
+            else:
+                source_years = parse_money(st.session_state.switch_remaining_amortization)
         elif st.session_state.transaction_type == "refinance_existing_lender":
-            prior_years = parse_money(st.session_state.refinance_remaining_amortization)
-        if prior_years is not None:
-            st.session_state.amortization_years = int(round(min(max(prior_years, 1), 35)))
-        st.session_state["amortization_prefilled"] = True
+            source_years = parse_money(st.session_state.refinance_remaining_amortization)
+        if source_years is not None:
+            source_years = int(round(min(max(source_years, 1), 35)))
+            if st.session_state.get("amortization_synced_from") != source_years:
+                st.session_state.amortization_years = source_years
+                st.session_state["amortization_synced_from"] = source_years
 
     # --- Financing Terms (moved here from Property Details) ---
     st.markdown("#### Financing Terms")
@@ -3396,6 +3453,8 @@ def render_analysis():
         "</div>",
         unsafe_allow_html=True,
     )
+    if ltv is None and is_refinance():
+        st.caption(":red[LTV can't be calculated — enter the Current Estimated Property Value on the Property Details step.]")
 
     # --- Combined LTV: subject property + all other (non-firm-sale) properties from Debts ---
     combined_loan = loan_amount
@@ -4285,6 +4344,16 @@ def build_system_notes():
         prop_bits.append(st.session_state.subject_sqft + " sqft")
     if prop_bits:
         lines.append("SUBJECT PROPERTY: " + ", ".join(prop_bits) + ".")
+    if st.session_state.subject_has_rental_component == "Yes":
+        self_contained = (
+            st.session_state.subject_rental_kitchen and st.session_state.subject_rental_bathroom
+            and st.session_state.subject_rental_entrance
+        )
+        lines.append(
+            "RENTAL COMPONENT: Property has a rental unit. Self-contained (kitchen/bathroom/separate entrance): "
+            + ("Yes — rental income usable for qualification." if self_contained
+               else "No — rental income cannot be used for qualification.")
+        )
 
     # --- GDS/TDS ---
     pi_payment, taxes, condo, heat, _ = get_subject_property_costs()
