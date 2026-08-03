@@ -103,6 +103,21 @@ INCOME_SOURCES = [
         "special": "rental",
     },
     {
+        "key": "rental_component_primary",
+        "label": "Rental Income — Component of Primary Residence (e.g. basement suite)",
+        "documents": [
+            "Signed lease agreement for the rented portion of the home",
+            "Appraisal or property assessment confirming a self-contained secondary suite",
+            "3 months of bank statements confirming deposit of rental income",
+        ],
+        "notes": (
+            "Only usable if the rented portion is a legally conforming, self-contained unit with its own "
+            "kitchen, bathroom, and separate entrance — confirm this on the Property Details step. If any "
+            "of those three are missing, this income cannot be used for qualification."
+        ),
+        "special": "rental",
+    },
+    {
         "key": "pension",
         "label": "Pension / Retirement Income",
         "documents": [
