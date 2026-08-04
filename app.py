@@ -11,7 +11,6 @@ from income_sources import INCOME_SOURCES
 INCOME_SOURCES_ALPHA = sorted(INCOME_SOURCES, key=lambda s: s["label"])
 from debt_types import DEBT_TYPES
 from switch_in_rules import (
-    REGISTRATION_TYPES,
     MORTGAGE_TYPES,
     SWITCH_TIMING_OPTIONS,
     CONVENTIONAL_MAX_LTV,
@@ -504,7 +503,7 @@ def init_state():
     if "switch_ofi_is_frfi" not in st.session_state:
         st.session_state.switch_ofi_is_frfi = ""
     if "switch_reg_type" not in st.session_state:
-        st.session_state.switch_reg_type = ""
+        st.session_state.switch_reg_type = "Traditional Mortgage"
     if "switch_mortgage_type" not in st.session_state:
         st.session_state.switch_mortgage_type = ""
     if "switch_timing" not in st.session_state:
@@ -528,7 +527,7 @@ def init_state():
     if "switch_lender2_is_frfi" not in st.session_state:
         st.session_state.switch_lender2_is_frfi = ""
     if "switch_lender2_reg_type" not in st.session_state:
-        st.session_state.switch_lender2_reg_type = ""
+        st.session_state.switch_lender2_reg_type = "Traditional Mortgage"
     if "switch_lender2_mortgage_type" not in st.session_state:
         st.session_state.switch_lender2_mortgage_type = ""
     if "switch_lender2_balance_raw" not in st.session_state:
@@ -538,7 +537,7 @@ def init_state():
     if "switch_lender3_is_frfi" not in st.session_state:
         st.session_state.switch_lender3_is_frfi = ""
     if "switch_lender3_reg_type" not in st.session_state:
-        st.session_state.switch_lender3_reg_type = ""
+        st.session_state.switch_lender3_reg_type = "Traditional Mortgage"
     if "switch_lender3_mortgage_type" not in st.session_state:
         st.session_state.switch_lender3_mortgage_type = ""
     if "switch_lender3_balance_raw" not in st.session_state:
@@ -548,7 +547,7 @@ def init_state():
     if "switch_lender4_is_frfi" not in st.session_state:
         st.session_state.switch_lender4_is_frfi = ""
     if "switch_lender4_reg_type" not in st.session_state:
-        st.session_state.switch_lender4_reg_type = ""
+        st.session_state.switch_lender4_reg_type = "Traditional Mortgage"
     if "switch_lender4_mortgage_type" not in st.session_state:
         st.session_state.switch_lender4_mortgage_type = ""
     if "switch_lender4_balance_raw" not in st.session_state:
@@ -572,6 +571,8 @@ def init_state():
         st.session_state.debt_payout_selected = {}
     if "debt_payout_balance" not in st.session_state:
         st.session_state.debt_payout_balance = {}
+    if "debt_paid_from_own_funds" not in st.session_state:
+        st.session_state.debt_paid_from_own_funds = {}
 
 
 SAVE_STATE_KEYS = [
@@ -608,7 +609,7 @@ SAVE_STATE_KEYS = [
     "switch_mortgages_good_standing", "switch_taxes_up_to_date",
     "switch_insurance_provider", "switch_insurance_good_standing",
     "refinance_balance_raw", "refinance_remaining_amortization", "subject_property_value_raw",
-    "debt_payout_selected", "debt_payout_balance",
+    "debt_payout_selected", "debt_payout_balance", "debt_paid_from_own_funds",
 ]
 
 
@@ -694,6 +695,9 @@ def refresh_all():
     st.session_state.properties = []
     st.session_state.debt_selected = []
     st.session_state.debt_amounts = {}
+    st.session_state.debt_payout_selected = {}
+    st.session_state.debt_payout_balance = {}
+    st.session_state.debt_paid_from_own_funds = {}
     st.session_state.debt_other_desc = ""
     st.session_state.debt_errors = {}
     st.session_state.subject_address = ""
@@ -733,7 +737,7 @@ def refresh_all():
     st.session_state.benchmark_rate = 5.25
     st.session_state.switch_ofi_name = ""
     st.session_state.switch_ofi_is_frfi = ""
-    st.session_state.switch_reg_type = ""
+    st.session_state.switch_reg_type = "Traditional Mortgage"
     st.session_state.switch_mortgage_type = ""
     st.session_state.switch_timing = ""
     st.session_state.switch_current_balance_raw = ""
@@ -747,17 +751,17 @@ def refresh_all():
     st.session_state.switch_lender_count = "1"
     st.session_state.switch_lender2_name = ""
     st.session_state.switch_lender2_is_frfi = ""
-    st.session_state.switch_lender2_reg_type = ""
+    st.session_state.switch_lender2_reg_type = "Traditional Mortgage"
     st.session_state.switch_lender2_mortgage_type = ""
     st.session_state.switch_lender2_balance_raw = ""
     st.session_state.switch_lender3_name = ""
     st.session_state.switch_lender3_is_frfi = ""
-    st.session_state.switch_lender3_reg_type = ""
+    st.session_state.switch_lender3_reg_type = "Traditional Mortgage"
     st.session_state.switch_lender3_mortgage_type = ""
     st.session_state.switch_lender3_balance_raw = ""
     st.session_state.switch_lender4_name = ""
     st.session_state.switch_lender4_is_frfi = ""
-    st.session_state.switch_lender4_reg_type = ""
+    st.session_state.switch_lender4_reg_type = "Traditional Mortgage"
     st.session_state.switch_lender4_mortgage_type = ""
     st.session_state.switch_lender4_balance_raw = ""
     st.session_state.switch_requested_loan_amount_raw = ""
@@ -1182,7 +1186,7 @@ def compute_switch_in_analysis():
 def refresh_switch_in():
     st.session_state.switch_ofi_name = ""
     st.session_state.switch_ofi_is_frfi = ""
-    st.session_state.switch_reg_type = ""
+    st.session_state.switch_reg_type = "Traditional Mortgage"
     st.session_state.switch_mortgage_type = ""
     st.session_state.switch_timing = ""
     st.session_state.switch_current_balance_raw = ""
@@ -1196,17 +1200,17 @@ def refresh_switch_in():
     st.session_state.switch_lender_count = "1"
     st.session_state.switch_lender2_name = ""
     st.session_state.switch_lender2_is_frfi = ""
-    st.session_state.switch_lender2_reg_type = ""
+    st.session_state.switch_lender2_reg_type = "Traditional Mortgage"
     st.session_state.switch_lender2_mortgage_type = ""
     st.session_state.switch_lender2_balance_raw = ""
     st.session_state.switch_lender3_name = ""
     st.session_state.switch_lender3_is_frfi = ""
-    st.session_state.switch_lender3_reg_type = ""
+    st.session_state.switch_lender3_reg_type = "Traditional Mortgage"
     st.session_state.switch_lender3_mortgage_type = ""
     st.session_state.switch_lender3_balance_raw = ""
     st.session_state.switch_lender4_name = ""
     st.session_state.switch_lender4_is_frfi = ""
-    st.session_state.switch_lender4_reg_type = ""
+    st.session_state.switch_lender4_reg_type = "Traditional Mortgage"
     st.session_state.switch_lender4_mortgage_type = ""
     st.session_state.switch_lender4_balance_raw = ""
     st.session_state.switch_requested_loan_amount_raw = ""
@@ -1269,27 +1273,23 @@ def render_switch_in_step():
             placeholder="e.g. Bank of Example", key="switch_ofi_name_input",
         )
         st.session_state.switch_ofi_is_frfi = st.selectbox(
-            "Is the OFI a Federally Regulated Financial Institution (FRFI)?", YES_NO_OPTIONS,
+            "Federally Regulated Institution (FRFI)?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_ofi_is_frfi), key="switch_ofi_is_frfi_input",
-        )
-        st.session_state.switch_reg_type = st.selectbox(
-            "Current Registration Type (and requested new registration)", REGISTRATION_TYPES,
-            index=REGISTRATION_TYPES.index(st.session_state.switch_reg_type), key="switch_reg_type_input",
         )
     with c2:
         st.session_state.switch_mortgage_type = st.selectbox(
             "Mortgage Type", MORTGAGE_TYPES,
             index=MORTGAGE_TYPES.index(st.session_state.switch_mortgage_type), key="switch_mortgage_type_input",
         )
-        st.session_state.switch_timing = st.selectbox(
-            "Switch Timing", SWITCH_TIMING_OPTIONS,
-            index=SWITCH_TIMING_OPTIONS.index(st.session_state.switch_timing), key="switch_timing_input",
-        )
         st.session_state.switch_current_balance_raw = st.text_input(
             "Current Outstanding Balance at OFI ($)", value=st.session_state.switch_current_balance_raw,
             placeholder="e.g. 425,000", key="switch_current_balance_input",
         )
-    st.caption("Running Combined Existing Mortgages so far: " + fmt_money(get_switch_total_mortgage_balance()))
+    st.markdown(
+        "<span style='color:#22c55e; font-weight:700;'>Running Combined Existing Mortgages so far: "
+        + fmt_money(get_switch_total_mortgage_balance()) + "</span>",
+        unsafe_allow_html=True,
+    )
 
     def render_additional_lender(n):
         st.markdown("**Lender " + str(n) + "**")
@@ -1300,14 +1300,9 @@ def render_switch_in_step():
                 placeholder="e.g. Bank of Example", key="switch_lender" + str(n) + "_name_input",
             )
             st.session_state["switch_lender" + str(n) + "_is_frfi"] = st.selectbox(
-                "Is this lender a Federally Regulated Financial Institution (FRFI)?", YES_NO_OPTIONS,
+                "Federally Regulated Institution (FRFI)?", YES_NO_OPTIONS,
                 index=YES_NO_OPTIONS.index(st.session_state["switch_lender" + str(n) + "_is_frfi"]),
                 key="switch_lender" + str(n) + "_is_frfi_input",
-            )
-            st.session_state["switch_lender" + str(n) + "_reg_type"] = st.selectbox(
-                "Registration Type", REGISTRATION_TYPES,
-                index=REGISTRATION_TYPES.index(st.session_state["switch_lender" + str(n) + "_reg_type"]),
-                key="switch_lender" + str(n) + "_reg_type_input",
             )
         with c2:
             st.session_state["switch_lender" + str(n) + "_mortgage_type"] = st.selectbox(
@@ -1319,7 +1314,11 @@ def render_switch_in_step():
                 "Balance ($)", value=st.session_state["switch_lender" + str(n) + "_balance_raw"],
                 placeholder="e.g. 45,000", key="switch_lender" + str(n) + "_balance_input",
             )
-        st.caption("Running Combined Existing Mortgages so far: " + fmt_money(get_switch_total_mortgage_balance()))
+        st.markdown(
+            "<span style='color:#22c55e; font-weight:700;'>Running Combined Existing Mortgages so far: "
+            + fmt_money(get_switch_total_mortgage_balance()) + "</span>",
+            unsafe_allow_html=True,
+        )
 
     if lender_count >= 2:
         render_additional_lender(2)
@@ -1327,6 +1326,12 @@ def render_switch_in_step():
         render_additional_lender(3)
     if lender_count >= 4:
         render_additional_lender(4)
+
+    st.divider()
+    st.session_state.switch_timing = st.selectbox(
+        "Switch Timing", SWITCH_TIMING_OPTIONS,
+        index=SWITCH_TIMING_OPTIONS.index(st.session_state.switch_timing), key="switch_timing_input",
+    )
 
     st.divider()
 
@@ -1414,9 +1419,12 @@ def render_switch_in_step():
         "Loan Amount Being Requested ($)", value=st.session_state.switch_requested_loan_amount_raw,
         placeholder="Defaults to the OFI balance above if left blank", key="switch_requested_loan_amount_input",
     )
-    st.caption(
-        "Combined Existing Mortgages: " + fmt_money(get_switch_total_mortgage_balance())
-        + " · Loan Amount Requested: " + fmt_money(get_loan_amount())
+    st.markdown(
+        "<span style='color:#22c55e; font-weight:700;'>Existing Mortgages Total: "
+        + fmt_money(get_switch_total_mortgage_balance()) + "</span><br>"
+        "<span style='color:#22c55e; font-weight:700;'>New Amount Requested: "
+        + fmt_money(get_loan_amount()) + "</span>",
+        unsafe_allow_html=True,
     )
 
     st.divider()
@@ -1972,18 +1980,21 @@ def render_other_description_field(label, session_state_key, widget_key):
     Renders a custom 'Other' description field inside a distinct, collapsible
     expander so it visually stands apart from the standard dropdown fields —
     clicking it opens up to show exactly what the client typed for that
-    custom answer.
+    custom answer. Indented under the field it belongs to, so it reads as a
+    sub-field rather than a new top-level question.
     """
     current_value = st.session_state.get(session_state_key, "")
     if current_value.strip():
         expander_label = "✏️ Client entered: \"" + current_value.strip() + "\"  (click to edit)"
     else:
         expander_label = "✏️ " + label + " — click to enter the client's own description"
-    with st.expander(expander_label, expanded=not current_value.strip()):
-        st.session_state[session_state_key] = st.text_input(
-            label, value=current_value, key=widget_key,
-            placeholder="Type the client's own description here",
-        )
+    indent_spacer, indent_content = st.columns([0.4, 9.6])
+    with indent_content:
+        with st.expander(expander_label, expanded=not current_value.strip()):
+            st.session_state[session_state_key] = st.text_input(
+                label, value=current_value, key=widget_key,
+                placeholder="Type the client's own description here",
+            )
 
 
 def render_property_details():
@@ -2234,10 +2245,18 @@ def render_property_details():
 
     st.divider()
 
+    carrying_costs_missing = [
+        label for label, raw in [
+            ("Monthly Property Taxes", st.session_state.subject_taxes_raw),
+            ("Monthly Condo / Strata Fees", st.session_state.subject_condo_raw),
+            ("Monthly Heating Costs", st.session_state.subject_heat_raw),
+        ] if raw.strip() == ""
+    ]
+
     if st.session_state.get("p2b_show_warning"):
-        render_missing_fields_warning(
-            [] if st.session_state.subject_address.strip() else ["Property Address"]
-        )
+        missing = [] if st.session_state.subject_address.strip() else ["Property Address"]
+        missing += carrying_costs_missing
+        render_missing_fields_warning(missing)
 
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
@@ -2263,13 +2282,16 @@ def render_property_details():
 
     with continue_col:
         if st.button("Continue →", type="primary", use_container_width=True, key="p2b_continue"):
-            if st.session_state.subject_address.strip():
+            if st.session_state.subject_address.strip() and not carrying_costs_missing:
                 st.session_state["p2b_show_warning"] = False
                 st.session_state.step = 4
                 st.rerun()
             else:
                 st.session_state["p2b_show_warning"] = True
-                st.error("Please enter the property address before continuing.")
+                if not st.session_state.subject_address.strip():
+                    st.error("Please enter the property address before continuing.")
+                else:
+                    st.error("Please enter 0 for any carrying cost the property doesn't have — these fields can't be left blank.")
 
 
 # ---------------------------------------------------------------------------
@@ -2587,6 +2609,30 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c2:
             amounts["amount"] = st.text_input("Average Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
+    elif skey == "rental_component_primary":
+        c1, c2 = st.columns(2)
+        with c1:
+            default_address = st.session_state.subject_address.strip()
+            amounts["property_address"] = st.text_input(
+                "Property Address", value=amounts.get("property_address", default_address),
+                placeholder="Defaults to the subject property address", key=prefix + "property_address",
+            )
+        with c2:
+            amounts["amount"] = st.text_input(
+                "Gross Annual Amount ($)", value=amounts.get("amount", ""),
+                placeholder="Enter annual amount", key=prefix + "amount",
+            )
+        is_self_contained = (
+            st.session_state.subject_has_rental_component == "Yes"
+            and st.session_state.subject_rental_kitchen and st.session_state.subject_rental_bathroom
+            and st.session_state.subject_rental_entrance
+        )
+        if not is_self_contained:
+            st.caption(
+                ":red[This income cannot be used for qualification until the Rental Component question on "
+                "Property Details confirms a self-contained unit (kitchen, bathroom, separate entrance).]"
+            )
+
     elif skey == "rental":
         c1, c2 = st.columns(2)
         with c1:
@@ -2855,6 +2901,9 @@ def refresh_page4():
     st.session_state.properties = []
     st.session_state.debt_selected = []
     st.session_state.debt_amounts = {}
+    st.session_state.debt_payout_selected = {}
+    st.session_state.debt_payout_balance = {}
+    st.session_state.debt_paid_from_own_funds = {}
     st.session_state.debt_other_desc = ""
     st.session_state.debt_errors = {}
 
@@ -3123,6 +3172,7 @@ def render_debts():
             st.session_state.debt_amounts.pop(dkey, None)
             st.session_state.debt_payout_selected.pop(dkey, None)
             st.session_state.debt_payout_balance.pop(dkey, None)
+            st.session_state.debt_paid_from_own_funds.pop(dkey, None)
 
         if new_checked:
             if dkey not in st.session_state.debt_amounts:
@@ -3160,7 +3210,6 @@ def render_debts():
                     )
 
                 payment_value = compute_debt_payment(debt_type, amounts)
-                total_other_debt += payment_value
 
                 if st.session_state.transaction_type == "refinance_new_lender":
                     payout_checked = st.checkbox(
@@ -3175,6 +3224,25 @@ def render_debts():
                             "Balance included in payout: "
                             + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
                         )
+
+                    own_funds_checked = st.checkbox(
+                        "Being paid off from the client's own funds / gifted funds (not mortgage proceeds)",
+                        value=st.session_state.debt_paid_from_own_funds.get(dkey, False),
+                        key="debt_own_funds_" + dkey,
+                    )
+                    st.session_state.debt_paid_from_own_funds[dkey] = own_funds_checked
+                    if own_funds_checked:
+                        st.caption(
+                            "Not part of the mortgage payout — will require proof of payout (current statement "
+                            "showing zero balance, or receipt) before this debt is dropped from GDS/TDS."
+                        )
+
+                    excluded_from_debt_service = payout_checked or own_funds_checked
+                else:
+                    excluded_from_debt_service = False
+
+                if not excluded_from_debt_service:
+                    total_other_debt += payment_value
 
                 docs_html = ""
                 for d in debt_type["documents"]:
@@ -3215,13 +3283,13 @@ def render_debts():
                 st.markdown("- " + item["label"] + ": " + fmt_money(item["amount"]))
         st.markdown(
             "<div class='metric-row'>"
-            "<div class='metric-card'><div class='metric-label'>Requested Loan Amount</div>"
+            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Loan Amount Requested</div>"
             "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
-            "<div class='metric-card'><div class='metric-label'>Total Mortgages/LOCs Paid Out</div>"
+            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Mortgages/LOCs Paid Out</div>"
             "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
-            "<div class='metric-card'><div class='metric-label'>Total Debts Paid Out</div>"
+            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Debts Paid Out</div>"
             "<div class='metric-value'>" + fmt_money(get_debts_payout_total()) + "</div></div>"
-            "<div class='metric-card'><div class='metric-label'>Net Proceeds Remaining</div>"
+            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Net Proceeds Remaining</div>"
             "<div class='metric-value'>" + fmt_money(get_switch_net_proceeds()) + "</div></div>"
             "</div>",
             unsafe_allow_html=True,
@@ -3506,13 +3574,13 @@ def render_analysis():
                 st.caption(item["label"] + ": " + fmt_money(item["amount"]))
         st.markdown(
             "<div class='metric-row'>"
-            "<div class='metric-card'><div class='metric-label'>Requested Loan Amount</div>"
+            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Loan Amount Requested</div>"
             "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
-            "<div class='metric-card'><div class='metric-label'>Total Mortgages/LOCs Paid Out</div>"
+            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Mortgages/LOCs Paid Out</div>"
             "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
-            "<div class='metric-card'><div class='metric-label'>Total Debts Paid Out</div>"
+            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Debts Paid Out</div>"
             "<div class='metric-value'>" + fmt_money(get_debts_payout_total()) + "</div></div>"
-            "<div class='metric-card'><div class='metric-label'>Net Proceeds Remaining</div>"
+            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Net Proceeds Remaining</div>"
             "<div class='metric-value'>" + fmt_money(get_switch_net_proceeds()) + "</div></div>"
             "</div>",
             unsafe_allow_html=True,
@@ -3893,6 +3961,14 @@ def build_document_checklist_data():
                 "subcategory": "Property Taxes", "text": "Current property tax statement showing amount owing",
             })
         switch_items.append({"subcategory": "Property Insurance", "text": "Proof of current property insurance"})
+        for dkey, own_funds in st.session_state.debt_paid_from_own_funds.items():
+            if own_funds:
+                dt = get_debt_type(dkey)
+                label = dt["label"] if dt else dkey
+                switch_items.append({
+                    "subcategory": "Debts Paid from Own/Gifted Funds",
+                    "text": "Proof of payout for " + label + " (current statement showing zero balance, or payout receipt)",
+                })
         if switch_items:
             categories.append({"name": "Switch-In (Refinance - New Lender)", "items": switch_items})
 
@@ -4437,12 +4513,19 @@ def build_system_notes():
 
         breakdown = get_switch_payout_breakdown()
         breakdown_str = "; ".join(item["label"] + ": " + fmt_money(item["amount"]) for item in breakdown)
+        own_funds_bits = []
+        for dkey, own_funds in st.session_state.debt_paid_from_own_funds.items():
+            if own_funds:
+                dt = get_debt_type(dkey)
+                own_funds_bits.append(dt["label"] if dt else dkey)
+        own_funds_str = ("; paid from own/gifted funds (not mortgage proceeds, excluded from GDS/TDS): "
+                          + ", ".join(own_funds_bits)) if own_funds_bits else ""
         lines.append(
             "SWITCH-IN PAYOUT: Requested loan amount " + fmt_money(get_loan_amount())
             + ". Being paid out — " + (breakdown_str if breakdown_str else "nothing entered yet") + "."
             + " Total mortgages/LOCs paid out " + fmt_money(get_switch_total_mortgage_balance())
             + ", total debts paid out " + fmt_money(get_debts_payout_total())
-            + ", net proceeds remaining " + fmt_money(get_switch_net_proceeds()) + "."
+            + ", net proceeds remaining " + fmt_money(get_switch_net_proceeds()) + "." + own_funds_str
         )
 
     if not lines:
