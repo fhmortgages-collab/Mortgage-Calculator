@@ -1285,11 +1285,6 @@ def render_switch_in_step():
             "Current Outstanding Balance at OFI ($)", value=st.session_state.switch_current_balance_raw,
             placeholder="e.g. 425,000", key="switch_current_balance_input",
         )
-    st.markdown(
-        "<span style='color:#22c55e; font-weight:700;'>Running Combined Existing Mortgages so far: "
-        + fmt_money(get_switch_total_mortgage_balance()) + "</span>",
-        unsafe_allow_html=True,
-    )
 
     def render_additional_lender(n):
         st.markdown("**Lender " + str(n) + "**")
@@ -1314,11 +1309,6 @@ def render_switch_in_step():
                 "Balance ($)", value=st.session_state["switch_lender" + str(n) + "_balance_raw"],
                 placeholder="e.g. 45,000", key="switch_lender" + str(n) + "_balance_input",
             )
-        st.markdown(
-            "<span style='color:#22c55e; font-weight:700;'>Running Combined Existing Mortgages so far: "
-            + fmt_money(get_switch_total_mortgage_balance()) + "</span>",
-            unsafe_allow_html=True,
-        )
 
     if lender_count >= 2:
         render_additional_lender(2)
@@ -1326,6 +1316,12 @@ def render_switch_in_step():
         render_additional_lender(3)
     if lender_count >= 4:
         render_additional_lender(4)
+
+    st.markdown(
+        "<span style='color:#22c55e; font-weight:700;'>Running Combined Existing Mortgages so far: "
+        + fmt_money(get_switch_total_mortgage_balance()).replace("$", "\\$") + "</span>",
+        unsafe_allow_html=True,
+    )
 
     st.divider()
     st.session_state.switch_timing = st.selectbox(
@@ -1421,9 +1417,9 @@ def render_switch_in_step():
     )
     st.markdown(
         "<span style='color:#22c55e; font-weight:700;'>Existing Mortgages Total: "
-        + fmt_money(get_switch_total_mortgage_balance()) + "</span><br>"
+        + fmt_money(get_switch_total_mortgage_balance()).replace("$", "\\$") + "</span><br>"
         "<span style='color:#22c55e; font-weight:700;'>New Amount Requested: "
-        + fmt_money(get_loan_amount()) + "</span>",
+        + fmt_money(get_loan_amount()).replace("$", "\\$") + "</span>",
         unsafe_allow_html=True,
     )
 
@@ -3211,6 +3207,7 @@ def render_debts():
 
                 payment_value = compute_debt_payment(debt_type, amounts)
 
+                payout_checked = False
                 if st.session_state.transaction_type == "refinance_new_lender":
                     payout_checked = st.checkbox(
                         "Include in payout from mortgage proceeds",
@@ -3225,21 +3222,19 @@ def render_debts():
                             + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
                         )
 
-                    own_funds_checked = st.checkbox(
-                        "Being paid off from the client's own funds / gifted funds (not mortgage proceeds)",
-                        value=st.session_state.debt_paid_from_own_funds.get(dkey, False),
-                        key="debt_own_funds_" + dkey,
+                own_funds_checked = st.checkbox(
+                    "Being paid off from the client's own funds / gifted funds prior to closing",
+                    value=st.session_state.debt_paid_from_own_funds.get(dkey, False),
+                    key="debt_own_funds_" + dkey,
+                )
+                st.session_state.debt_paid_from_own_funds[dkey] = own_funds_checked
+                if own_funds_checked:
+                    st.caption(
+                        "Excluded from GDS/TDS — will require proof of payout (current statement "
+                        "showing zero balance, or receipt) before closing."
                     )
-                    st.session_state.debt_paid_from_own_funds[dkey] = own_funds_checked
-                    if own_funds_checked:
-                        st.caption(
-                            "Not part of the mortgage payout — will require proof of payout (current statement "
-                            "showing zero balance, or receipt) before this debt is dropped from GDS/TDS."
-                        )
 
-                    excluded_from_debt_service = payout_checked or own_funds_checked
-                else:
-                    excluded_from_debt_service = False
+                excluded_from_debt_service = payout_checked or own_funds_checked
 
                 if not excluded_from_debt_service:
                     total_other_debt += payment_value
@@ -3413,7 +3408,7 @@ def render_analysis():
         elif st.session_state.transaction_type == "refinance_existing_lender":
             source_years = parse_money(st.session_state.refinance_remaining_amortization)
         if source_years is not None:
-            source_years = int(round(min(max(source_years, 1), 35)))
+            source_years = int(round(min(max(source_years, 1), 50)))
             if st.session_state.get("amortization_synced_from") != source_years:
                 st.session_state.amortization_years = source_years
                 st.session_state["amortization_synced_from"] = source_years
@@ -3465,7 +3460,7 @@ def render_analysis():
     with fc2:
         field_row(
             lambda: st.session_state.__setitem__("amortization_years", st.number_input(
-                "Amortization (years)", min_value=1, max_value=35,
+                "Amortization (years)", min_value=1, max_value=50,
                 value=st.session_state.amortization_years, step=1, key="analysis_amortization",
             )),
             lambda: help_amortization_text(st.session_state.amortization_years),
@@ -3853,7 +3848,7 @@ OTHER_PROPERTY_DOC_LABELS = [
 ALL_CHECKLIST_CATEGORIES = [
     "Application & Consent", "Identification", "Down Payment", "Income",
     "Property Being Purchased", "Other Properties Owned", "Other Debts & Liabilities",
-    "Switch-In (Refinance - New Lender)",
+    "Switch-In (Refinance - New Lender)", "Debts Paid from Own/Gifted Funds",
 ]
 
 
@@ -3961,16 +3956,22 @@ def build_document_checklist_data():
                 "subcategory": "Property Taxes", "text": "Current property tax statement showing amount owing",
             })
         switch_items.append({"subcategory": "Property Insurance", "text": "Proof of current property insurance"})
-        for dkey, own_funds in st.session_state.debt_paid_from_own_funds.items():
-            if own_funds:
-                dt = get_debt_type(dkey)
-                label = dt["label"] if dt else dkey
-                switch_items.append({
-                    "subcategory": "Debts Paid from Own/Gifted Funds",
-                    "text": "Proof of payout for " + label + " (current statement showing zero balance, or payout receipt)",
-                })
         if switch_items:
             categories.append({"name": "Switch-In (Refinance - New Lender)", "items": switch_items})
+
+    # Debts Paid from Own/Gifted Funds — applies to every transaction type, since a debt can be
+    # paid off from the client's own resources ahead of closing regardless of deal type.
+    own_funds_items = []
+    for dkey, own_funds in st.session_state.debt_paid_from_own_funds.items():
+        if own_funds:
+            dt = get_debt_type(dkey)
+            label = dt["label"] if dt else dkey
+            own_funds_items.append({
+                "subcategory": label,
+                "text": "Proof of payout (current statement showing zero balance, or payout receipt)",
+            })
+    if own_funds_items:
+        categories.append({"name": "Debts Paid from Own/Gifted Funds", "items": own_funds_items})
 
     return {"categories": categories}
 
@@ -4513,19 +4514,22 @@ def build_system_notes():
 
         breakdown = get_switch_payout_breakdown()
         breakdown_str = "; ".join(item["label"] + ": " + fmt_money(item["amount"]) for item in breakdown)
-        own_funds_bits = []
-        for dkey, own_funds in st.session_state.debt_paid_from_own_funds.items():
-            if own_funds:
-                dt = get_debt_type(dkey)
-                own_funds_bits.append(dt["label"] if dt else dkey)
-        own_funds_str = ("; paid from own/gifted funds (not mortgage proceeds, excluded from GDS/TDS): "
-                          + ", ".join(own_funds_bits)) if own_funds_bits else ""
         lines.append(
             "SWITCH-IN PAYOUT: Requested loan amount " + fmt_money(get_loan_amount())
             + ". Being paid out — " + (breakdown_str if breakdown_str else "nothing entered yet") + "."
             + " Total mortgages/LOCs paid out " + fmt_money(get_switch_total_mortgage_balance())
             + ", total debts paid out " + fmt_money(get_debts_payout_total())
-            + ", net proceeds remaining " + fmt_money(get_switch_net_proceeds()) + "." + own_funds_str
+            + ", net proceeds remaining " + fmt_money(get_switch_net_proceeds()) + "."
+        )
+
+    own_funds_bits = []
+    for dkey, own_funds in st.session_state.debt_paid_from_own_funds.items():
+        if own_funds:
+            dt = get_debt_type(dkey)
+            own_funds_bits.append(dt["label"] if dt else dkey)
+    if own_funds_bits:
+        lines.append(
+            "DEBTS PAID FROM OWN/GIFTED FUNDS (excluded from GDS/TDS): " + ", ".join(own_funds_bits) + "."
         )
 
     if not lines:
