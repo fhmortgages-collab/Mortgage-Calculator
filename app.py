@@ -19,6 +19,17 @@ from switch_in_rules import (
     determine_qualifying_path,
     switch_in_document_requirements,
 )
+from builder_rules import (
+    MORTGAGE_PRODUCT_OPTIONS,
+    BUILDER_TYPE_OPTIONS,
+    INTEREST_RATE_TYPE_OPTIONS,
+    CASHBACK_PROGRAM_OPTIONS,
+    CASHBACK_ELIGIBLE_PROGRAMS,
+    is_amortization_valid,
+    calculate_gst_hst_adjusted_price,
+    is_cashback_eligible,
+    builder_document_requirements,
+)
 
 # ---------------------------------------------------------------------------
 # Shared config
@@ -573,6 +584,35 @@ def init_state():
         st.session_state.debt_payout_balance = {}
     if "debt_paid_from_own_funds" not in st.session_state:
         st.session_state.debt_paid_from_own_funds = {}
+    if "debt_type_checked" not in st.session_state:
+        st.session_state.debt_type_checked = {}
+    if "debt_counts" not in st.session_state:
+        st.session_state.debt_counts = {}
+    # --- Builder Purchase Program ---
+    if "builder_name" not in st.session_state:
+        st.session_state.builder_name = ""
+    if "builder_code" not in st.session_state:
+        st.session_state.builder_code = ""
+    if "builder_type" not in st.session_state:
+        st.session_state.builder_type = ""
+    if "builder_warranty_provider" not in st.session_state:
+        st.session_state.builder_warranty_provider = ""
+    if "builder_mortgage_product" not in st.session_state:
+        st.session_state.builder_mortgage_product = ""
+    if "builder_amortization_years" not in st.session_state:
+        st.session_state.builder_amortization_years = ""
+    if "builder_interest_rate_type" not in st.session_state:
+        st.session_state.builder_interest_rate_type = ""
+    if "builder_gst_hst_included" not in st.session_state:
+        st.session_state.builder_gst_hst_included = ""
+    if "builder_gst_hst_percent_raw" not in st.session_state:
+        st.session_state.builder_gst_hst_percent_raw = ""
+    if "builder_cashback_requested" not in st.session_state:
+        st.session_state.builder_cashback_requested = ""
+    if "builder_cashback_program" not in st.session_state:
+        st.session_state.builder_cashback_program = ""
+    if "builder_rate_buydown" not in st.session_state:
+        st.session_state.builder_rate_buydown = ""
 
 
 SAVE_STATE_KEYS = [
@@ -610,6 +650,11 @@ SAVE_STATE_KEYS = [
     "switch_insurance_provider", "switch_insurance_good_standing",
     "refinance_balance_raw", "refinance_remaining_amortization", "subject_property_value_raw",
     "debt_payout_selected", "debt_payout_balance", "debt_paid_from_own_funds",
+    "debt_type_checked", "debt_counts",
+    "builder_name", "builder_code", "builder_type", "builder_warranty_provider",
+    "builder_mortgage_product", "builder_amortization_years", "builder_interest_rate_type",
+    "builder_gst_hst_included", "builder_gst_hst_percent_raw", "builder_cashback_requested",
+    "builder_cashback_program", "builder_rate_buydown",
 ]
 
 
@@ -698,8 +743,22 @@ def refresh_all():
     st.session_state.debt_payout_selected = {}
     st.session_state.debt_payout_balance = {}
     st.session_state.debt_paid_from_own_funds = {}
+    st.session_state.debt_type_checked = {}
+    st.session_state.debt_counts = {}
     st.session_state.debt_other_desc = ""
     st.session_state.debt_errors = {}
+    st.session_state.builder_name = ""
+    st.session_state.builder_code = ""
+    st.session_state.builder_type = ""
+    st.session_state.builder_warranty_provider = ""
+    st.session_state.builder_mortgage_product = ""
+    st.session_state.builder_amortization_years = ""
+    st.session_state.builder_interest_rate_type = ""
+    st.session_state.builder_gst_hst_included = ""
+    st.session_state.builder_gst_hst_percent_raw = ""
+    st.session_state.builder_cashback_requested = ""
+    st.session_state.builder_cashback_program = ""
+    st.session_state.builder_rate_buydown = ""
     st.session_state.subject_address = ""
     st.session_state.subject_has_rental_component = ""
     st.session_state.subject_rental_kitchen = False
@@ -876,7 +935,8 @@ def get_switch_payout_breakdown():
             amounts = st.session_state.debt_amounts.get(dkey, {})
             amt = get_debt_balance(dt, amounts) if dt else None
             if amt is not None:
-                items.append({"label": (dt["label"] if dt else dkey) + " (payout)", "amount": amt})
+                label = debt_instance_label(dt, dkey) if dt else dkey
+                items.append({"label": label + " (payout)", "amount": amt})
     return items
 
 
@@ -2050,6 +2110,109 @@ def render_property_details():
         )
         st.caption("To change the purchase price or down payment, go back to the Down Payment step.")
 
+    if st.session_state.transaction_type == "builder_purchase":
+        st.divider()
+        st.markdown("#### Builder Program Details")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.session_state.builder_name = st.text_input(
+                "Builder Name", value=st.session_state.builder_name, placeholder="e.g. Example Homes Inc.",
+            )
+            st.session_state.builder_type = st.selectbox(
+                "Builder Type", BUILDER_TYPE_OPTIONS,
+                index=BUILDER_TYPE_OPTIONS.index(st.session_state.builder_type)
+                if st.session_state.builder_type in BUILDER_TYPE_OPTIONS else 0,
+            )
+            st.session_state.builder_code = st.text_input(
+                "Builder Code (if known)", value=st.session_state.builder_code, placeholder="e.g. B107A6",
+            )
+            st.session_state.builder_warranty_provider = st.text_input(
+                "New Home Warranty Provider", value=st.session_state.builder_warranty_provider,
+                placeholder="e.g. a provincial new home warranty program",
+            )
+        with c2:
+            st.session_state.builder_mortgage_product = st.selectbox(
+                "Mortgage Product", MORTGAGE_PRODUCT_OPTIONS,
+                index=MORTGAGE_PRODUCT_OPTIONS.index(st.session_state.builder_mortgage_product)
+                if st.session_state.builder_mortgage_product in MORTGAGE_PRODUCT_OPTIONS else 0,
+            )
+            st.session_state.builder_amortization_years = st.text_input(
+                "Amortization Requested (years)", value=st.session_state.builder_amortization_years,
+                placeholder="e.g. 30",
+            )
+            amort_val = parse_money(st.session_state.builder_amortization_years)
+            if amort_val is not None and st.session_state.builder_mortgage_product:
+                valid, needs_approval, msg = is_amortization_valid(int(amort_val), st.session_state.builder_mortgage_product)
+                if not valid:
+                    st.caption(":red[" + msg + "]")
+                elif needs_approval:
+                    st.caption(":orange[" + msg + "]")
+                else:
+                    st.caption(msg)
+                if st.session_state.builder_mortgage_product == "Homeline Plan (Single Advance)":
+                    st.caption("Note: the qualifying amortization for a Homeline Plan is standardized at 30 years, regardless of the amortization entered above.")
+            st.session_state.builder_interest_rate_type = st.selectbox(
+                "Interest Rate Type", INTEREST_RATE_TYPE_OPTIONS,
+                index=INTEREST_RATE_TYPE_OPTIONS.index(st.session_state.builder_interest_rate_type)
+                if st.session_state.builder_interest_rate_type in INTEREST_RATE_TYPE_OPTIONS else 0,
+            )
+            st.session_state.builder_rate_buydown = st.selectbox(
+                "Is a Builder Interest Rate Buydown being offered?", YES_NO_OPTIONS,
+                index=YES_NO_OPTIONS.index(st.session_state.builder_rate_buydown)
+                if st.session_state.builder_rate_buydown in YES_NO_OPTIONS else 0,
+            )
+
+        st.markdown("**GST/HST**")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.session_state.builder_gst_hst_included = st.selectbox(
+                "Does the purchase price already include GST/HST?", YES_NO_OPTIONS,
+                index=YES_NO_OPTIONS.index(st.session_state.builder_gst_hst_included)
+                if st.session_state.builder_gst_hst_included in YES_NO_OPTIONS else 0,
+            )
+        with c2:
+            if st.session_state.builder_gst_hst_included == "No":
+                st.session_state.builder_gst_hst_percent_raw = st.text_input(
+                    "Exact GST/HST % (if confirmed by builder/lawyer/notary)",
+                    value=st.session_state.builder_gst_hst_percent_raw, placeholder="e.g. 5",
+                )
+        if st.session_state.builder_gst_hst_included == "No":
+            purchase_price_for_gst = parse_money(st.session_state.purchase_price_raw) or 0.0
+            gst_pct = parse_money(st.session_state.builder_gst_hst_percent_raw)
+            gst_pct_fraction = (gst_pct / 100.0) if gst_pct is not None else None
+            adjusted_price, gst_note = calculate_gst_hst_adjusted_price(
+                purchase_price_for_gst, False, gst_pct_fraction,
+            )
+            st.caption(
+                "Adjusted purchase price: " + fmt_money(adjusted_price) + ". " + gst_note
+            )
+
+        st.markdown("**Cashback**")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.session_state.builder_cashback_requested = st.selectbox(
+                "Is the client requesting cashback?", YES_NO_OPTIONS,
+                index=YES_NO_OPTIONS.index(st.session_state.builder_cashback_requested)
+                if st.session_state.builder_cashback_requested in YES_NO_OPTIONS else 0,
+            )
+        with c2:
+            if st.session_state.builder_cashback_requested == "Yes":
+                st.session_state.builder_cashback_program = st.selectbox(
+                    "Program", CASHBACK_PROGRAM_OPTIONS,
+                    index=CASHBACK_PROGRAM_OPTIONS.index(st.session_state.builder_cashback_program)
+                    if st.session_state.builder_cashback_program in CASHBACK_PROGRAM_OPTIONS else 0,
+                )
+                if st.session_state.builder_cashback_program and st.session_state.builder_cashback_program != "Not Applicable / Standard":
+                    if is_cashback_eligible(st.session_state.builder_cashback_program):
+                        st.caption(":green[Eligible for cashback combined with this program.]")
+                    else:
+                        st.caption(":red[This program cannot be combined with cashback.]")
+
+        with st.expander("Standard documents for this builder-purchase file"):
+            reqs = builder_document_requirements()
+            for d in reqs["documents"]:
+                st.markdown("- " + d)
+
     st.divider()
 
     st.session_state.subject_address = st.text_area(
@@ -2900,13 +3063,28 @@ def refresh_page4():
     st.session_state.debt_payout_selected = {}
     st.session_state.debt_payout_balance = {}
     st.session_state.debt_paid_from_own_funds = {}
+    st.session_state.debt_type_checked = {}
+    st.session_state.debt_counts = {}
     st.session_state.debt_other_desc = ""
     st.session_state.debt_errors = {}
 
 
+def base_debt_key(instance_key):
+    """Strips a '#N' instance suffix (e.g. 'credit_card#2' -> 'credit_card')."""
+    return instance_key.split("#")[0]
+
+
+def debt_instance_label(debt_type, instance_key):
+    """'Credit Cards' for the first instance, 'Credit Cards #2' for the second, etc."""
+    if "#" in instance_key:
+        return debt_type["label"] + " #" + instance_key.split("#")[1]
+    return debt_type["label"]
+
+
 def get_debt_type(key):
+    base = base_debt_key(key)
     for dt in DEBT_TYPES:
-        if dt["key"] == key:
+        if dt["key"] == base:
             return dt
     return None
 
@@ -3151,6 +3329,7 @@ def render_debts():
     st.divider()
 
     st.write("**Select Other Debt Types**")
+    st.caption("If the client has more than one account of the same type (e.g. two credit cards), check the type once and set how many below.")
 
     selected = st.session_state.debt_selected
     total_other_debt = 0.0
@@ -3158,42 +3337,69 @@ def render_debts():
 
     for debt_type in DEBT_TYPES:
         dkey = debt_type["key"]
-        checked = dkey in selected
-        new_checked = st.checkbox(debt_type["label"], value=checked, key="debt_" + dkey)
-
-        if new_checked and dkey not in selected:
-            selected.append(dkey)
-        elif not new_checked and dkey in selected:
-            selected.remove(dkey)
-            st.session_state.debt_amounts.pop(dkey, None)
-            st.session_state.debt_payout_selected.pop(dkey, None)
-            st.session_state.debt_payout_balance.pop(dkey, None)
-            st.session_state.debt_paid_from_own_funds.pop(dkey, None)
+        was_checked = st.session_state.debt_type_checked.get(dkey, dkey in selected)
+        new_checked = st.checkbox(debt_type["label"], value=was_checked, key="debt_" + dkey)
+        st.session_state.debt_type_checked[dkey] = new_checked
 
         if new_checked:
-            if dkey not in st.session_state.debt_amounts:
-                st.session_state.debt_amounts[dkey] = {}
-            amounts = st.session_state.debt_amounts[dkey]
+            indent_spacer, indent_content = st.columns([0.4, 9.6])
+            with indent_content:
+                count = st.selectbox(
+                    "How many separate " + debt_type["label"] + " accounts does the client have?",
+                    [1, 2, 3, 4, 5],
+                    index=st.session_state.debt_counts.get(dkey, 1) - 1,
+                    key="debt_count_" + dkey,
+                )
+            st.session_state.debt_counts[dkey] = count
+        else:
+            count = 0
+            st.session_state.debt_counts.pop(dkey, None)
+
+        instance_keys_for_type = [dkey if i == 1 else dkey + "#" + str(i) for i in range(1, count + 1)]
+
+        # Drop any instances beyond the current count (or all, if unchecked).
+        stale_instances = [
+            k for k in list(st.session_state.debt_amounts.keys())
+            if base_debt_key(k) == dkey and k not in instance_keys_for_type
+        ]
+        for k in stale_instances:
+            st.session_state.debt_amounts.pop(k, None)
+            st.session_state.debt_payout_selected.pop(k, None)
+            st.session_state.debt_payout_balance.pop(k, None)
+            st.session_state.debt_paid_from_own_funds.pop(k, None)
+            if k in selected:
+                selected.remove(k)
+
+        for instance_key in instance_keys_for_type:
+            if instance_key not in selected:
+                selected.append(instance_key)
+
+            if instance_key not in st.session_state.debt_amounts:
+                st.session_state.debt_amounts[instance_key] = {}
+            amounts = st.session_state.debt_amounts[instance_key]
 
             indent_spacer, indent_content = st.columns([0.4, 9.6])
             with indent_content:
+                if len(instance_keys_for_type) > 1:
+                    st.markdown("**" + debt_instance_label(debt_type, instance_key) + "**")
+
                 if debt_type["calc"] == "percent_of_balance":
                     amounts["balance"] = st.text_input(
                         "Total Outstanding Balance ($)", value=amounts.get("balance", ""),
-                        placeholder="Enter total balance", key="debt_bal_" + dkey,
+                        placeholder="Enter total balance", key="debt_bal_" + instance_key,
                     )
                     if amounts.get("balance", "").strip() == "":
                         other_debt_errors_any = True
                 else:
                     amounts["payment"] = st.text_input(
                         "Monthly Payment Amount ($)", value=amounts.get("payment", ""),
-                        placeholder="Enter monthly payment amount", key="debt_pay_" + dkey,
+                        placeholder="Enter monthly payment amount", key="debt_pay_" + instance_key,
                     )
                     if amounts.get("payment", "").strip() == "":
                         other_debt_errors_any = True
                     amounts["total_balance"] = st.text_input(
                         "Total Balance Owing ($)", value=amounts.get("total_balance", ""),
-                        placeholder="Enter total balance owing", key="debt_totalbal_" + dkey,
+                        placeholder="Enter total balance owing", key="debt_totalbal_" + instance_key,
                     )
 
                 _, debt_explanation = explain_debt_payment(debt_type, amounts)
@@ -3202,7 +3408,7 @@ def render_debts():
                 if dkey == "other":
                     st.session_state.debt_other_desc = st.text_input(
                         "Describe the other obligation", value=st.session_state.debt_other_desc,
-                        key="debt_other_desc_input",
+                        key="debt_other_desc_input_" + instance_key,
                     )
 
                 payment_value = compute_debt_payment(debt_type, amounts)
@@ -3211,10 +3417,10 @@ def render_debts():
                 if st.session_state.transaction_type == "refinance_new_lender":
                     payout_checked = st.checkbox(
                         "Include in payout from mortgage proceeds",
-                        value=st.session_state.debt_payout_selected.get(dkey, False),
-                        key="debt_payout_" + dkey,
+                        value=st.session_state.debt_payout_selected.get(instance_key, False),
+                        key="debt_payout_" + instance_key,
                     )
-                    st.session_state.debt_payout_selected[dkey] = payout_checked
+                    st.session_state.debt_payout_selected[instance_key] = payout_checked
                     if payout_checked:
                         payout_bal = get_debt_balance(debt_type, amounts)
                         st.caption(
@@ -3224,10 +3430,10 @@ def render_debts():
 
                 own_funds_checked = st.checkbox(
                     "Being paid off from the client's own funds / gifted funds prior to closing",
-                    value=st.session_state.debt_paid_from_own_funds.get(dkey, False),
-                    key="debt_own_funds_" + dkey,
+                    value=st.session_state.debt_paid_from_own_funds.get(instance_key, False),
+                    key="debt_own_funds_" + instance_key,
                 )
-                st.session_state.debt_paid_from_own_funds[dkey] = own_funds_checked
+                st.session_state.debt_paid_from_own_funds[instance_key] = own_funds_checked
                 if own_funds_checked:
                     st.caption(
                         "Excluded from GDS/TDS — will require proof of payout (current statement "
@@ -3249,7 +3455,7 @@ def render_debts():
                     unsafe_allow_html=True,
                 )
 
-            st.session_state.debt_amounts[dkey] = amounts
+            st.session_state.debt_amounts[instance_key] = amounts
 
     st.session_state.debt_selected = selected
 
@@ -3257,11 +3463,12 @@ def render_debts():
 
     if selected:
         st.write("**Other Debt Breakdown**")
-        for dkey in selected:
-            dt = get_debt_type(dkey)
-            amounts = st.session_state.debt_amounts.get(dkey, {})
+        for instance_key in selected:
+            dt = get_debt_type(instance_key)
+            amounts = st.session_state.debt_amounts.get(instance_key, {})
             _, exp = explain_debt_payment(dt, amounts)
-            st.caption(exp)
+            label_prefix = debt_instance_label(dt, instance_key) + ": " if "#" in instance_key else ""
+            st.caption(label_prefix + exp)
 
     total_monthly_debt = total_property_debt + total_other_debt
     st.markdown("#### Total Monthly Debt Obligations (Other Properties + Debts): " + fmt_money(total_monthly_debt))
@@ -3493,7 +3700,12 @@ def render_analysis():
     for dkey in st.session_state.debt_selected:
         dt = get_debt_type(dkey)
         amounts = st.session_state.debt_amounts.get(dkey, {})
-        other_debt_monthly += compute_debt_payment(dt, amounts)
+        excluded = (
+            st.session_state.debt_payout_selected.get(dkey, False)
+            or st.session_state.debt_paid_from_own_funds.get(dkey, False)
+        )
+        if not excluded:
+            other_debt_monthly += compute_debt_payment(dt, amounts)
     # All properties listed in the Debts step are treated as additional (non-subject) properties,
     # except those marked as a firm/unconditional sale (excluded per standard Canadian lending practice)
     for prop in st.session_state.properties:
@@ -3849,6 +4061,7 @@ ALL_CHECKLIST_CATEGORIES = [
     "Application & Consent", "Identification", "Down Payment", "Income",
     "Property Being Purchased", "Other Properties Owned", "Other Debts & Liabilities",
     "Switch-In (Refinance - New Lender)", "Debts Paid from Own/Gifted Funds",
+    "Builder Program", "Additional Documents",
 ]
 
 
@@ -3930,6 +4143,22 @@ def build_document_checklist_data():
                 debt_items.append({"subcategory": dt["label"], "text": doc})
     if debt_items:
         categories.append({"name": "Other Debts & Liabilities", "items": debt_items})
+
+    # Builder Purchase Program — standard documents plus conditional items driven by the
+    # builder details entered on Property Details.
+    if st.session_state.transaction_type == "builder_purchase":
+        builder_items = []
+        breqs = builder_document_requirements()
+        for doc in breqs["documents"]:
+            builder_items.append({"subcategory": "Builder Purchase", "text": doc})
+        if st.session_state.builder_gst_hst_included == "No":
+            builder_items.append({"subcategory": "GST/HST", "text": breqs["conditional"]["gst_hst_not_included"]})
+        if st.session_state.builder_rate_buydown == "Yes":
+            builder_items.append({"subcategory": "Interest Rate Buydown", "text": breqs["conditional"]["interest_rate_buydown"]})
+        if st.session_state.builder_warranty_provider.strip():
+            builder_items.append({"subcategory": "Warranty", "text": breqs["conditional"]["warranty_pending"]})
+        if builder_items:
+            categories.append({"name": "Builder Program", "items": builder_items})
 
     # Switch-In (Refinance - New Lender) — mandatory documents/business case notes from the
     # switch-in rules module, plus conditional items driven by the due-diligence answers.
@@ -4444,7 +4673,12 @@ def build_system_notes():
     for dkey in st.session_state.debt_selected:
         dt = get_debt_type(dkey)
         amounts = st.session_state.debt_amounts.get(dkey, {})
-        other_debt_monthly += compute_debt_payment(dt, amounts)
+        excluded = (
+            st.session_state.debt_payout_selected.get(dkey, False)
+            or st.session_state.debt_paid_from_own_funds.get(dkey, False)
+        )
+        if not excluded:
+            other_debt_monthly += compute_debt_payment(dt, amounts)
     for prop in st.session_state.properties:
         if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
             continue
@@ -4531,6 +4765,30 @@ def build_system_notes():
         lines.append(
             "DEBTS PAID FROM OWN/GIFTED FUNDS (excluded from GDS/TDS): " + ", ".join(own_funds_bits) + "."
         )
+
+    if st.session_state.transaction_type == "builder_purchase":
+        builder_bits = []
+        if st.session_state.builder_name.strip():
+            builder_bits.append("builder: " + st.session_state.builder_name.strip())
+        if st.session_state.builder_type:
+            builder_bits.append(st.session_state.builder_type)
+        if st.session_state.builder_code.strip():
+            builder_bits.append("code: " + st.session_state.builder_code.strip())
+        if st.session_state.builder_mortgage_product:
+            builder_bits.append("product: " + st.session_state.builder_mortgage_product)
+        if st.session_state.builder_amortization_years.strip():
+            builder_bits.append("amortization requested: " + st.session_state.builder_amortization_years.strip() + " years")
+        if st.session_state.builder_interest_rate_type:
+            builder_bits.append("rate type: " + st.session_state.builder_interest_rate_type)
+        if st.session_state.builder_rate_buydown:
+            builder_bits.append("rate buydown: " + st.session_state.builder_rate_buydown)
+        if st.session_state.builder_gst_hst_included:
+            builder_bits.append("GST/HST included in price: " + st.session_state.builder_gst_hst_included)
+        if st.session_state.builder_cashback_requested == "Yes":
+            cb_program = st.session_state.builder_cashback_program or "program not specified"
+            builder_bits.append("cashback requested (" + cb_program + ")")
+        if builder_bits:
+            lines.append("BUILDER PROGRAM: " + "; ".join(builder_bits) + ".")
 
     if not lines:
         return "No application data entered yet — complete the earlier steps to generate a summary."
