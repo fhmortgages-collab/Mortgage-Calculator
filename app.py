@@ -383,6 +383,10 @@ def init_state():
         st.session_state.transaction_type = ""
     if "transaction_type_error" not in st.session_state:
         st.session_state.transaction_type_error = ""
+    if "client_intake_notes" not in st.session_state:
+        st.session_state.client_intake_notes = ""
+    if "discrepancies_notes" not in st.session_state:
+        st.session_state.discrepancies_notes = ""
     if "doc_removed_items" not in st.session_state:
         st.session_state.doc_removed_items = []
     if "doc_edit_mode" not in st.session_state:
@@ -449,6 +453,8 @@ def init_state():
         st.session_state.subject_address = ""
     if "subject_has_rental_component" not in st.session_state:
         st.session_state.subject_has_rental_component = ""
+    if "subject_num_units" not in st.session_state:
+        st.session_state.subject_num_units = ""
     if "subject_rental_kitchen" not in st.session_state:
         st.session_state.subject_rental_kitchen = False
     if "subject_rental_bathroom" not in st.session_state:
@@ -630,6 +636,7 @@ SAVE_STATE_KEYS = [
     "properties", "debt_selected", "debt_amounts", "debt_other_desc", "debt_errors",
     "subject_address", "subject_taxes_raw", "subject_condo_raw", "subject_heat_raw",
     "subject_has_rental_component", "subject_rental_kitchen", "subject_rental_bathroom", "subject_rental_entrance",
+    "subject_num_units",
     "subject_prop_type", "subject_prop_purpose", "subject_prop_age", "subject_garage",
     "subject_rural_urban", "subject_sqft", "subject_storeys", "subject_heating_type",
     "subject_cooling", "subject_foundation", "subject_foundation_other",
@@ -640,6 +647,7 @@ SAVE_STATE_KEYS = [
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
     "doc_text_overrides", "doc_custom_items",
     "broker_notes", "combined_notes", "mortgage_term", "rate_type",
+    "client_intake_notes", "discrepancies_notes",
     "switch_ofi_name", "switch_ofi_is_frfi", "switch_reg_type", "switch_mortgage_type",
     "switch_timing", "switch_current_balance_raw", "switch_remaining_amortization",
     "switch_amortization_unchanged", "switch_additional_funds",
@@ -723,6 +731,8 @@ def refresh_all():
     st.session_state.doc_custom_items = {}
     st.session_state.broker_notes = ""
     st.session_state.combined_notes = ""
+    st.session_state.client_intake_notes = ""
+    st.session_state.discrepancies_notes = ""
     st.session_state.mortgage_term = "5 Year"
     st.session_state.rate_type = "Fixed"
     st.session_state.borrower_count = 1
@@ -771,6 +781,7 @@ def refresh_all():
     st.session_state.subject_rental_kitchen = False
     st.session_state.subject_rental_bathroom = False
     st.session_state.subject_rental_entrance = False
+    st.session_state.subject_num_units = ""
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
@@ -1635,6 +1646,17 @@ def render_transaction_type():
 
     st.divider()
 
+    st.markdown("#### Client Intake Notes")
+    st.caption("Capture the initial conversation with the client here — what they told you, in their own words, before the application was filled in. This is the reference point for spotting discrepancies later.")
+    st.session_state.client_intake_notes = st.text_area(
+        "Client Intake Notes / Initial Conversation", value=st.session_state.client_intake_notes,
+        placeholder="e.g. Client called Aug 4 — wants to refinance to consolidate two credit cards and a car loan, "
+        "mentioned a rental suite in the basement, said current balance is roughly $420,000 with Bank of Example...",
+        height=140, key="client_intake_notes_input",
+    )
+
+    st.divider()
+
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
         if st.button("← Back", use_container_width=True, key="p0_back"):
@@ -2044,6 +2066,7 @@ def refresh_property_details():
     st.session_state.subject_rental_kitchen = False
     st.session_state.subject_rental_bathroom = False
     st.session_state.subject_rental_entrance = False
+    st.session_state.subject_num_units = ""
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
@@ -2259,12 +2282,20 @@ def render_property_details():
 
     st.markdown("#### Rental Component")
     st.caption("Does this property have a secondary suite or unit being rented out (e.g. a basement apartment)?")
-    st.session_state.subject_has_rental_component = st.selectbox(
-        "Does this property have a rental unit?", YES_NO_OPTIONS,
-        index=YES_NO_OPTIONS.index(st.session_state.subject_has_rental_component)
-        if st.session_state.subject_has_rental_component in YES_NO_OPTIONS else 0,
-        key="subject_has_rental_component_input",
-    )
+    rc_a, rc_b = st.columns(2)
+    with rc_a:
+        st.session_state.subject_has_rental_component = st.selectbox(
+            "Does this property have a rental unit?", YES_NO_OPTIONS,
+            index=YES_NO_OPTIONS.index(st.session_state.subject_has_rental_component)
+            if st.session_state.subject_has_rental_component in YES_NO_OPTIONS else 0,
+            key="subject_has_rental_component_input",
+        )
+    with rc_b:
+        if st.session_state.subject_has_rental_component == "Yes":
+            st.session_state.subject_num_units = st.text_input(
+                "How many units does the property have?", value=st.session_state.subject_num_units,
+                placeholder="e.g. 2", key="subject_num_units_input",
+            )
     if st.session_state.subject_has_rental_component == "Yes":
         st.caption("For the rental income to be usable for qualification, the unit must be self-contained:")
         rc1, rc2, rc3 = st.columns(3)
@@ -3501,7 +3532,12 @@ def render_debts():
             amounts = st.session_state.debt_amounts.get(instance_key, {})
             _, exp = explain_debt_payment(dt, amounts)
             label_prefix = debt_instance_label(dt, instance_key) + ": " if "#" in instance_key else ""
-            st.caption(label_prefix + exp)
+            excluded_note = ""
+            if st.session_state.debt_payout_selected.get(instance_key, False):
+                excluded_note = " — excluded from GDS/TDS (paid out from mortgage proceeds)"
+            elif st.session_state.debt_paid_from_own_funds.get(instance_key, False):
+                excluded_note = " — excluded from GDS/TDS (paid from own/gifted funds)"
+            st.caption(label_prefix + exp + excluded_note)
 
     total_monthly_debt = total_property_debt + total_other_debt
     st.markdown("#### Total Monthly Debt Obligations (Other Properties + Debts): " + fmt_money(total_monthly_debt))
@@ -4164,13 +4200,16 @@ def build_document_checklist_data():
     if other_prop_items:
         categories.append({"name": "Other Properties Owned", "items": other_prop_items})
 
-    # Other Debts & Liabilities — one item per selected debt type per document
+    # Other Debts & Liabilities — one item per selected debt instance per document.
+    # Debts paid from own/gifted funds skip the standard financing docs here — their only
+    # requirement is proof of payout, already listed under its own category below.
     debt_items = []
     for key in st.session_state.debt_selected:
         dt = get_debt_type(key)
-        if dt:
+        if dt and not st.session_state.debt_paid_from_own_funds.get(key, False):
+            label = debt_instance_label(dt, key)
             for doc in dt["documents"]:
-                debt_items.append({"subcategory": dt["label"], "text": doc})
+                debt_items.append({"subcategory": label, "text": doc})
     if debt_items:
         categories.append({"name": "Other Debts & Liabilities", "items": debt_items})
 
@@ -4254,7 +4293,7 @@ def build_document_checklist_data():
     for dkey, own_funds in st.session_state.debt_paid_from_own_funds.items():
         if own_funds:
             dt = get_debt_type(dkey)
-            label = dt["label"] if dt else dkey
+            label = debt_instance_label(dt, dkey) if dt else dkey
             own_funds_items.append({
                 "subcategory": label,
                 "text": "Proof of payout (current statement showing zero balance, or payout receipt)",
@@ -4284,11 +4323,17 @@ def group_checklist_items(items):
 
 
 def annotate_item_keys(data):
-    """Stamps each item with a stable '_key' derived from its default (un-edited) text, before any overrides are applied."""
+    """Stamps each item with a stable '_key' derived from its default (un-edited) text, before any overrides are applied.
+    If two items genuinely produce the same key (e.g. identical text under the same subcategory), an
+    occurrence suffix is appended so Streamlit widget keys never collide."""
+    seen_counts = {}
     for category in data.get("categories", []):
         name = category.get("name", "")
         for item in category.get("items", []):
-            item["_key"] = checklist_item_key(name, item)
+            base_key = checklist_item_key(name, item)
+            seen_counts[base_key] = seen_counts.get(base_key, 0) + 1
+            occurrence = seen_counts[base_key]
+            item["_key"] = base_key if occurrence == 1 else base_key + "||#" + str(occurrence)
     return data
 
 
@@ -4890,6 +4935,35 @@ def render_notes():
             value=st.session_state.broker_notes, height=150, key="broker_notes_input",
         )
 
+        st.divider()
+
+        st.markdown("#### ⚠️ Discrepancies")
+        st.caption(
+            "Compare the application data above against the Client Intake Notes captured on the Deal step "
+            "(what the client actually told you). List anything that doesn't match — these are flagged as a "
+            "risk for underwriting to review."
+        )
+        if st.session_state.client_intake_notes.strip():
+            with st.expander("Client Intake Notes (from Deal step, for reference)"):
+                st.markdown(st.session_state.client_intake_notes.replace("\n", "  \n"))
+        else:
+            st.caption("No client intake notes were captured on the Deal step.")
+        st.session_state.discrepancies_notes = st.text_area(
+            "Discrepancies between the application and the original client conversation",
+            value=st.session_state.discrepancies_notes,
+            placeholder="e.g. Client said the credit card balance was $3,000 but the application shows $5,000; "
+            "client didn't mention a rental unit during intake but Property Details indicates one — confirm with client.",
+            height=120, key="discrepancies_notes_input",
+        )
+        if st.session_state.discrepancies_notes.strip():
+            st.markdown(
+                "<div style='background-color:#3b1d1d; border:1px solid #ef4444; border-radius:8px; padding:12px; margin-top:6px;'>"
+                "<b style='color:#ef4444;'>⚠ Risk flagged:</b> discrepancies noted between the application and "
+                "the client's original conversation — review before proceeding."
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
         st.caption(
             "Note: this app isn't connected to a live AI model — \"Combine Notes\" below merges the system "
             "summary and your notes into one clean file note using a fixed format, not generative rewriting."
@@ -4898,7 +4972,9 @@ def render_notes():
             combined = "UNDERWRITER FILE NOTE\n" + "=" * 40 + "\n\n"
             combined += "SYSTEM-GENERATED SUMMARY\n" + "-" * 40 + "\n" + system_notes + "\n\n"
             combined += "BROKER'S NOTES\n" + "-" * 40 + "\n"
-            combined += st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)"
+            combined += (st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)") + "\n\n"
+            combined += "DISCREPANCIES (RISK)\n" + "-" * 40 + "\n"
+            combined += st.session_state.discrepancies_notes.strip() if st.session_state.discrepancies_notes.strip() else "(none noted)"
             st.session_state.combined_notes = combined
             st.success("Notes combined below — feel free to edit before downloading.")
 
