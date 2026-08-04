@@ -30,6 +30,13 @@ from builder_rules import (
     is_cashback_eligible,
     builder_document_requirements,
 )
+from refinance_rules import (
+    equity_requirement_note,
+    ltv_calculation_note,
+    determine_amortization_increase,
+    change_of_borrower_note,
+    high_risk_review_note,
+)
 
 # ---------------------------------------------------------------------------
 # Shared config
@@ -837,17 +844,14 @@ def is_refinance():
 def get_loan_amount():
     """
     Purchase/Builder Purchase: purchase price - down payment.
-    Refinance - New Lender: the loan amount the client is requesting (from Switch-In Details),
-    falling back to the OFI balance being switched in if the requested amount hasn't been entered.
-    Refinance - Existing Lender: the current balance being refinanced (own field, no down payment).
+    Refinance (both Existing Lender and New Lender): the loan amount the client is requesting
+    (from the Lender Details step), falling back to Lender 1's balance if not entered.
     """
-    if st.session_state.transaction_type == "refinance_new_lender":
+    if is_refinance():
         requested = parse_money(st.session_state.switch_requested_loan_amount_raw)
         if requested is not None:
             return requested
         return parse_money(st.session_state.switch_current_balance_raw) or 0.0
-    if st.session_state.transaction_type == "refinance_existing_lender":
-        return parse_money(st.session_state.refinance_balance_raw) or 0.0
     purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
     down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
     return max(purchase_price - down_payment, 0.0)
@@ -946,19 +950,13 @@ def render_stepper(active_index):
         for i, label in enumerate(STEPS):
             btn_type = "primary" if i == active_index else "secondary"
             display_label = label
-            if i == 2:
-                if st.session_state.transaction_type == "refinance_new_lender":
-                    display_label = "Switch-In"
-                elif st.session_state.transaction_type == "refinance_existing_lender":
-                    display_label = label + " (N/A)"
+            if i == 2 and is_refinance():
+                display_label = "Lender Details"
             with cols[i]:
                 with st.container(key="stepbtn_" + str(i)):
                     if st.button(display_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
-                        if i == 2 and st.session_state.transaction_type == "refinance_existing_lender":
-                            st.info("Down Payment doesn't apply to a refinance — this application uses the mortgage balance instead.")
-                        else:
-                            st.session_state.step = i
-                            st.rerun()
+                        st.session_state.step = i
+                        st.rerun()
 
 
 st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout="centered")
@@ -1282,17 +1280,29 @@ def refresh_switch_in():
 
 def render_switch_in_step():
     """
-    Shown in place of Down Payment when the transaction type is
-    'Refinance - New Lender'. Captures the OFI mortgage facts needed to
-    determine (a) whether this is a straight switch or requires discharge/
-    re-registration, and (b) which qualifying rate applies (Contract Rate /
-    AMQR / MQR), plus standard due-diligence questions on the file.
+    Shown in place of Down Payment for both refinance types. For 'Refinance -
+    New Lender' this captures the OFI mortgage facts needed to determine (a)
+    whether this is a straight switch or requires discharge/re-registration,
+    and (b) which qualifying rate applies (Contract Rate / AMQR / MQR). For
+    'Refinance - Existing Lender', Lender 1 is simply the lender staying on
+    title, and the same lender/amortization/standing/insurance fields are
+    captured, replacing the switch-specific determination with the internal-
+    refinance amortization-increase rules.
     """
-    st.markdown("### Switch-In Details (Existing Lender Being Replaced)")
-    st.write(
-        "This new lender is replacing the client's current lender. Answer the questions below to "
-        "determine whether this qualifies as a straight switch and which qualifying rate applies."
-    )
+    is_new_lender = st.session_state.transaction_type == "refinance_new_lender"
+
+    if is_new_lender:
+        st.markdown("### Switch-In Details (Existing Lender Being Replaced)")
+        st.write(
+            "This new lender is replacing the client's current lender. Answer the questions below to "
+            "determine whether this qualifies as a straight switch and which qualifying rate applies."
+        )
+    else:
+        st.markdown("### Lender Details (Refinancing with the Existing Lender)")
+        st.write(
+            "This refinance stays with the client's current lender. Answer the questions below to capture "
+            "the mortgage(s) on the property and the refinance requirements."
+        )
     render_calculator_popover("switchin")
 
     # --- Deal at a Glance: always visible at the top so the key numbers are a moment's glance away ---
@@ -1325,11 +1335,12 @@ def render_switch_in_step():
     )
     lender_count = int(st.session_state.switch_lender_count)
 
-    st.markdown("**Lender 1 (being switched in)**")
+    st.markdown("**Lender 1 (" + ("being switched in" if is_new_lender else "staying on this mortgage") + ")**")
     c1, c2 = st.columns(2)
     with c1:
         st.session_state.switch_ofi_name = st.text_input(
-            "Current (Other) Financial Institution Name", value=st.session_state.switch_ofi_name,
+            "Current (Other) Financial Institution Name" if is_new_lender else "Current Financial Institution Name",
+            value=st.session_state.switch_ofi_name,
             placeholder="e.g. Bank of Example", key="switch_ofi_name_input",
         )
         st.session_state.switch_ofi_is_frfi = st.selectbox(
@@ -1342,7 +1353,8 @@ def render_switch_in_step():
             index=MORTGAGE_TYPES.index(st.session_state.switch_mortgage_type), key="switch_mortgage_type_input",
         )
         st.session_state.switch_current_balance_raw = st.text_input(
-            "Current Outstanding Balance at OFI ($)", value=st.session_state.switch_current_balance_raw,
+            "Current Outstanding Balance ($)" if not is_new_lender else "Current Outstanding Balance at OFI ($)",
+            value=st.session_state.switch_current_balance_raw,
             placeholder="e.g. 425,000", key="switch_current_balance_input",
         )
 
@@ -1384,23 +1396,25 @@ def render_switch_in_step():
     )
 
     st.divider()
-    st.session_state.switch_timing = st.selectbox(
-        "Switch Timing", SWITCH_TIMING_OPTIONS,
-        index=SWITCH_TIMING_OPTIONS.index(st.session_state.switch_timing), key="switch_timing_input",
-    )
-
-    st.divider()
+    if is_new_lender:
+        st.session_state.switch_timing = st.selectbox(
+            "Switch Timing", SWITCH_TIMING_OPTIONS,
+            index=SWITCH_TIMING_OPTIONS.index(st.session_state.switch_timing), key="switch_timing_input",
+        )
+        st.divider()
 
     # --- Section 2: Amortization & change requests ---
     st.markdown("#### Amortization & Change Requests")
     c1, c2 = st.columns(2)
     with c1:
         st.session_state.switch_remaining_amortization = st.text_input(
-            "Remaining Amortization at OFI (years)", value=st.session_state.switch_remaining_amortization,
+            "Remaining Amortization (years)" if not is_new_lender else "Remaining Amortization at OFI (years)",
+            value=st.session_state.switch_remaining_amortization,
             placeholder="e.g. 22", key="switch_remaining_amortization_input",
         )
         st.session_state.switch_amortization_unchanged = st.selectbox(
-            "Is amortization staying the same as the OFI's remaining amortization?", YES_NO_OPTIONS,
+            "Is amortization staying the same as the remaining amortization above?" if not is_new_lender
+            else "Is amortization staying the same as the OFI's remaining amortization?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_amortization_unchanged),
             key="switch_amortization_unchanged_input",
         )
@@ -1415,16 +1429,27 @@ def render_switch_in_step():
                 value=st.session_state.switch_amortization_change_years_raw,
                 placeholder="e.g. 30", key="switch_amortization_change_years_input",
             )
+            if not is_new_lender:
+                max_years, credit_app_required, amort_note = determine_amortization_increase(
+                    st.session_state.switch_mortgage_type, None, True,
+                )
+                st.caption(amort_note)
     with c2:
         st.session_state.switch_additional_funds = st.selectbox(
             "Is the client requesting additional funds (cash out)?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_additional_funds), key="switch_additional_funds_input",
         )
         st.session_state.switch_borrowers_changed = st.selectbox(
-            "Are the borrowers/guarantors on title changing from the OFI mortgage?", YES_NO_OPTIONS,
+            "Are the borrowers/guarantors on title changing?" if not is_new_lender
+            else "Are the borrowers/guarantors on title changing from the OFI mortgage?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_borrowers_changed),
             key="switch_borrowers_changed_input",
         )
+        if st.session_state.switch_borrowers_changed == "Yes" and not is_new_lender:
+            st.caption(change_of_borrower_note())
+
+    if not is_new_lender:
+        st.caption(equity_requirement_note())
 
     st.divider()
 
@@ -1446,7 +1471,7 @@ def render_switch_in_step():
             key="switch_taxes_up_to_date_input",
         )
         if st.session_state.switch_taxes_up_to_date == "No":
-            st.caption(":red[Outstanding property taxes may need to be paid out or added to the switch.]")
+            st.caption(":red[Outstanding property taxes may need to be paid out or added to the new mortgage balance.]")
 
     st.divider()
 
@@ -1473,7 +1498,7 @@ def render_switch_in_step():
     st.markdown("#### Loan Amount Requested")
     st.session_state.switch_requested_loan_amount_raw = st.text_input(
         "Loan Amount Being Requested ($)", value=st.session_state.switch_requested_loan_amount_raw,
-        placeholder="Defaults to the OFI balance above if left blank", key="switch_requested_loan_amount_input",
+        placeholder="Defaults to Lender 1's balance above if left blank", key="switch_requested_loan_amount_input",
     )
     st.markdown(
         "<span style='color:#22c55e; font-weight:700;'>Existing Mortgages Total: "
@@ -1485,32 +1510,60 @@ def render_switch_in_step():
 
     st.divider()
 
-    # --- Determined path ---
-    analysis = compute_switch_in_analysis()
-    st.markdown("**Determined Path**")
-    if analysis is None:
-        st.info("Answer all questions above to determine the switch path and qualifying rate.")
-    else:
-        path_label = "Straight Switch (no discharge/re-registration)" if analysis["straight_switch"] else \
-            "Discharge & Re-Registration Required"
-        st.markdown(
-            "<div class='metric-row'>"
-            "<div class='metric-card'><div class='metric-label'>Transaction Path</div>"
-            "<div class='metric-value' style='font-size:15px;'>" + path_label + "</div></div>"
-            "<div class='metric-card'><div class='metric-label'>Qualifying Rate</div>"
-            "<div class='metric-value' style='font-size:15px;'>" + analysis["qualifying_rate"] + "</div></div>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-        st.caption(analysis["explanation"])
-        if st.session_state.switch_mortgage_type == "Conventional":
-            st.caption(
-                "Conventional switch-in balances must not exceed {:.0f}% of the current appraised value "
-                "(clients may pay down the balance to reach this if it's pushed over).".format(CONVENTIONAL_MAX_LTV)
+    if is_new_lender:
+        # --- Determined path (switch-specific) ---
+        analysis = compute_switch_in_analysis()
+        st.markdown("**Determined Path**")
+        if analysis is None:
+            st.info("Answer all questions above to determine the switch path and qualifying rate.")
+        else:
+            path_label = "Straight Switch (no discharge/re-registration)" if analysis["straight_switch"] else \
+                "Discharge & Re-Registration Required"
+            st.markdown(
+                "<div class='metric-row'>"
+                "<div class='metric-card'><div class='metric-label'>Transaction Path</div>"
+                "<div class='metric-value' style='font-size:15px;'>" + path_label + "</div></div>"
+                "<div class='metric-card'><div class='metric-label'>Qualifying Rate</div>"
+                "<div class='metric-value' style='font-size:15px;'>" + analysis["qualifying_rate"] + "</div></div>"
+                "</div>",
+                unsafe_allow_html=True,
             )
-        st.caption("Mandatory documents and business case notes for this switch-in are listed on the Documents step.")
+            st.caption(analysis["explanation"])
+            if st.session_state.switch_mortgage_type == "Conventional":
+                st.caption(
+                    "Conventional switch-in balances must not exceed {:.0f}% of the current appraised value "
+                    "(clients may pay down the balance to reach this if it's pushed over).".format(CONVENTIONAL_MAX_LTV)
+                )
+            st.caption("Mandatory documents and business case notes for this switch-in are listed on the Documents step.")
+        completion_ok = analysis is not None
+        missing_message = "Complete all Switch-In Details questions"
+    else:
+        # --- Refinance Requirements (internal refinance, same lender) ---
+        st.markdown("**Refinance Requirements**")
+        if st.session_state.switch_mortgage_type:
+            _, credit_app_required, amort_note = determine_amortization_increase(
+                st.session_state.switch_mortgage_type, None,
+                st.session_state.switch_additional_funds == "Yes",
+            )
+            st.markdown(
+                "<div class='metric-row'>"
+                "<div class='metric-card'><div class='metric-label'>Credit Application Required</div>"
+                "<div class='metric-value' style='font-size:15px;'>" + ("Yes" if credit_app_required else "Not always") + "</div></div>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption(amort_note)
+        st.caption(ltv_calculation_note())
+        st.caption("Mandatory documents for this refinance are listed on the Documents step.")
+        completion_required = [
+            st.session_state.switch_mortgage_type, st.session_state.switch_ofi_is_frfi,
+            st.session_state.switch_amortization_unchanged, st.session_state.switch_additional_funds,
+            st.session_state.switch_amortization_changed, st.session_state.switch_borrowers_changed,
+        ]
+        completion_ok = all(v != "" for v in completion_required)
+        missing_message = "Complete all Lender Details questions"
 
-    switch_missing = [] if analysis is not None else ["Complete all Switch-In Details questions"]
+    switch_missing = [] if completion_ok else [missing_message]
     if st.session_state.get("p2_show_warning"):
         render_missing_fields_warning(switch_missing)
 
@@ -1540,9 +1593,9 @@ def render_switch_in_step():
 
     with continue_col:
         if st.button("Continue →", type="primary", use_container_width=True, key="p2switch_continue"):
-            if analysis is None:
+            if not completion_ok:
                 st.session_state["p2_show_warning"] = True
-                st.error("Please complete the Switch-In Details questions before continuing.")
+                st.error("Please complete the " + ("Switch-In" if is_new_lender else "Lender") + " Details questions before continuing.")
             else:
                 st.session_state["p2_show_warning"] = False
                 st.session_state.step = 3
@@ -1760,7 +1813,7 @@ def render_client_details():
 
             if is_valid and st.session_state.consent:
                 st.session_state["p1_show_warning"] = False
-                st.session_state.step = 3 if st.session_state.transaction_type == "refinance_existing_lender" else 2
+                st.session_state.step = 2
                 st.rerun()
             else:
                 st.session_state["p1_show_warning"] = True
@@ -2061,41 +2114,21 @@ def render_property_details():
         st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
     render_calculator_popover("property")
 
-    if st.session_state.transaction_type == "refinance_new_lender":
+    if is_refinance():
         loan_amount = get_loan_amount()
         st.session_state.subject_property_value_raw = st.text_input(
             "Current Estimated Property Value ($)", value=st.session_state.subject_property_value_raw,
             placeholder="e.g. 650,000",
         )
+        st.caption(ltv_calculation_note())
         st.markdown(
             "<div class='metric-row'>"
-            "<div class='metric-card'><div class='metric-label'>Balance Being Switched In (from Switch-In Details)</div>"
+            "<div class='metric-card'><div class='metric-label'>Mortgage Loan Amount (from Lender Details)</div>"
             "<div class='metric-value'>" + fmt_money(loan_amount) + "</div></div>"
             "</div>",
             unsafe_allow_html=True,
         )
-        st.caption("To change this amount, go back to the Deal step and update the Switch-In Details.")
-    elif st.session_state.transaction_type == "refinance_existing_lender":
-        st.session_state.refinance_balance_raw = st.text_input(
-            "Current Mortgage Balance to Refinance ($)", value=st.session_state.refinance_balance_raw,
-            placeholder="e.g. 380,000",
-        )
-        st.session_state.refinance_remaining_amortization = st.text_input(
-            "Current Remaining Amortization (years)", value=st.session_state.refinance_remaining_amortization,
-            placeholder="e.g. 22",
-        )
-        st.session_state.subject_property_value_raw = st.text_input(
-            "Current Estimated Property Value ($)", value=st.session_state.subject_property_value_raw,
-            placeholder="e.g. 650,000",
-        )
-        loan_amount = get_loan_amount()
-        st.markdown(
-            "<div class='metric-row'>"
-            "<div class='metric-card'><div class='metric-label'>Mortgage Loan Amount</div>"
-            "<div class='metric-value'>" + fmt_money(loan_amount) + "</div></div>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
+        st.caption("To change this amount, go back to the Deal step and update Lender Details.")
     else:
         purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
         loan_amount = get_loan_amount()
@@ -2420,7 +2453,7 @@ def render_property_details():
     back_col, refresh_col, continue_col = st.columns(3)
     with back_col:
         if st.button("← Back", use_container_width=True, key="p2b_back"):
-            st.session_state.step = 1 if st.session_state.transaction_type == "refinance_existing_lender" else 2
+            st.session_state.step = 2
             st.rerun()
     with refresh_col:
         if st.button("Refresh", use_container_width=True, key="p2b_refresh"):
@@ -3414,7 +3447,7 @@ def render_debts():
                 payment_value = compute_debt_payment(debt_type, amounts)
 
                 payout_checked = False
-                if st.session_state.transaction_type == "refinance_new_lender":
+                if is_refinance():
                     payout_checked = st.checkbox(
                         "Include in payout from mortgage proceeds",
                         value=st.session_state.debt_payout_selected.get(instance_key, False),
@@ -3475,9 +3508,9 @@ def render_debts():
     st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
     st.caption("Full GDS/TDS qualification is calculated on the Analysis step, after financing terms are set.")
 
-    if st.session_state.transaction_type == "refinance_new_lender":
+    if is_refinance():
         st.divider()
-        st.markdown("#### Switch-In Payout Summary")
+        st.markdown("#### Refinance Payout Summary")
         breakdown = get_switch_payout_breakdown()
         if breakdown:
             st.markdown("**Being paid out from proceeds:**")
@@ -3602,18 +3635,15 @@ def render_analysis():
     render_calculator_popover("analysis")
 
     # --- For switch/refinance deals, keep amortization synced to what the client indicated on the
-    # Switch-In / Property Details step, so a later change there flows through automatically. This
-    # only overrides the field when the underlying source value itself changes — a manual edit made
-    # directly on this page is left alone until the source changes again. ---
+    # Lender Details step, so a later change there flows through automatically. This only overrides
+    # the field when the underlying source value itself changes — a manual edit made directly on
+    # this page is left alone until the source changes again. ---
     if is_refinance():
         source_years = None
-        if st.session_state.transaction_type == "refinance_new_lender":
-            if st.session_state.switch_amortization_changed == "Yes":
-                source_years = parse_money(st.session_state.switch_amortization_change_years_raw)
-            else:
-                source_years = parse_money(st.session_state.switch_remaining_amortization)
-        elif st.session_state.transaction_type == "refinance_existing_lender":
-            source_years = parse_money(st.session_state.refinance_remaining_amortization)
+        if st.session_state.switch_amortization_changed == "Yes":
+            source_years = parse_money(st.session_state.switch_amortization_change_years_raw)
+        else:
+            source_years = parse_money(st.session_state.switch_remaining_amortization)
         if source_years is not None:
             source_years = int(round(min(max(source_years, 1), 50)))
             if st.session_state.get("amortization_synced_from") != source_years:
@@ -3773,8 +3803,8 @@ def render_analysis():
     )
     st.caption(help_combined_ltv_text())
 
-    if st.session_state.transaction_type == "refinance_new_lender":
-        st.markdown("**Switch-In Payout Summary**")
+    if is_refinance():
+        st.markdown("**Refinance Payout Summary**")
         breakdown = get_switch_payout_breakdown()
         if breakdown:
             for item in breakdown:
@@ -4060,7 +4090,7 @@ OTHER_PROPERTY_DOC_LABELS = [
 ALL_CHECKLIST_CATEGORIES = [
     "Application & Consent", "Identification", "Down Payment", "Income",
     "Property Being Purchased", "Other Properties Owned", "Other Debts & Liabilities",
-    "Switch-In (Refinance - New Lender)", "Debts Paid from Own/Gifted Funds",
+    "Switch-In (Refinance - New Lender)", "Refinance (Existing Lender)", "Debts Paid from Own/Gifted Funds",
     "Builder Program", "Additional Documents",
 ]
 
@@ -4187,6 +4217,36 @@ def build_document_checklist_data():
         switch_items.append({"subcategory": "Property Insurance", "text": "Proof of current property insurance"})
         if switch_items:
             categories.append({"name": "Switch-In (Refinance - New Lender)", "items": switch_items})
+
+    # Refinance (Existing Lender) — same lender staying on title; internal-refinance requirements
+    # driven by the refinance rules module and the lender/standing/insurance answers.
+    if st.session_state.transaction_type == "refinance_existing_lender":
+        refi_items = []
+        for lender in get_switch_additional_lenders():
+            label = lender["name"].strip() if lender["name"] and lender["name"].strip() else "Additional Lender"
+            refi_items.append({
+                "subcategory": label,
+                "text": "Statement confirming balance ("
+                + (fmt_money(lender["balance"]) if lender["balance"] is not None else "amount not specified")
+                + ") and mortgage type (" + (lender["mortgage_type"] or "not specified") + ") for this mortgage/LOC",
+            })
+        if st.session_state.switch_mortgages_good_standing == "No":
+            refi_items.append({
+                "subcategory": "Standing", "text": "Written explanation for mortgage/LOC not in good standing",
+            })
+        if st.session_state.switch_taxes_up_to_date == "No":
+            refi_items.append({
+                "subcategory": "Property Taxes", "text": "Current property tax statement showing amount owing",
+            })
+        if st.session_state.switch_borrowers_changed == "Yes":
+            refi_items.append({
+                "subcategory": "Change of Borrower",
+                "text": "New refinance application in the name of all borrowers/guarantors who will be on the new mortgage, and confirmation of the title change",
+            })
+        refi_items.append({"subcategory": "Property Insurance", "text": "Proof of current property insurance"})
+        refi_items.append({"subcategory": "Property Valuation", "text": "Current property valuation/appraisal (LTV is based on appraised value, not original purchase price)"})
+        if refi_items:
+            categories.append({"name": "Refinance (Existing Lender)", "items": refi_items})
 
     # Debts Paid from Own/Gifted Funds — applies to every transaction type, since a debt can be
     # paid off from the client's own resources ahead of closing regardless of deal type.
@@ -4706,17 +4766,31 @@ def build_system_notes():
             )
         )
 
-    # --- Switch-In (Refinance - New Lender) ---
-    if st.session_state.transaction_type == "refinance_new_lender":
-        analysis = compute_switch_in_analysis()
-        if analysis:
-            path_label = "Straight Switch (no discharge/re-registration)" if analysis["straight_switch"] else \
-                "Discharge & Re-Registration Required"
-            lines.append(
-                "SWITCH-IN: Client is switching from " + (st.session_state.switch_ofi_name or "the current lender")
-                + ". Path: " + path_label + ". Qualifying Rate: " + analysis["qualifying_rate"] + ". "
-                + analysis["explanation"]
-            )
+    # --- Lender & Refinance Details (both refinance types) ---
+    if is_refinance():
+        if st.session_state.transaction_type == "refinance_new_lender":
+            analysis = compute_switch_in_analysis()
+            if analysis:
+                path_label = "Straight Switch (no discharge/re-registration)" if analysis["straight_switch"] else \
+                    "Discharge & Re-Registration Required"
+                lines.append(
+                    "SWITCH-IN: Client is switching from " + (st.session_state.switch_ofi_name or "the current lender")
+                    + ". Path: " + path_label + ". Qualifying Rate: " + analysis["qualifying_rate"] + ". "
+                    + analysis["explanation"]
+                )
+        else:
+            if st.session_state.switch_mortgage_type:
+                _, credit_app_required, amort_note = determine_amortization_increase(
+                    st.session_state.switch_mortgage_type, None,
+                    st.session_state.switch_additional_funds == "Yes",
+                )
+                lines.append(
+                    "REFINANCE (EXISTING LENDER): Client is refinancing with " + (st.session_state.switch_ofi_name or "the current lender")
+                    + ". " + amort_note + " " + ltv_calculation_note()
+                )
+            if st.session_state.switch_borrowers_changed == "Yes":
+                lines.append("CHANGE OF BORROWER: " + change_of_borrower_note())
+
         due_diligence_bits = []
         additional_lenders = get_switch_additional_lenders()
         if additional_lenders:
@@ -4730,7 +4804,7 @@ def build_system_notes():
                 )
             due_diligence_bits.append("additional lenders on title: " + "; ".join(lender_bits))
         else:
-            due_diligence_bits.append("no additional lenders on the property besides the OFI")
+            due_diligence_bits.append("no additional lenders on the property besides lender 1")
         if st.session_state.switch_mortgages_good_standing:
             due_diligence_bits.append(
                 "mortgages/LOCs in good standing: " + st.session_state.switch_mortgages_good_standing
@@ -4744,12 +4818,12 @@ def build_system_notes():
                 insurer_bit += " (good standing: " + st.session_state.switch_insurance_good_standing + ")"
             due_diligence_bits.append(insurer_bit)
         if due_diligence_bits:
-            lines.append("SWITCH-IN DUE DILIGENCE: " + "; ".join(due_diligence_bits) + ".")
+            lines.append("LENDER DUE DILIGENCE: " + "; ".join(due_diligence_bits) + ".")
 
         breakdown = get_switch_payout_breakdown()
         breakdown_str = "; ".join(item["label"] + ": " + fmt_money(item["amount"]) for item in breakdown)
         lines.append(
-            "SWITCH-IN PAYOUT: Requested loan amount " + fmt_money(get_loan_amount())
+            "REFINANCE PAYOUT: Requested loan amount " + fmt_money(get_loan_amount())
             + ". Being paid out — " + (breakdown_str if breakdown_str else "nothing entered yet") + "."
             + " Total mortgages/LOCs paid out " + fmt_money(get_switch_total_mortgage_balance())
             + ", total debts paid out " + fmt_money(get_debts_payout_total())
@@ -4876,7 +4950,7 @@ if st.session_state.step == 0:
 elif st.session_state.step == 1:
     render_client_details()
 elif st.session_state.step == 2:
-    if st.session_state.transaction_type == "refinance_new_lender":
+    if is_refinance():
         render_switch_in_step()
     else:
         render_down_payment()
