@@ -977,7 +977,7 @@ st.markdown(
     <style>
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
-    div[class*="st-key-notes_font_scope"] span,
+    div[class*="st-key-notes_font_scope"] span:not([data-testid="stIconMaterial"]),
     div[class*="st-key-notes_font_scope"] li,
     div[class*="st-key-notes_font_scope"] textarea {
         font-family: "Times New Roman", Times, serif !important;
@@ -987,6 +987,9 @@ st.markdown(
     div[class*="st-key-notes_font_scope"] b,
     div[class*="st-key-notes_font_scope"] strong {
         font-weight: 400 !important;
+    }
+    div[class*="st-key-notes_font_scope"] [data-testid="stIconMaterial"] {
+        font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons", sans-serif !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
         min-width: 0 !important;
@@ -4669,6 +4672,116 @@ def render_documents():
                 st.rerun()
 
 
+def extract_dollar_mentions(text, keywords):
+    """
+    Finds dollar-figure mentions near any of the given keywords in free text, e.g.
+    'client earns 200K annual' with keywords ['earn','income','salary'] -> [200000.0].
+    Handles '$200,000', '200,000', '200k', '200K'. Pattern-matching only — not AI,
+    won't catch phrasing it doesn't recognize.
+    """
+    found = []
+    lower_text = text.lower()
+    for keyword in keywords:
+        for m in re.finditer(re.escape(keyword), lower_text):
+            window = lower_text[max(0, m.start() - 40): m.end() + 40]
+            for num_match in re.finditer(r"\$?\s*([\d,]+(?:\.\d+)?)\s*(k)?", window):
+                raw, k_suffix = num_match.groups()
+                cleaned = raw.replace(",", "")
+                if cleaned in ("", "."):
+                    continue
+                try:
+                    value = float(cleaned)
+                except ValueError:
+                    continue
+                if k_suffix:
+                    value *= 1000
+                if value >= 1000 or k_suffix:
+                    found.append(value)
+    return found
+
+
+
+
+
+
+    """
+    Pattern-matches the free-text Client Intake Notes against structured application
+    data and flags obvious mismatches. This is regex/keyword matching, not AI — it
+    only catches the phrasing patterns below and can miss or misfire; always confirm
+    manually before relying on it.
+    """
+    text = st.session_state.client_intake_notes
+    if not text.strip():
+        return []
+
+    flags = []
+    lower_text = text.lower()
+
+    # --- Income ---
+    income_mentions = extract_dollar_mentions(text, ["earn", "income", "salary", "makes"])
+    if income_mentions:
+        app_income = compute_total_income()
+        mentioned = income_mentions[0]
+        if app_income == 0:
+            flags.append(
+                "Intake notes mention income of about " + fmt_money(mentioned)
+                + ", but no income has been entered yet on the Income step."
+            )
+        elif abs(mentioned - app_income) / max(app_income, 1) > 0.10:
+            flags.append(
+                "Intake notes mention income of about " + fmt_money(mentioned)
+                + ", but the Income step totals " + fmt_money(app_income) + "."
+            )
+
+    # --- Down payment (purchase/builder purchase only) ---
+    if not is_refinance():
+        dp_mentions = extract_dollar_mentions(text, ["down payment", "downpayment"])
+        if dp_mentions:
+            app_dp = parse_money(st.session_state.down_payment_raw) or 0.0
+            mentioned = dp_mentions[0]
+            if app_dp == 0:
+                flags.append(
+                    "Intake notes mention a down payment of about " + fmt_money(mentioned)
+                    + ", but no down payment has been entered yet on the Down Payment step."
+                )
+            elif abs(mentioned - app_dp) / max(app_dp, 1) > 0.10:
+                flags.append(
+                    "Intake notes mention a down payment of about " + fmt_money(mentioned)
+                    + ", but the Down Payment step shows " + fmt_money(app_dp) + "."
+                )
+
+    # --- Property type ---
+    property_type_keywords = {
+        "detached": "Detached", "semi-detached": "Semi-Detached", "semi detached": "Semi-Detached",
+        "townhouse": "Townhouse", "condo": "Condominium", "duplex": "Duplex", "triplex": "Triplex",
+        "bungalow": "Detached",
+    }
+    for keyword, implied_type in property_type_keywords.items():
+        if keyword in lower_text:
+            app_type = st.session_state.subject_prop_type
+            if app_type and implied_type not in app_type and app_type not in implied_type:
+                flags.append(
+                    "Intake notes mention \"" + keyword + "\", but Property Details shows the property type as \""
+                    + app_type + "\"."
+                )
+            break
+
+    # --- Rental unit / secondary suite ---
+    rental_keywords = ["rental unit", "secondary suite", "basement suite", "basement apartment", "rented out", "in-law suite"]
+    mentioned_rental = any(k in lower_text for k in rental_keywords)
+    if mentioned_rental and st.session_state.subject_has_rental_component != "Yes":
+        flags.append(
+            "Intake notes mention a rental unit/secondary suite, but Property Details' Rental Component "
+            "question isn't marked \"Yes\"."
+        )
+    if not mentioned_rental and st.session_state.subject_has_rental_component == "Yes" and "no rental" not in lower_text:
+        flags.append(
+            "Property Details indicates a rental unit/secondary suite, but the intake notes don't mention one — confirm the client disclosed this."
+        )
+
+    return flags
+
+
 def build_system_notes():
     """
     Compiles a structured, deterministic narrative summary from everything
@@ -4922,32 +5035,53 @@ def render_notes():
         "Combine them into one final note for the file."
     )
 
-    with st.container(key="notes_font_scope"):
-        with st.expander("System-Generated Summary (from application data)", expanded=True):
+    with st.expander("System-Generated Summary (from application data)", expanded=True):
+        with st.container(key="notes_font_scope_summary"):
             system_notes = build_system_notes()
             st.markdown(system_notes.replace("\n", "  \n"))
 
-        st.divider()
+    st.divider()
 
-        st.markdown("#### Broker's Notes")
+    st.markdown("#### Broker's Notes")
+    with st.container(key="notes_font_scope_broker"):
         st.session_state.broker_notes = st.text_area(
             "Add any context the system can't infer — client's story, special circumstances, verbal explanations, etc.",
             value=st.session_state.broker_notes, height=150, key="broker_notes_input",
         )
 
-        st.divider()
+    st.divider()
 
-        st.markdown("#### ⚠️ Discrepancies")
-        st.caption(
-            "Compare the application data above against the Client Intake Notes captured on the Deal step "
-            "(what the client actually told you). List anything that doesn't match — these are flagged as a "
-            "risk for underwriting to review."
-        )
-        if st.session_state.client_intake_notes.strip():
-            with st.expander("Client Intake Notes (from Deal step, for reference)"):
+    st.markdown("#### ⚠️ Discrepancies")
+    st.caption(
+        "Compare the application data above against the Client Intake Notes captured on the Deal step "
+        "(what the client actually told you). List anything that doesn't match — these are flagged as a "
+        "risk for underwriting to review."
+    )
+    if st.session_state.client_intake_notes.strip():
+        with st.expander("Client Intake Notes (from Deal step, for reference)"):
+            with st.container(key="notes_font_scope_intake"):
                 st.markdown(st.session_state.client_intake_notes.replace("\n", "  \n"))
-        else:
-            st.caption("No client intake notes were captured on the Deal step.")
+    else:
+        st.caption("No client intake notes were captured on the Deal step.")
+
+    auto_flags = detect_intake_discrepancies()
+    st.caption(
+        "Auto-flagged below by matching dollar figures and keywords in the intake notes against the "
+        "application data — this is pattern-matching, not AI (no live model is connected), so it only "
+        "catches the phrasing it recognizes. Always review manually."
+    )
+    if auto_flags:
+        for flag in auto_flags:
+            st.markdown("- :orange[" + flag + "]")
+        if st.button("↓ Add auto-flagged items to Discrepancies below", key="add_auto_flags_btn"):
+            existing = st.session_state.discrepancies_notes.strip()
+            addition = "\n".join("- " + f for f in auto_flags)
+            st.session_state.discrepancies_notes = (existing + "\n" + addition).strip() if existing else addition
+            st.rerun()
+    elif st.session_state.client_intake_notes.strip():
+        st.caption("No pattern-based mismatches found.")
+
+    with st.container(key="notes_font_scope_discrepancies"):
         st.session_state.discrepancies_notes = st.text_area(
             "Discrepancies between the application and the original client conversation",
             value=st.session_state.discrepancies_notes,
@@ -4955,42 +5089,43 @@ def render_notes():
             "client didn't mention a rental unit during intake but Property Details indicates one — confirm with client.",
             height=120, key="discrepancies_notes_input",
         )
-        if st.session_state.discrepancies_notes.strip():
-            st.markdown(
-                "<div style='background-color:#3b1d1d; border:1px solid #ef4444; border-radius:8px; padding:12px; margin-top:6px;'>"
-                "<b style='color:#ef4444;'>⚠ Risk flagged:</b> discrepancies noted between the application and "
-                "the client's original conversation — review before proceeding."
-                "</div>",
-                unsafe_allow_html=True,
-            )
-
-        st.caption(
-            "Note: this app isn't connected to a live AI model — \"Combine Notes\" below merges the system "
-            "summary and your notes into one clean file note using a fixed format, not generative rewriting."
+    if st.session_state.discrepancies_notes.strip():
+        st.markdown(
+            "<div style='background-color:#3b1d1d; border:1px solid #ef4444; border-radius:8px; padding:12px; margin-top:6px;'>"
+            "<b style='color:#ef4444;'>⚠ Risk flagged:</b> discrepancies noted between the application and "
+            "the client's original conversation — review before proceeding."
+            "</div>",
+            unsafe_allow_html=True,
         )
-        if st.button("🧩 Combine Notes", type="primary", use_container_width=True, key="combine_notes_btn"):
-            combined = "UNDERWRITER FILE NOTE\n" + "=" * 40 + "\n\n"
-            combined += "SYSTEM-GENERATED SUMMARY\n" + "-" * 40 + "\n" + system_notes + "\n\n"
-            combined += "BROKER'S NOTES\n" + "-" * 40 + "\n"
-            combined += (st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)") + "\n\n"
-            combined += "DISCREPANCIES (RISK)\n" + "-" * 40 + "\n"
-            combined += st.session_state.discrepancies_notes.strip() if st.session_state.discrepancies_notes.strip() else "(none noted)"
-            st.session_state.combined_notes = combined
-            st.success("Notes combined below — feel free to edit before downloading.")
 
-        if st.session_state.combined_notes:
-            st.divider()
-            st.markdown("#### Combined File Note")
+    st.caption(
+        "Note: this app isn't connected to a live AI model — \"Combine Notes\" below merges the system "
+        "summary and your notes into one clean file note using a fixed format, not generative rewriting."
+    )
+    if st.button("🧩 Combine Notes", type="primary", use_container_width=True, key="combine_notes_btn"):
+        combined = "UNDERWRITER FILE NOTE\n" + "=" * 40 + "\n\n"
+        combined += "SYSTEM-GENERATED SUMMARY\n" + "-" * 40 + "\n" + system_notes + "\n\n"
+        combined += "BROKER'S NOTES\n" + "-" * 40 + "\n"
+        combined += (st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)") + "\n\n"
+        combined += "DISCREPANCIES (RISK)\n" + "-" * 40 + "\n"
+        combined += st.session_state.discrepancies_notes.strip() if st.session_state.discrepancies_notes.strip() else "(none noted)"
+        st.session_state.combined_notes = combined
+        st.success("Notes combined below — feel free to edit before downloading.")
+
+    if st.session_state.combined_notes:
+        st.divider()
+        st.markdown("#### Combined File Note")
+        with st.container(key="notes_font_scope_combined"):
             st.session_state.combined_notes = st.text_area(
                 "Final note (editable)", value=st.session_state.combined_notes, height=300, key="combined_notes_editor",
                 label_visibility="collapsed",
             )
-            st.download_button(
-                "Download File Note (.txt)",
-                data=st.session_state.combined_notes,
-                file_name="underwriter_file_note.txt",
-                mime="text/plain",
-            )
+        st.download_button(
+            "Download File Note (.txt)",
+            data=st.session_state.combined_notes,
+            file_name="underwriter_file_note.txt",
+            mime="text/plain",
+        )
 
     st.divider()
 
