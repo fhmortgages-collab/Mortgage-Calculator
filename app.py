@@ -1100,17 +1100,17 @@ st.set_page_config(page_title="FH.Mortgages Calculator", page_icon="🏠", layou
 st.markdown(
     """
     <style>
+    html, body, [class*="css"], .stApp,
+    .stApp p, .stApp span:not([data-testid="stIconMaterial"]), .stApp li, .stApp label,
+    .stApp textarea, .stApp input, .stApp div[data-baseweb="select"] {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    }
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
     div[class*="st-key-notes_font_scope"] span:not([data-testid="stIconMaterial"]),
     div[class*="st-key-notes_font_scope"] li,
     div[class*="st-key-notes_font_scope"] textarea {
-        font-family: "Times New Roman", Times, serif !important;
-        font-size: 11pt !important;
-        font-weight: 400 !important;
-    }
-    div[class*="st-key-notes_font_scope"] b,
-    div[class*="st-key-notes_font_scope"] strong {
+        font-size: 15px !important;
         font-weight: 400 !important;
     }
     div[class*="st-key-notes_font_scope"] [data-testid="stIconMaterial"] {
@@ -1218,6 +1218,14 @@ st.markdown(
     .doc-list {
         background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
         padding: 10px 14px; margin-top: 6px; font-size: 13px; color:#374151;
+    }
+    div[class*="st-key-card_"],
+    div[class*="st-key-notes_font_scope_"] {
+        background: rgba(255,255,255,0.035);
+        border: 1px solid rgba(255,255,255,0.09);
+        border-radius: 12px;
+        padding: 14px 18px 18px;
+        margin: 10px 0 16px;
     }
     .metric-row {display:flex; gap: 16px; margin: 10px 0 4px; align-items: stretch;}
     .metric-card {
@@ -1783,14 +1791,15 @@ def render_transaction_type():
 
     st.divider()
 
-    st.markdown("#### Client Intake Notes")
-    st.caption("Capture the initial conversation with the client here — what they told you, in their own words, before the application was filled in. This is the reference point for spotting discrepancies later.")
-    st.session_state.client_intake_notes = st.text_area(
-        "Client Intake Notes / Initial Conversation", value=st.session_state.client_intake_notes,
-        placeholder="e.g. Client called Aug 4 — wants to refinance to consolidate two credit cards and a car loan, "
-        "mentioned a rental suite in the basement, said current balance is roughly $420,000 with Bank of Example...",
-        height=140, key="client_intake_notes_input",
-    )
+    with st.container(key="card_intake_notes"):
+        st.markdown("#### Client Intake Notes")
+        st.caption("Capture the initial conversation with the client here — what they told you, in their own words, before the application was filled in. This is the reference point for spotting discrepancies later.")
+        st.session_state.client_intake_notes = st.text_area(
+            "Client Intake Notes / Initial Conversation", value=st.session_state.client_intake_notes,
+            placeholder="e.g. Client called Aug 4 — wants to refinance to consolidate two credit cards and a car loan, "
+            "mentioned a rental suite in the basement, said current balance is roughly $420,000 with Bank of Example...",
+            height=140, key="client_intake_notes_input",
+        )
 
     st.divider()
 
@@ -2051,52 +2060,53 @@ def render_down_payment():
 
     st.divider()
 
-    st.write("**Select Down Payment Sources**")
+    with st.container(key="card_dp_sources"):
+        st.write("**Select Down Payment Sources**")
 
-    selected = st.session_state.selected_sources
-    for source in DOWN_PAYMENT_SOURCES:
-        checked = source["key"] in selected
-        new_checked = st.checkbox("**" + source["label"] + "**", value=checked, key="src_" + source["key"])
+        selected = st.session_state.selected_sources
+        for source in DOWN_PAYMENT_SOURCES:
+            checked = source["key"] in selected
+            new_checked = st.checkbox("**" + source["label"] + "**", value=checked, key="src_" + source["key"])
 
-        if new_checked and source["key"] not in selected:
-            selected.append(source["key"])
-        elif not new_checked and source["key"] in selected:
-            selected.remove(source["key"])
-            st.session_state.source_amounts.pop(source["key"], None)
+            if new_checked and source["key"] not in selected:
+                selected.append(source["key"])
+            elif not new_checked and source["key"] in selected:
+                selected.remove(source["key"])
+                st.session_state.source_amounts.pop(source["key"], None)
 
-        if new_checked:
-            if not source["eligible"]:
-                st.markdown(
-                    "<div class='doc-list'>⚠️ " + source["notes"] + "</div>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                amount_raw = st.text_input(
-                    source["label"] + " Amount ($)",
-                    value=st.session_state.source_amounts.get(source["key"], ""),
-                    placeholder="Enter amount",
-                    key="amt_" + source["key"],
-                )
-                st.session_state.source_amounts[source["key"]] = amount_raw
+            if new_checked:
+                if not source["eligible"]:
+                    st.markdown(
+                        "<div class='doc-list'>⚠️ " + source["notes"] + "</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    amount_raw = st.text_input(
+                        source["label"] + " Amount ($)",
+                        value=st.session_state.source_amounts.get(source["key"], ""),
+                        placeholder="Enter amount",
+                        key="amt_" + source["key"],
+                    )
+                    st.session_state.source_amounts[source["key"]] = amount_raw
 
-                if source["key"] == "other":
-                    st.session_state.other_source_desc = st.text_input(
-                        "Describe the other source",
-                        value=st.session_state.other_source_desc,
-                        key="other_source_desc_input",
+                    if source["key"] == "other":
+                        st.session_state.other_source_desc = st.text_input(
+                            "Describe the other source",
+                            value=st.session_state.other_source_desc,
+                            key="other_source_desc_input",
+                        )
+
+                    docs_html = ""
+                    for d in source["documents"]:
+                        docs_html += "<li>" + d + "</li>"
+                    notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
+                    st.markdown(
+                        "<div class='doc-list'><b>Required Documentation</b>"
+                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
+                        unsafe_allow_html=True,
                     )
 
-                docs_html = ""
-                for d in source["documents"]:
-                    docs_html += "<li>" + d + "</li>"
-                notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
-                st.markdown(
-                    "<div class='doc-list'><b>Required Documentation</b>"
-                    "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
-                    unsafe_allow_html=True,
-                )
-
-    st.session_state.selected_sources = selected
+        st.session_state.selected_sources = selected
 
     st.divider()
 
@@ -2314,424 +2324,430 @@ def render_property_details():
     st.divider()
 
     # --- Appraisal, Property Value & Purchase Channel (compacted into one section) ---
-    st.markdown("#### Appraisal & Purchase Channel")
-    oa_c1, oa_c2 = st.columns(2)
-    with oa_c1:
-        st.session_state.property_appraisal_type = st.selectbox(
-            "Order Appraisal", ["", "Appraisal", "Appraisal with Market Rent"],
-            index=["", "Appraisal", "Appraisal with Market Rent"].index(st.session_state.property_appraisal_type)
-            if st.session_state.property_appraisal_type in ["", "Appraisal", "Appraisal with Market Rent"] else 0,
-            key="property_appraisal_type_input",
-        )
-    with oa_c2:
-        st.write("")
-        order_btn_col, order_status_col = st.columns([1, 2])
-        with order_btn_col:
-            if st.button("📋 Order", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type, use_container_width=True):
-                st.session_state.property_appraisal_ordered = True
-        with order_status_col:
+    with st.container(key="card_appraisal_channel"):
+        st.markdown("#### Appraisal & Purchase Channel")
+        oa_c1, oa_c2 = st.columns(2)
+        with oa_c1:
+            st.session_state.property_appraisal_type = st.selectbox(
+                "Order Appraisal", ["", "Appraisal", "Appraisal with Market Rent"],
+                index=["", "Appraisal", "Appraisal with Market Rent"].index(st.session_state.property_appraisal_type)
+                if st.session_state.property_appraisal_type in ["", "Appraisal", "Appraisal with Market Rent"] else 0,
+                key="property_appraisal_type_input",
+            )
+        with oa_c2:
             st.write("")
-            if st.session_state.property_appraisal_ordered:
-                st.caption(":green[✓ Ordered (to be set up later).]")
+            order_btn_col, order_status_col = st.columns([1, 2])
+            with order_btn_col:
+                if st.button("📋 Order", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type, use_container_width=True):
+                    st.session_state.property_appraisal_ordered = True
+            with order_status_col:
+                st.write("")
+                if st.session_state.property_appraisal_ordered:
+                    st.caption(":green[✓ Ordered (to be set up later).]")
 
-    ref_value = get_reference_property_value()
-    pv_c1, pv_c2 = st.columns(2)
-    with pv_c1:
-        st.markdown(
-            "<span style='font-family: \"Source Code Pro\", monospace; font-size: 14px; color:#22c55e;'>"
-            "Property Value: `" + fmt_money(ref_value) + "`</span>",
-            unsafe_allow_html=True,
-        )
-        st.caption("Carried over from " + ("Lender Details" if is_refinance() else "Down Payment") + ".")
-    with pv_c2:
-        st.session_state.property_appraisal_value_raw = st.text_input(
-            "Appraisal Value ($)", value=st.session_state.property_appraisal_value_raw,
-            placeholder="Enter once the appraisal comes back",
-        )
-        appraisal_val = parse_money(st.session_state.property_appraisal_value_raw)
-        if appraisal_val is not None:
-            diff_caption = ""
-            if ref_value is not None and ref_value > 0:
-                diff_pct = (appraisal_val - ref_value) / ref_value * 100
-                if abs(diff_pct) >= 1:
-                    diff_caption = " (" + ("{:.1f}% below" if diff_pct < 0 else "{:.1f}% above").format(abs(diff_pct)) + " property value)"
+        ref_value = get_reference_property_value()
+        pv_c1, pv_c2 = st.columns(2)
+        with pv_c1:
             st.markdown(
                 "<span style='font-family: \"Source Code Pro\", monospace; font-size: 14px; color:#22c55e;'>"
-                "Appraisal Value: `" + fmt_money(appraisal_val) + "`</span>" + diff_caption,
+                "Property Value: `" + fmt_money(ref_value) + "`</span>",
                 unsafe_allow_html=True,
             )
+            st.caption("Carried over from " + ("Lender Details" if is_refinance() else "Down Payment") + ".")
+        with pv_c2:
+            st.session_state.property_appraisal_value_raw = st.text_input(
+                "Appraisal Value ($)", value=st.session_state.property_appraisal_value_raw,
+                placeholder="Enter once the appraisal comes back",
+            )
+            appraisal_val = parse_money(st.session_state.property_appraisal_value_raw)
+            if appraisal_val is not None:
+                diff_caption = ""
+                if ref_value is not None and ref_value > 0:
+                    diff_pct = (appraisal_val - ref_value) / ref_value * 100
+                    if abs(diff_pct) >= 1:
+                        diff_caption = " (" + ("{:.1f}% below" if diff_pct < 0 else "{:.1f}% above").format(abs(diff_pct)) + " property value)"
+                st.markdown(
+                    "<span style='font-family: \"Source Code Pro\", monospace; font-size: 14px; color:#22c55e;'>"
+                    "Appraisal Value: `" + fmt_money(appraisal_val) + "`</span>" + diff_caption,
+                    unsafe_allow_html=True,
+                )
 
-    pc_c1, pc_c2 = st.columns(2)
-    with pc_c1:
-        st.session_state.property_purchase_channel = st.selectbox(
-            "Purchase Channel", ["", "Private Sale - No MLS", "MLS Listed"],
-            index=["", "Private Sale - No MLS", "MLS Listed"].index(st.session_state.property_purchase_channel)
-            if st.session_state.property_purchase_channel in ["", "Private Sale - No MLS", "MLS Listed"] else 0,
-            key="property_purchase_channel_input",
-        )
-    with pc_c2:
+        pc_c1, pc_c2 = st.columns(2)
+        with pc_c1:
+            st.session_state.property_purchase_channel = st.selectbox(
+                "Purchase Channel", ["", "Private Sale - No MLS", "MLS Listed"],
+                index=["", "Private Sale - No MLS", "MLS Listed"].index(st.session_state.property_purchase_channel)
+                if st.session_state.property_purchase_channel in ["", "Private Sale - No MLS", "MLS Listed"] else 0,
+                key="property_purchase_channel_input",
+            )
+        with pc_c2:
+            if st.session_state.property_purchase_channel == "MLS Listed":
+                st.session_state.property_details_method = st.selectbox(
+                    "Property Characteristics", ["", "Auto-fill from MLS Link", "Enter Manually"],
+                    index=["", "Auto-fill from MLS Link", "Enter Manually"].index(st.session_state.property_details_method)
+                    if st.session_state.property_details_method in ["", "Auto-fill from MLS Link", "Enter Manually"] else 0,
+                    key="property_details_method_input",
+                )
+
         if st.session_state.property_purchase_channel == "MLS Listed":
-            st.session_state.property_details_method = st.selectbox(
-                "Property Characteristics", ["", "Auto-fill from MLS Link", "Enter Manually"],
-                index=["", "Auto-fill from MLS Link", "Enter Manually"].index(st.session_state.property_details_method)
-                if st.session_state.property_details_method in ["", "Auto-fill from MLS Link", "Enter Manually"] else 0,
-                key="property_details_method_input",
-            )
-
-    if st.session_state.property_purchase_channel == "MLS Listed":
-        if st.session_state.property_details_method == "Auto-fill from MLS Link":
-            mls_c1, mls_c2 = st.columns(2)
-            with mls_c1:
+            if st.session_state.property_details_method == "Auto-fill from MLS Link":
+                mls_c1, mls_c2 = st.columns(2)
+                with mls_c1:
+                    st.session_state.property_mls_link = st.text_input(
+                        "MLS Listing Link", value=st.session_state.property_mls_link, placeholder="https://...",
+                    )
+                with mls_c2:
+                    st.write("")
+                    autofill_clicked = st.button(
+                        "🔎 Auto-Fill", key="mls_autofill_btn",
+                        disabled=not st.session_state.property_mls_link.strip(), use_container_width=True,
+                    )
+                if autofill_clicked:
+                    with st.spinner("Attempting to read the MLS listing..."):
+                        found, error = attempt_mls_autofill(st.session_state.property_mls_link)
+                    if error:
+                        st.session_state.mls_autofill_status = "failed"
+                        st.session_state.mls_autofilled_fields = []
+                        st.warning("⚠ " + error + " Please complete the highlighted fields below manually.")
+                    else:
+                        for k, v in found.items():
+                            st.session_state[k] = v
+                        st.session_state.mls_autofilled_fields = list(found.keys())
+                        st.session_state.mls_autofill_status = "success"
+                        st.success("✓ Auto-filled " + str(len(found)) + " field(s) — please verify below, and complete any highlighted fields manually.")
+                        st.rerun()
+                if st.session_state.mls_autofill_status == "failed":
+                    st.caption(":orange[Could not auto-fill from that link — the fields below need to be entered manually.]")
+            elif st.session_state.property_details_method == "Enter Manually":
                 st.session_state.property_mls_link = st.text_input(
-                    "MLS Listing Link", value=st.session_state.property_mls_link, placeholder="https://...",
+                    "MLS Listing Link (for reference)", value=st.session_state.property_mls_link, placeholder="https://...",
                 )
-            with mls_c2:
-                st.write("")
-                autofill_clicked = st.button(
-                    "🔎 Auto-Fill", key="mls_autofill_btn",
-                    disabled=not st.session_state.property_mls_link.strip(), use_container_width=True,
-                )
-            if autofill_clicked:
-                with st.spinner("Attempting to read the MLS listing..."):
-                    found, error = attempt_mls_autofill(st.session_state.property_mls_link)
-                if error:
-                    st.session_state.mls_autofill_status = "failed"
-                    st.session_state.mls_autofilled_fields = []
-                    st.warning("⚠ " + error + " Please complete the highlighted fields below manually.")
-                else:
-                    for k, v in found.items():
-                        st.session_state[k] = v
-                    st.session_state.mls_autofilled_fields = list(found.keys())
-                    st.session_state.mls_autofill_status = "success"
-                    st.success("✓ Auto-filled " + str(len(found)) + " field(s) — please verify below, and complete any highlighted fields manually.")
-                    st.rerun()
-            if st.session_state.mls_autofill_status == "failed":
-                st.caption(":orange[Could not auto-fill from that link — the fields below need to be entered manually.]")
-        elif st.session_state.property_details_method == "Enter Manually":
-            st.session_state.property_mls_link = st.text_input(
-                "MLS Listing Link (for reference)", value=st.session_state.property_mls_link, placeholder="https://...",
-            )
-            st.caption("Property characteristics below will be entered manually.")
+                st.caption("Property characteristics below will be entered manually.")
 
     if st.session_state.transaction_type == "builder_purchase":
         st.divider()
-        st.markdown("#### Builder Program Details")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.session_state.builder_name = st.text_input(
-                "Builder Name", value=st.session_state.builder_name, placeholder="e.g. Example Homes Inc.",
-            )
-            st.session_state.builder_type = st.selectbox(
-                "Builder Type", BUILDER_TYPE_OPTIONS,
-                index=BUILDER_TYPE_OPTIONS.index(st.session_state.builder_type)
-                if st.session_state.builder_type in BUILDER_TYPE_OPTIONS else 0,
-            )
-            st.session_state.builder_code = st.text_input(
-                "Builder Code (if known)", value=st.session_state.builder_code, placeholder="e.g. B107A6",
-            )
-            st.session_state.builder_warranty_provider = st.text_input(
-                "New Home Warranty Provider", value=st.session_state.builder_warranty_provider,
-                placeholder="e.g. a provincial new home warranty program",
-            )
-        with c2:
-            st.session_state.builder_mortgage_product = st.selectbox(
-                "Mortgage Product", MORTGAGE_PRODUCT_OPTIONS,
-                index=MORTGAGE_PRODUCT_OPTIONS.index(st.session_state.builder_mortgage_product)
-                if st.session_state.builder_mortgage_product in MORTGAGE_PRODUCT_OPTIONS else 0,
-            )
-            st.session_state.builder_amortization_years = st.text_input(
-                "Amortization Requested (years)", value=st.session_state.builder_amortization_years,
-                placeholder="e.g. 30",
-            )
-            amort_val = parse_money(st.session_state.builder_amortization_years)
-            if amort_val is not None and st.session_state.builder_mortgage_product:
-                valid, needs_approval, msg = is_amortization_valid(int(amort_val), st.session_state.builder_mortgage_product)
-                if not valid:
-                    st.caption(":red[" + msg + "]")
-                elif needs_approval:
-                    st.caption(":orange[" + msg + "]")
-                else:
-                    st.caption(msg)
-                if st.session_state.builder_mortgage_product == "Homeline Plan (Single Advance)":
-                    st.caption("Note: the qualifying amortization for a Homeline Plan is standardized at 30 years, regardless of the amortization entered above.")
-            st.session_state.builder_interest_rate_type = st.selectbox(
-                "Interest Rate Type", INTEREST_RATE_TYPE_OPTIONS,
-                index=INTEREST_RATE_TYPE_OPTIONS.index(st.session_state.builder_interest_rate_type)
-                if st.session_state.builder_interest_rate_type in INTEREST_RATE_TYPE_OPTIONS else 0,
-            )
-            st.session_state.builder_rate_buydown = st.selectbox(
-                "Is a Builder Interest Rate Buydown being offered?", YES_NO_OPTIONS,
-                index=YES_NO_OPTIONS.index(st.session_state.builder_rate_buydown)
-                if st.session_state.builder_rate_buydown in YES_NO_OPTIONS else 0,
-            )
-
-        st.markdown("**GST/HST**")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.session_state.builder_gst_hst_included = st.selectbox(
-                "Does the purchase price already include GST/HST?", YES_NO_OPTIONS,
-                index=YES_NO_OPTIONS.index(st.session_state.builder_gst_hst_included)
-                if st.session_state.builder_gst_hst_included in YES_NO_OPTIONS else 0,
-            )
-        with c2:
-            if st.session_state.builder_gst_hst_included == "No":
-                st.session_state.builder_gst_hst_percent_raw = st.text_input(
-                    "Exact GST/HST % (if confirmed by builder/lawyer/notary)",
-                    value=st.session_state.builder_gst_hst_percent_raw, placeholder="e.g. 5",
+        with st.container(key="card_builder_program"):
+            st.markdown("#### Builder Program Details")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.session_state.builder_name = st.text_input(
+                    "Builder Name", value=st.session_state.builder_name, placeholder="e.g. Example Homes Inc.",
                 )
-        if st.session_state.builder_gst_hst_included == "No":
-            purchase_price_for_gst = parse_money(st.session_state.purchase_price_raw) or 0.0
-            gst_pct = parse_money(st.session_state.builder_gst_hst_percent_raw)
-            gst_pct_fraction = (gst_pct / 100.0) if gst_pct is not None else None
-            adjusted_price, gst_note = calculate_gst_hst_adjusted_price(
-                purchase_price_for_gst, False, gst_pct_fraction,
-            )
-            st.caption(
-                "Adjusted purchase price: " + fmt_money(adjusted_price) + ". " + gst_note
-            )
-
-        st.markdown("**Cashback**")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.session_state.builder_cashback_requested = st.selectbox(
-                "Is the client requesting cashback?", YES_NO_OPTIONS,
-                index=YES_NO_OPTIONS.index(st.session_state.builder_cashback_requested)
-                if st.session_state.builder_cashback_requested in YES_NO_OPTIONS else 0,
-            )
-        with c2:
-            if st.session_state.builder_cashback_requested == "Yes":
-                st.session_state.builder_cashback_program = st.selectbox(
-                    "Program", CASHBACK_PROGRAM_OPTIONS,
-                    index=CASHBACK_PROGRAM_OPTIONS.index(st.session_state.builder_cashback_program)
-                    if st.session_state.builder_cashback_program in CASHBACK_PROGRAM_OPTIONS else 0,
+                st.session_state.builder_type = st.selectbox(
+                    "Builder Type", BUILDER_TYPE_OPTIONS,
+                    index=BUILDER_TYPE_OPTIONS.index(st.session_state.builder_type)
+                    if st.session_state.builder_type in BUILDER_TYPE_OPTIONS else 0,
                 )
-                if st.session_state.builder_cashback_program and st.session_state.builder_cashback_program != "Not Applicable / Standard":
-                    if is_cashback_eligible(st.session_state.builder_cashback_program):
-                        st.caption(":green[Eligible for cashback combined with this program.]")
+                st.session_state.builder_code = st.text_input(
+                    "Builder Code (if known)", value=st.session_state.builder_code, placeholder="e.g. B107A6",
+                )
+                st.session_state.builder_warranty_provider = st.text_input(
+                    "New Home Warranty Provider", value=st.session_state.builder_warranty_provider,
+                    placeholder="e.g. a provincial new home warranty program",
+                )
+            with c2:
+                st.session_state.builder_mortgage_product = st.selectbox(
+                    "Mortgage Product", MORTGAGE_PRODUCT_OPTIONS,
+                    index=MORTGAGE_PRODUCT_OPTIONS.index(st.session_state.builder_mortgage_product)
+                    if st.session_state.builder_mortgage_product in MORTGAGE_PRODUCT_OPTIONS else 0,
+                )
+                st.session_state.builder_amortization_years = st.text_input(
+                    "Amortization Requested (years)", value=st.session_state.builder_amortization_years,
+                    placeholder="e.g. 30",
+                )
+                amort_val = parse_money(st.session_state.builder_amortization_years)
+                if amort_val is not None and st.session_state.builder_mortgage_product:
+                    valid, needs_approval, msg = is_amortization_valid(int(amort_val), st.session_state.builder_mortgage_product)
+                    if not valid:
+                        st.caption(":red[" + msg + "]")
+                    elif needs_approval:
+                        st.caption(":orange[" + msg + "]")
                     else:
-                        st.caption(":red[This program cannot be combined with cashback.]")
+                        st.caption(msg)
+                    if st.session_state.builder_mortgage_product == "Homeline Plan (Single Advance)":
+                        st.caption("Note: the qualifying amortization for a Homeline Plan is standardized at 30 years, regardless of the amortization entered above.")
+                st.session_state.builder_interest_rate_type = st.selectbox(
+                    "Interest Rate Type", INTEREST_RATE_TYPE_OPTIONS,
+                    index=INTEREST_RATE_TYPE_OPTIONS.index(st.session_state.builder_interest_rate_type)
+                    if st.session_state.builder_interest_rate_type in INTEREST_RATE_TYPE_OPTIONS else 0,
+                )
+                st.session_state.builder_rate_buydown = st.selectbox(
+                    "Is a Builder Interest Rate Buydown being offered?", YES_NO_OPTIONS,
+                    index=YES_NO_OPTIONS.index(st.session_state.builder_rate_buydown)
+                    if st.session_state.builder_rate_buydown in YES_NO_OPTIONS else 0,
+                )
 
-        with st.expander("Standard documents for this builder-purchase file"):
-            reqs = builder_document_requirements()
-            for d in reqs["documents"]:
-                st.markdown("- " + d)
+            st.markdown("**GST/HST**")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.session_state.builder_gst_hst_included = st.selectbox(
+                    "Does the purchase price already include GST/HST?", YES_NO_OPTIONS,
+                    index=YES_NO_OPTIONS.index(st.session_state.builder_gst_hst_included)
+                    if st.session_state.builder_gst_hst_included in YES_NO_OPTIONS else 0,
+                )
+            with c2:
+                if st.session_state.builder_gst_hst_included == "No":
+                    st.session_state.builder_gst_hst_percent_raw = st.text_input(
+                        "Exact GST/HST % (if confirmed by builder/lawyer/notary)",
+                        value=st.session_state.builder_gst_hst_percent_raw, placeholder="e.g. 5",
+                    )
+            if st.session_state.builder_gst_hst_included == "No":
+                purchase_price_for_gst = parse_money(st.session_state.purchase_price_raw) or 0.0
+                gst_pct = parse_money(st.session_state.builder_gst_hst_percent_raw)
+                gst_pct_fraction = (gst_pct / 100.0) if gst_pct is not None else None
+                adjusted_price, gst_note = calculate_gst_hst_adjusted_price(
+                    purchase_price_for_gst, False, gst_pct_fraction,
+                )
+                st.caption(
+                    "Adjusted purchase price: " + fmt_money(adjusted_price) + ". " + gst_note
+                )
+
+            st.markdown("**Cashback**")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.session_state.builder_cashback_requested = st.selectbox(
+                    "Is the client requesting cashback?", YES_NO_OPTIONS,
+                    index=YES_NO_OPTIONS.index(st.session_state.builder_cashback_requested)
+                    if st.session_state.builder_cashback_requested in YES_NO_OPTIONS else 0,
+                )
+            with c2:
+                if st.session_state.builder_cashback_requested == "Yes":
+                    st.session_state.builder_cashback_program = st.selectbox(
+                        "Program", CASHBACK_PROGRAM_OPTIONS,
+                        index=CASHBACK_PROGRAM_OPTIONS.index(st.session_state.builder_cashback_program)
+                        if st.session_state.builder_cashback_program in CASHBACK_PROGRAM_OPTIONS else 0,
+                    )
+                    if st.session_state.builder_cashback_program and st.session_state.builder_cashback_program != "Not Applicable / Standard":
+                        if is_cashback_eligible(st.session_state.builder_cashback_program):
+                            st.caption(":green[Eligible for cashback combined with this program.]")
+                        else:
+                            st.caption(":red[This program cannot be combined with cashback.]")
+
+            with st.expander("Standard documents for this builder-purchase file"):
+                reqs = builder_document_requirements()
+                for d in reqs["documents"]:
+                    st.markdown("- " + d)
 
     st.divider()
 
-    st.session_state.subject_address = st.text_area(
-        "Property Address", value=st.session_state.subject_address,
-        placeholder="Enter the full address of the property you're purchasing", height=70,
-    )
-    if not st.session_state.subject_address.strip():
-        st.caption(":red[Please enter the property address.]")
-
-    st.divider()
-
-    st.markdown("#### Rental Component")
-    st.caption("Does this property have a secondary suite or unit being rented out (e.g. a basement apartment)?")
-    rc_a, rc_b = st.columns(2)
-    with rc_a:
-        st.session_state.subject_has_rental_component = st.selectbox(
-            "Does this property have a rental unit?", YES_NO_OPTIONS,
-            index=YES_NO_OPTIONS.index(st.session_state.subject_has_rental_component)
-            if st.session_state.subject_has_rental_component in YES_NO_OPTIONS else 0,
-            key="subject_has_rental_component_input",
+    with st.container(key="card_property_address"):
+        st.session_state.subject_address = st.text_area(
+            "Property Address", value=st.session_state.subject_address,
+            placeholder="Enter the full address of the property you're purchasing", height=70,
         )
-    with rc_b:
+        if not st.session_state.subject_address.strip():
+            st.caption(":red[Please enter the property address.]")
+
+    st.divider()
+
+    with st.container(key="card_rental_component"):
+        st.markdown("#### Rental Component")
+        st.caption("Does this property have a secondary suite or unit being rented out (e.g. a basement apartment)?")
+        rc_a, rc_b = st.columns(2)
+        with rc_a:
+            st.session_state.subject_has_rental_component = st.selectbox(
+                "Does this property have a rental unit?", YES_NO_OPTIONS,
+                index=YES_NO_OPTIONS.index(st.session_state.subject_has_rental_component)
+                if st.session_state.subject_has_rental_component in YES_NO_OPTIONS else 0,
+                key="subject_has_rental_component_input",
+            )
+        with rc_b:
+            if st.session_state.subject_has_rental_component == "Yes":
+                st.session_state.subject_num_units = st.text_input(
+                    "How many units does the property have?", value=st.session_state.subject_num_units,
+                    placeholder="e.g. 2", key="subject_num_units_input",
+                )
         if st.session_state.subject_has_rental_component == "Yes":
-            st.session_state.subject_num_units = st.text_input(
-                "How many units does the property have?", value=st.session_state.subject_num_units,
-                placeholder="e.g. 2", key="subject_num_units_input",
+            st.caption("For the rental income to be usable for qualification, the unit must be self-contained:")
+            with st.container(key="sub_checkbox_rental"):
+                rc1, rc2, rc3 = st.columns(3)
+                with rc1:
+                    st.session_state.subject_rental_kitchen = st.checkbox(
+                        "Has its own kitchen", value=st.session_state.subject_rental_kitchen, key="subject_rental_kitchen_input",
+                    )
+                with rc2:
+                    st.session_state.subject_rental_bathroom = st.checkbox(
+                        "Has its own bathroom", value=st.session_state.subject_rental_bathroom, key="subject_rental_bathroom_input",
+                    )
+                with rc3:
+                    st.session_state.subject_rental_entrance = st.checkbox(
+                        "Has a separate entrance", value=st.session_state.subject_rental_entrance, key="subject_rental_entrance_input",
+                    )
+            is_self_contained = (
+                st.session_state.subject_rental_kitchen and st.session_state.subject_rental_bathroom
+                and st.session_state.subject_rental_entrance
             )
-    if st.session_state.subject_has_rental_component == "Yes":
-        st.caption("For the rental income to be usable for qualification, the unit must be self-contained:")
-        with st.container(key="sub_checkbox_rental"):
-            rc1, rc2, rc3 = st.columns(3)
-            with rc1:
-                st.session_state.subject_rental_kitchen = st.checkbox(
-                    "Has its own kitchen", value=st.session_state.subject_rental_kitchen, key="subject_rental_kitchen_input",
-                )
-            with rc2:
-                st.session_state.subject_rental_bathroom = st.checkbox(
-                    "Has its own bathroom", value=st.session_state.subject_rental_bathroom, key="subject_rental_bathroom_input",
-                )
-            with rc3:
-                st.session_state.subject_rental_entrance = st.checkbox(
-                    "Has a separate entrance", value=st.session_state.subject_rental_entrance, key="subject_rental_entrance_input",
-                )
-        is_self_contained = (
-            st.session_state.subject_rental_kitchen and st.session_state.subject_rental_bathroom
-            and st.session_state.subject_rental_entrance
-        )
-        if is_self_contained:
-            st.caption(":green[Self-contained unit confirmed — rental income can be used for qualification under Income → Rental Income (Component of Primary Residence).]")
-        else:
-            st.caption(":red[Not self-contained — a kitchen, bathroom, and separate entrance are all required. Rental income from this unit cannot be used for qualification until all three are confirmed.]")
+            if is_self_contained:
+                st.caption(":green[Self-contained unit confirmed — rental income can be used for qualification under Income → Rental Income (Component of Primary Residence).]")
+            else:
+                st.caption(":red[Not self-contained — a kitchen, bathroom, and separate entrance are all required. Rental income from this unit cannot be used for qualification until all three are confirmed.]")
 
-    st.caption(
-        "Financing terms (contract rate, amortization) are now collected on the Analysis "
-        "step, alongside the stress test."
-    )
+        st.caption(
+            "Financing terms (contract rate, amortization) are now collected on the Analysis "
+            "step, alongside the stress test."
+        )
 
     st.divider()
 
-    st.markdown("#### Property Characteristics")
-    st.caption(
-        "Best-effort is fine here — the client may only have what's on the MLS listing "
-        "or heard secondhand, not a formal appraisal. Leave anything unknown blank."
-    )
-    if st.session_state.mls_autofill_status == "success":
-        st.caption(":green[✓ green] = auto-filled from the MLS link, please verify · :orange[⚠ orange] = not found automatically, needs manual entry")
+    with st.container(key="card_property_characteristics"):
+        st.markdown("#### Property Characteristics")
+        st.caption(
+            "Best-effort is fine here — the client may only have what's on the MLS listing "
+            "or heard secondhand, not a formal appraisal. Leave anything unknown blank."
+        )
+        if st.session_state.mls_autofill_status == "success":
+            st.caption(":green[✓ green] = auto-filled from the MLS link, please verify · :orange[⚠ orange] = not found automatically, needs manual entry")
 
-    def mls_field_note(field_key):
-        if st.session_state.mls_autofill_status != "success":
-            return
-        if field_key in st.session_state.mls_autofilled_fields:
-            st.caption(":green[✓ auto-filled from MLS — verify]")
-        else:
-            st.caption(":orange[⚠ not found — enter manually]")
+        def mls_field_note(field_key):
+            if st.session_state.mls_autofill_status != "success":
+                return
+            if field_key in st.session_state.mls_autofilled_fields:
+                st.caption(":green[✓ auto-filled from MLS — verify]")
+            else:
+                st.caption(":orange[⚠ not found — enter manually]")
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.session_state.subject_prop_purpose = st.selectbox(
-            "Property Purpose", PROPERTY_PURPOSE_OPTIONS,
-            index=PROPERTY_PURPOSE_OPTIONS.index(st.session_state.subject_prop_purpose)
-            if st.session_state.subject_prop_purpose in PROPERTY_PURPOSE_OPTIONS else 0,
-        )
-        st.session_state.subject_title_type = st.selectbox(
-            "Title", TITLE_TYPE_OPTIONS,
-            index=TITLE_TYPE_OPTIONS.index(st.session_state.subject_title_type)
-            if st.session_state.subject_title_type in TITLE_TYPE_OPTIONS else 0,
-        )
-        if st.session_state.subject_title_type == "Other":
-            render_other_description_field(
-                "Describe title type", "subject_title_type_other", "subject_title_type_other_input",
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.session_state.subject_prop_purpose = st.selectbox(
+                "Property Purpose", PROPERTY_PURPOSE_OPTIONS,
+                index=PROPERTY_PURPOSE_OPTIONS.index(st.session_state.subject_prop_purpose)
+                if st.session_state.subject_prop_purpose in PROPERTY_PURPOSE_OPTIONS else 0,
             )
-        st.session_state.subject_prop_type = st.selectbox(
-            "Property Type", PROPERTY_STYLE_TYPES,
-            index=PROPERTY_STYLE_TYPES.index(st.session_state.subject_prop_type)
-            if st.session_state.subject_prop_type in PROPERTY_STYLE_TYPES else 0,
-            key="subject_prop_type_select",
-        )
-        if st.session_state.subject_prop_type == "Other":
-            render_other_description_field(
-                "Describe property type", "subject_prop_type_other", "subject_prop_type_other_input",
+            st.session_state.subject_title_type = st.selectbox(
+                "Title", TITLE_TYPE_OPTIONS,
+                index=TITLE_TYPE_OPTIONS.index(st.session_state.subject_title_type)
+                if st.session_state.subject_title_type in TITLE_TYPE_OPTIONS else 0,
             )
-        else:
-            mls_field_note("subject_prop_type")
-        st.session_state.subject_prop_age = st.text_input(
-            "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
-            placeholder="e.g. 15 years or Built 2011",
-        )
-        st.session_state.subject_rural_urban = st.selectbox(
-            "Rural / Urban / Agricultural",
-            RURAL_URBAN_OPTIONS,
-            index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
-            if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
-        )
-
-    with c2:
-        st.session_state.subject_sqft = st.text_input(
-            "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
-        )
-        mls_field_note("subject_sqft")
-        st.session_state.subject_storeys = st.text_input(
-            "Number of Storeys", value=st.session_state.subject_storeys, placeholder="e.g. 2",
-        )
-        mls_field_note("subject_storeys")
-        st.session_state.subject_land_size = st.text_input(
-            "Land Size", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
-        )
-        st.session_state.subject_parking_spaces = st.text_input(
-            "Total Parking Spaces", value=st.session_state.subject_parking_spaces, placeholder="e.g. 4",
-        )
-        mls_field_note("subject_parking_spaces")
-        st.session_state.subject_garage = st.selectbox(
-            "Garage", GARAGE_OPTIONS,
-            index=GARAGE_OPTIONS.index(st.session_state.subject_garage)
-            if st.session_state.subject_garage in GARAGE_OPTIONS else 0,
-        )
-        if st.session_state.subject_garage == "Other":
-            render_other_description_field(
-                "Describe garage / parking", "subject_garage_other", "subject_garage_other_input",
+            if st.session_state.subject_title_type == "Other":
+                render_other_description_field(
+                    "Describe title type", "subject_title_type_other", "subject_title_type_other_input",
+                )
+            st.session_state.subject_prop_type = st.selectbox(
+                "Property Type", PROPERTY_STYLE_TYPES,
+                index=PROPERTY_STYLE_TYPES.index(st.session_state.subject_prop_type)
+                if st.session_state.subject_prop_type in PROPERTY_STYLE_TYPES else 0,
+                key="subject_prop_type_select",
             )
-        st.session_state.subject_foundation = st.selectbox(
-            "Foundation Type", FOUNDATION_TYPE_OPTIONS,
-            index=FOUNDATION_TYPE_OPTIONS.index(st.session_state.subject_foundation)
-            if st.session_state.subject_foundation in FOUNDATION_TYPE_OPTIONS else 0,
-        )
-        if st.session_state.subject_foundation == "Other":
-            render_other_description_field(
-                "Describe foundation type", "subject_foundation_other", "subject_foundation_other_input",
+            if st.session_state.subject_prop_type == "Other":
+                render_other_description_field(
+                    "Describe property type", "subject_prop_type_other", "subject_prop_type_other_input",
+                )
+            else:
+                mls_field_note("subject_prop_type")
+            st.session_state.subject_prop_age = st.text_input(
+                "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
+                placeholder="e.g. 15 years or Built 2011",
+            )
+            st.session_state.subject_rural_urban = st.selectbox(
+                "Rural / Urban / Agricultural",
+                RURAL_URBAN_OPTIONS,
+                index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
+                if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
             )
 
-    with c3:
-        st.session_state.subject_cooling = st.selectbox(
-            "Cooling", COOLING_OPTIONS,
-            index=COOLING_OPTIONS.index(st.session_state.subject_cooling)
-            if st.session_state.subject_cooling in COOLING_OPTIONS else 0,
-        )
-        st.session_state.subject_heating_type = st.selectbox(
-            "Heating Type", HEATING_TYPE_OPTIONS,
-            index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
-            if st.session_state.subject_heating_type in HEATING_TYPE_OPTIONS else 0,
-        )
-        if st.session_state.subject_heating_type == "Other":
-            render_other_description_field(
-                "Describe heating type", "subject_heating_type_other", "subject_heating_type_other_input",
+        with c2:
+            st.session_state.subject_sqft = st.text_input(
+                "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
             )
-        st.session_state.subject_exterior_finish = st.selectbox(
-            "Exterior Finish", EXTERIOR_FINISH_OPTIONS,
-            index=EXTERIOR_FINISH_OPTIONS.index(st.session_state.subject_exterior_finish)
-            if st.session_state.subject_exterior_finish in EXTERIOR_FINISH_OPTIONS else 0,
-        )
-        if st.session_state.subject_exterior_finish == "Other":
-            render_other_description_field(
-                "Describe exterior finish", "subject_exterior_finish_other", "subject_exterior_finish_other_input",
+            mls_field_note("subject_sqft")
+            st.session_state.subject_storeys = st.text_input(
+                "Number of Storeys", value=st.session_state.subject_storeys, placeholder="e.g. 2",
             )
-        st.session_state.subject_water = st.selectbox(
-            "Water", WATER_OPTIONS,
-            index=WATER_OPTIONS.index(st.session_state.subject_water)
-            if st.session_state.subject_water in WATER_OPTIONS else 0,
-        )
-        if st.session_state.subject_water == "Other":
-            render_other_description_field(
-                "Describe water source", "subject_water_other", "subject_water_other_input",
+            mls_field_note("subject_storeys")
+            st.session_state.subject_land_size = st.text_input(
+                "Land Size", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
             )
-        st.session_state.subject_sewer = st.selectbox(
-            "Utility Sewer", SEWER_OPTIONS,
-            index=SEWER_OPTIONS.index(st.session_state.subject_sewer)
-            if st.session_state.subject_sewer in SEWER_OPTIONS else 0,
-        )
-        if st.session_state.subject_sewer == "Other":
-            render_other_description_field(
-                "Describe utility sewer", "subject_sewer_other", "subject_sewer_other_input",
+            st.session_state.subject_parking_spaces = st.text_input(
+                "Total Parking Spaces", value=st.session_state.subject_parking_spaces, placeholder="e.g. 4",
             )
+            mls_field_note("subject_parking_spaces")
+            st.session_state.subject_garage = st.selectbox(
+                "Garage", GARAGE_OPTIONS,
+                index=GARAGE_OPTIONS.index(st.session_state.subject_garage)
+                if st.session_state.subject_garage in GARAGE_OPTIONS else 0,
+            )
+            if st.session_state.subject_garage == "Other":
+                render_other_description_field(
+                    "Describe garage / parking", "subject_garage_other", "subject_garage_other_input",
+                )
+            st.session_state.subject_foundation = st.selectbox(
+                "Foundation Type", FOUNDATION_TYPE_OPTIONS,
+                index=FOUNDATION_TYPE_OPTIONS.index(st.session_state.subject_foundation)
+                if st.session_state.subject_foundation in FOUNDATION_TYPE_OPTIONS else 0,
+            )
+            if st.session_state.subject_foundation == "Other":
+                render_other_description_field(
+                    "Describe foundation type", "subject_foundation_other", "subject_foundation_other_input",
+                )
+
+        with c3:
+            st.session_state.subject_cooling = st.selectbox(
+                "Cooling", COOLING_OPTIONS,
+                index=COOLING_OPTIONS.index(st.session_state.subject_cooling)
+                if st.session_state.subject_cooling in COOLING_OPTIONS else 0,
+            )
+            st.session_state.subject_heating_type = st.selectbox(
+                "Heating Type", HEATING_TYPE_OPTIONS,
+                index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
+                if st.session_state.subject_heating_type in HEATING_TYPE_OPTIONS else 0,
+            )
+            if st.session_state.subject_heating_type == "Other":
+                render_other_description_field(
+                    "Describe heating type", "subject_heating_type_other", "subject_heating_type_other_input",
+                )
+            st.session_state.subject_exterior_finish = st.selectbox(
+                "Exterior Finish", EXTERIOR_FINISH_OPTIONS,
+                index=EXTERIOR_FINISH_OPTIONS.index(st.session_state.subject_exterior_finish)
+                if st.session_state.subject_exterior_finish in EXTERIOR_FINISH_OPTIONS else 0,
+            )
+            if st.session_state.subject_exterior_finish == "Other":
+                render_other_description_field(
+                    "Describe exterior finish", "subject_exterior_finish_other", "subject_exterior_finish_other_input",
+                )
+            st.session_state.subject_water = st.selectbox(
+                "Water", WATER_OPTIONS,
+                index=WATER_OPTIONS.index(st.session_state.subject_water)
+                if st.session_state.subject_water in WATER_OPTIONS else 0,
+            )
+            if st.session_state.subject_water == "Other":
+                render_other_description_field(
+                    "Describe water source", "subject_water_other", "subject_water_other_input",
+                )
+            st.session_state.subject_sewer = st.selectbox(
+                "Utility Sewer", SEWER_OPTIONS,
+                index=SEWER_OPTIONS.index(st.session_state.subject_sewer)
+                if st.session_state.subject_sewer in SEWER_OPTIONS else 0,
+            )
+            if st.session_state.subject_sewer == "Other":
+                render_other_description_field(
+                    "Describe utility sewer", "subject_sewer_other", "subject_sewer_other_input",
+                )
 
     st.divider()
 
-    st.markdown("#### Monthly Carrying Costs")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.session_state.subject_taxes_raw = st.text_input(
-            "Monthly Property Taxes ($)", value=st.session_state.subject_taxes_raw,
-            placeholder="Enter monthly tax amount",
-        )
-    with c2:
-        st.session_state.subject_condo_raw = st.text_input(
-            "Monthly Condo / Strata Fees ($)", value=st.session_state.subject_condo_raw,
-            placeholder="Enter monthly fee amount (0 if none)",
-        )
-    with c3:
-        st.session_state.subject_heat_raw = st.text_input(
-            "Monthly Heating Costs ($)", value=st.session_state.subject_heat_raw,
-            placeholder="Enter monthly heating amount",
-        )
+    with st.container(key="card_carrying_costs"):
+        st.markdown("#### Monthly Carrying Costs")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.session_state.subject_taxes_raw = st.text_input(
+                "Monthly Property Taxes ($)", value=st.session_state.subject_taxes_raw,
+                placeholder="Enter monthly tax amount",
+            )
+        with c2:
+            st.session_state.subject_condo_raw = st.text_input(
+                "Monthly Condo / Strata Fees ($)", value=st.session_state.subject_condo_raw,
+                placeholder="Enter monthly fee amount (0 if none)",
+            )
+        with c3:
+            st.session_state.subject_heat_raw = st.text_input(
+                "Monthly Heating Costs ($)", value=st.session_state.subject_heat_raw,
+                placeholder="Enter monthly heating amount",
+            )
 
-    st.caption(
-        "Monthly P&I and total housing costs will be calculated once you set the "
-        "contract rate and amortization on the Analysis step."
-    )
+        st.caption(
+            "Monthly P&I and total housing costs will be calculated once you set the "
+            "contract rate and amortization on the Analysis step."
+        )
 
     st.divider()
 
@@ -3659,182 +3675,185 @@ def render_debts():
 
     st.divider()
 
-    st.write("**Select Other Debt Types**")
-    st.caption("If the client has more than one account of the same type (e.g. two credit cards), check the type once and set how many below.")
+    with st.container(key="card_other_debts"):
+        st.write("**Select Other Debt Types**")
+        st.caption("If the client has more than one account of the same type (e.g. two credit cards), check the type once and set how many below.")
 
-    selected = st.session_state.debt_selected
-    total_other_debt = 0.0
-    other_debt_errors_any = False
+        selected = st.session_state.debt_selected
+        total_other_debt = 0.0
+        other_debt_errors_any = False
 
-    for debt_type in DEBT_TYPES:
-        dkey = debt_type["key"]
-        was_checked = st.session_state.debt_type_checked.get(dkey, dkey in selected)
-        new_checked = st.checkbox("**" + debt_type["label"] + "**", value=was_checked, key="debt_" + dkey)
-        st.session_state.debt_type_checked[dkey] = new_checked
+        for debt_type in DEBT_TYPES:
+            dkey = debt_type["key"]
+            was_checked = st.session_state.debt_type_checked.get(dkey, dkey in selected)
+            new_checked = st.checkbox("**" + debt_type["label"] + "**", value=was_checked, key="debt_" + dkey)
+            st.session_state.debt_type_checked[dkey] = new_checked
 
-        if new_checked:
-            indent_spacer, indent_content = st.columns([0.4, 9.6])
-            with indent_content:
-                count = st.selectbox(
-                    "How many separate " + debt_type["label"] + " accounts does the client have?",
-                    [1, 2, 3, 4, 5],
-                    index=st.session_state.debt_counts.get(dkey, 1) - 1,
-                    key="debt_count_" + dkey,
-                )
-            st.session_state.debt_counts[dkey] = count
-        else:
-            count = 0
-            st.session_state.debt_counts.pop(dkey, None)
-
-        instance_keys_for_type = [dkey if i == 1 else dkey + "#" + str(i) for i in range(1, count + 1)]
-
-        # Drop any instances beyond the current count (or all, if unchecked).
-        stale_instances = [
-            k for k in list(st.session_state.debt_amounts.keys())
-            if base_debt_key(k) == dkey and k not in instance_keys_for_type
-        ]
-        for k in stale_instances:
-            st.session_state.debt_amounts.pop(k, None)
-            st.session_state.debt_payout_selected.pop(k, None)
-            st.session_state.debt_payout_balance.pop(k, None)
-            st.session_state.debt_paid_from_own_funds.pop(k, None)
-            if k in selected:
-                selected.remove(k)
-
-        for instance_key in instance_keys_for_type:
-            if instance_key not in selected:
-                selected.append(instance_key)
-
-            if instance_key not in st.session_state.debt_amounts:
-                st.session_state.debt_amounts[instance_key] = {}
-            amounts = st.session_state.debt_amounts[instance_key]
-
-            indent_spacer, indent_content = st.columns([0.4, 9.6])
-            with indent_content:
-                if len(instance_keys_for_type) > 1:
-                    st.markdown("**" + debt_instance_label(debt_type, instance_key) + "**")
-
-                if debt_type["calc"] == "percent_of_balance":
-                    amounts["balance"] = st.text_input(
-                        "Total Outstanding Balance ($)", value=amounts.get("balance", ""),
-                        placeholder="Enter total balance", key="debt_bal_" + instance_key,
+            if new_checked:
+                indent_spacer, indent_content = st.columns([0.4, 9.6])
+                with indent_content:
+                    count = st.selectbox(
+                        "How many separate " + debt_type["label"] + " accounts does the client have?",
+                        [1, 2, 3, 4, 5],
+                        index=st.session_state.debt_counts.get(dkey, 1) - 1,
+                        key="debt_count_" + dkey,
                     )
-                    if amounts.get("balance", "").strip() == "":
-                        other_debt_errors_any = True
-                else:
-                    amounts["payment"] = st.text_input(
-                        "Monthly Payment Amount ($)", value=amounts.get("payment", ""),
-                        placeholder="Enter monthly payment amount", key="debt_pay_" + instance_key,
-                    )
-                    if amounts.get("payment", "").strip() == "":
-                        other_debt_errors_any = True
-                    amounts["total_balance"] = st.text_input(
-                        "Total Balance Owing ($)", value=amounts.get("total_balance", ""),
-                        placeholder="Enter total balance owing", key="debt_totalbal_" + instance_key,
-                    )
+                st.session_state.debt_counts[dkey] = count
+            else:
+                count = 0
+                st.session_state.debt_counts.pop(dkey, None)
 
-                _, debt_explanation = explain_debt_payment(debt_type, amounts)
-                st.caption(debt_explanation)
+            instance_keys_for_type = [dkey if i == 1 else dkey + "#" + str(i) for i in range(1, count + 1)]
 
-                if dkey == "other":
-                    st.session_state.debt_other_desc = st.text_input(
-                        "Describe the other obligation", value=st.session_state.debt_other_desc,
-                        key="debt_other_desc_input_" + instance_key,
-                    )
+            # Drop any instances beyond the current count (or all, if unchecked).
+            stale_instances = [
+                k for k in list(st.session_state.debt_amounts.keys())
+                if base_debt_key(k) == dkey and k not in instance_keys_for_type
+            ]
+            for k in stale_instances:
+                st.session_state.debt_amounts.pop(k, None)
+                st.session_state.debt_payout_selected.pop(k, None)
+                st.session_state.debt_payout_balance.pop(k, None)
+                st.session_state.debt_paid_from_own_funds.pop(k, None)
+                if k in selected:
+                    selected.remove(k)
 
-                payment_value = compute_debt_payment(debt_type, amounts)
+            for instance_key in instance_keys_for_type:
+                if instance_key not in selected:
+                    selected.append(instance_key)
 
-                payout_checked = False
-                with st.container(key="sub_checkbox_debt_" + instance_key):
-                    if is_refinance():
-                        payout_checked = st.checkbox(
-                            "Include in payout from mortgage proceeds",
-                            value=st.session_state.debt_payout_selected.get(instance_key, False),
-                            key="debt_payout_" + instance_key,
+                if instance_key not in st.session_state.debt_amounts:
+                    st.session_state.debt_amounts[instance_key] = {}
+                amounts = st.session_state.debt_amounts[instance_key]
+
+                indent_spacer, indent_content = st.columns([0.4, 9.6])
+                with indent_content:
+                    if len(instance_keys_for_type) > 1:
+                        st.markdown("**" + debt_instance_label(debt_type, instance_key) + "**")
+
+                    if debt_type["calc"] == "percent_of_balance":
+                        amounts["balance"] = st.text_input(
+                            "Total Outstanding Balance ($)", value=amounts.get("balance", ""),
+                            placeholder="Enter total balance", key="debt_bal_" + instance_key,
                         )
-                        st.session_state.debt_payout_selected[instance_key] = payout_checked
-                        if payout_checked:
-                            payout_bal = get_debt_balance(debt_type, amounts)
+                        if amounts.get("balance", "").strip() == "":
+                            other_debt_errors_any = True
+                    else:
+                        amounts["payment"] = st.text_input(
+                            "Monthly Payment Amount ($)", value=amounts.get("payment", ""),
+                            placeholder="Enter monthly payment amount", key="debt_pay_" + instance_key,
+                        )
+                        if amounts.get("payment", "").strip() == "":
+                            other_debt_errors_any = True
+                        amounts["total_balance"] = st.text_input(
+                            "Total Balance Owing ($)", value=amounts.get("total_balance", ""),
+                            placeholder="Enter total balance owing", key="debt_totalbal_" + instance_key,
+                        )
+
+                    _, debt_explanation = explain_debt_payment(debt_type, amounts)
+                    st.caption(debt_explanation)
+
+                    if dkey == "other":
+                        st.session_state.debt_other_desc = st.text_input(
+                            "Describe the other obligation", value=st.session_state.debt_other_desc,
+                            key="debt_other_desc_input_" + instance_key,
+                        )
+
+                    payment_value = compute_debt_payment(debt_type, amounts)
+
+                    payout_checked = False
+                    with st.container(key="sub_checkbox_debt_" + instance_key):
+                        if is_refinance():
+                            payout_checked = st.checkbox(
+                                "Include in payout from mortgage proceeds",
+                                value=st.session_state.debt_payout_selected.get(instance_key, False),
+                                key="debt_payout_" + instance_key,
+                            )
+                            st.session_state.debt_payout_selected[instance_key] = payout_checked
+                            if payout_checked:
+                                payout_bal = get_debt_balance(debt_type, amounts)
+                                st.caption(
+                                    "Balance included in payout: "
+                                    + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
+                                )
+
+                        own_funds_checked = st.checkbox(
+                            "Being paid off from the client's own funds / gifted funds prior to closing",
+                            value=st.session_state.debt_paid_from_own_funds.get(instance_key, False),
+                            key="debt_own_funds_" + instance_key,
+                        )
+                        st.session_state.debt_paid_from_own_funds[instance_key] = own_funds_checked
+                        if own_funds_checked:
                             st.caption(
-                                "Balance included in payout: "
-                                + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
+                                "Excluded from GDS/TDS — will require proof of payout (current statement "
+                                "showing zero balance, or receipt) before closing."
                             )
 
-                    own_funds_checked = st.checkbox(
-                        "Being paid off from the client's own funds / gifted funds prior to closing",
-                        value=st.session_state.debt_paid_from_own_funds.get(instance_key, False),
-                        key="debt_own_funds_" + instance_key,
+                    excluded_from_debt_service = payout_checked or own_funds_checked
+
+                    if not excluded_from_debt_service:
+                        total_other_debt += payment_value
+
+                    docs_html = ""
+                    for d in debt_type["documents"]:
+                        docs_html += "<li>" + d + "</li>"
+                    notes_html = "<div style='margin-top:6px;'>" + debt_type["notes"] + "</div>" if debt_type["notes"] else ""
+                    st.markdown(
+                        "<div class='doc-list'><b>Required Documentation</b>"
+                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
+                        unsafe_allow_html=True,
                     )
-                    st.session_state.debt_paid_from_own_funds[instance_key] = own_funds_checked
-                    if own_funds_checked:
-                        st.caption(
-                            "Excluded from GDS/TDS — will require proof of payout (current statement "
-                            "showing zero balance, or receipt) before closing."
-                        )
 
-                excluded_from_debt_service = payout_checked or own_funds_checked
+                st.session_state.debt_amounts[instance_key] = amounts
 
-                if not excluded_from_debt_service:
-                    total_other_debt += payment_value
-
-                docs_html = ""
-                for d in debt_type["documents"]:
-                    docs_html += "<li>" + d + "</li>"
-                notes_html = "<div style='margin-top:6px;'>" + debt_type["notes"] + "</div>" if debt_type["notes"] else ""
-                st.markdown(
-                    "<div class='doc-list'><b>Required Documentation</b>"
-                    "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
-                    unsafe_allow_html=True,
-                )
-
-            st.session_state.debt_amounts[instance_key] = amounts
-
-    st.session_state.debt_selected = selected
+        st.session_state.debt_selected = selected
 
     st.divider()
 
-    if selected:
-        st.write("**Other Debt Breakdown**")
-        for instance_key in selected:
-            dt = get_debt_type(instance_key)
-            amounts = st.session_state.debt_amounts.get(instance_key, {})
-            _, exp = explain_debt_payment(dt, amounts)
-            label_prefix = debt_instance_label(dt, instance_key) + ": " if "#" in instance_key else ""
-            excluded_note = ""
-            if st.session_state.debt_payout_selected.get(instance_key, False):
-                excluded_note = " — excluded from GDS/TDS (paid out from mortgage proceeds)"
-            elif st.session_state.debt_paid_from_own_funds.get(instance_key, False):
-                excluded_note = " — excluded from GDS/TDS (paid from own/gifted funds)"
-            st.caption(label_prefix + exp + excluded_note)
+    with st.container(key="card_debt_totals"):
+        if selected:
+            st.write("**Other Debt Breakdown**")
+            for instance_key in selected:
+                dt = get_debt_type(instance_key)
+                amounts = st.session_state.debt_amounts.get(instance_key, {})
+                _, exp = explain_debt_payment(dt, amounts)
+                label_prefix = debt_instance_label(dt, instance_key) + ": " if "#" in instance_key else ""
+                excluded_note = ""
+                if st.session_state.debt_payout_selected.get(instance_key, False):
+                    excluded_note = " — excluded from GDS/TDS (paid out from mortgage proceeds)"
+                elif st.session_state.debt_paid_from_own_funds.get(instance_key, False):
+                    excluded_note = " — excluded from GDS/TDS (paid from own/gifted funds)"
+                st.caption(label_prefix + exp + excluded_note)
 
-    total_monthly_debt = total_property_debt + total_other_debt
-    st.markdown("#### Total Monthly Debt Obligations (Other Properties + Debts): " + fmt_money(total_monthly_debt))
-    st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
-    st.caption("Full GDS/TDS qualification is calculated on the Analysis step, after financing terms are set.")
+        total_monthly_debt = total_property_debt + total_other_debt
+        st.markdown("#### Total Monthly Debt Obligations (Other Properties + Debts): " + fmt_money(total_monthly_debt))
+        st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
+        st.caption("Full GDS/TDS qualification is calculated on the Analysis step, after financing terms are set.")
 
     if is_refinance():
         st.divider()
-        st.markdown("#### Refinance Payout Summary")
-        breakdown = get_switch_payout_breakdown()
-        if breakdown:
-            st.markdown("**Being paid out from proceeds:**")
-            for item in breakdown:
-                st.markdown("- " + item["label"] + ": " + fmt_money(item["amount"]))
-        st.markdown(
-            "<div class='metric-row'>"
-            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Loan Amount Requested</div>"
-            "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
-            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Mortgages/LOCs Paid Out</div>"
-            "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
-            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Debts Paid Out</div>"
-            "<div class='metric-value'>" + fmt_money(get_debts_payout_total()) + "</div></div>"
-            "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Net Proceeds Remaining</div>"
-            "<div class='metric-value'>" + fmt_money(get_switch_net_proceeds()) + "</div></div>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-        if get_switch_net_proceeds() < 0:
-            st.caption(":red[Requested loan amount is less than the mortgages/LOCs and debts being paid out — this shortfall needs to be resolved before proceeding.]")
+        with st.container(key="card_debt_payout"):
+            st.markdown("#### Refinance Payout Summary")
+            breakdown = get_switch_payout_breakdown()
+            if breakdown:
+                st.markdown("**Being paid out from proceeds:**")
+                for item in breakdown:
+                    st.markdown("- " + item["label"] + ": " + fmt_money(item["amount"]))
+            st.markdown(
+                "<div class='metric-row'>"
+                "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Loan Amount Requested</div>"
+                "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
+                "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Mortgages/LOCs Paid Out</div>"
+                "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
+                "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Debts Paid Out</div>"
+                "<div class='metric-value'>" + fmt_money(get_debts_payout_total()) + "</div></div>"
+                "<div class='metric-card'><div class='metric-label' style='white-space:nowrap; font-size:12px;'>Net Proceeds Remaining</div>"
+                "<div class='metric-value'>" + fmt_money(get_switch_net_proceeds()) + "</div></div>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            if get_switch_net_proceeds() < 0:
+                st.caption(":red[Requested loan amount is less than the mortgages/LOCs and debts being paid out — this shortfall needs to be resolved before proceeding.]")
 
     st.divider()
 
@@ -3955,68 +3974,69 @@ def render_analysis():
                 st.session_state["amortization_synced_from"] = source_years
 
     # --- Financing Terms (moved here from Property Details) ---
-    st.markdown("#### Financing Terms")
+    with st.container(key="card_financing_terms"):
+        st.markdown("#### Financing Terms")
 
-    def field_row(label_widget_fn, help_text_fn, help_key):
-        with st.container(key="fieldrow_" + help_key):
-            c1, c2 = st.columns([12, 1])
-            with c1:
-                label_widget_fn()
-            with c2:
-                with st.container(key="helpbtn_" + help_key):
-                    with st.popover("?", key=help_key):
-                        st.caption(help_text_fn())
+        def field_row(label_widget_fn, help_text_fn, help_key):
+            with st.container(key="fieldrow_" + help_key):
+                c1, c2 = st.columns([12, 1])
+                with c1:
+                    label_widget_fn()
+                with c2:
+                    with st.container(key="helpbtn_" + help_key):
+                        with st.popover("?", key=help_key):
+                            st.caption(help_text_fn())
 
-    fc1, fc2 = st.columns(2)
-    with fc1:
-        field_row(
-            lambda: st.session_state.__setitem__("contract_rate", st.number_input(
-                "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
-                value=st.session_state.contract_rate, step=0.05, key="analysis_contract_rate",
-            )),
-            lambda: help_contract_rate_text(st.session_state.contract_rate),
-            "help_contract_rate",
-        )
-        field_row(
-            lambda: st.session_state.__setitem__("mortgage_term", st.selectbox(
-                "Mortgage Term", MORTGAGE_TERM_OPTIONS,
-                index=MORTGAGE_TERM_OPTIONS.index(st.session_state.mortgage_term)
-                if st.session_state.mortgage_term in MORTGAGE_TERM_OPTIONS else 4,
-                key="mortgage_term_select",
-            )),
-            lambda: help_term_text(st.session_state.mortgage_term),
-            "help_term",
-        )
-        field_row(
-            lambda: st.session_state.__setitem__("benchmark_rate", st.number_input(
-                "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
-                value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
-            )),
-            lambda: help_benchmark_text(
-                st.session_state.contract_rate, st.session_state.benchmark_rate,
-                max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate),
-            ),
-            "help_benchmark",
-        )
-    with fc2:
-        field_row(
-            lambda: st.session_state.__setitem__("amortization_years", st.number_input(
-                "Amortization (years)", min_value=1, max_value=50,
-                value=st.session_state.amortization_years, step=1, key="analysis_amortization",
-            )),
-            lambda: help_amortization_text(st.session_state.amortization_years),
-            "help_amortization",
-        )
-        field_row(
-            lambda: st.session_state.__setitem__("rate_type", st.selectbox(
-                "Rate Type", RATE_TYPE_OPTIONS,
-                index=RATE_TYPE_OPTIONS.index(st.session_state.rate_type)
-                if st.session_state.rate_type in RATE_TYPE_OPTIONS else 0,
-                key="rate_type_select",
-            )),
-            lambda: help_rate_type_text(st.session_state.rate_type),
-            "help_rate_type",
-        )
+        fc1, fc2 = st.columns(2)
+        with fc1:
+            field_row(
+                lambda: st.session_state.__setitem__("contract_rate", st.number_input(
+                    "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
+                    value=st.session_state.contract_rate, step=0.05, key="analysis_contract_rate",
+                )),
+                lambda: help_contract_rate_text(st.session_state.contract_rate),
+                "help_contract_rate",
+            )
+            field_row(
+                lambda: st.session_state.__setitem__("mortgage_term", st.selectbox(
+                    "Mortgage Term", MORTGAGE_TERM_OPTIONS,
+                    index=MORTGAGE_TERM_OPTIONS.index(st.session_state.mortgage_term)
+                    if st.session_state.mortgage_term in MORTGAGE_TERM_OPTIONS else 4,
+                    key="mortgage_term_select",
+                )),
+                lambda: help_term_text(st.session_state.mortgage_term),
+                "help_term",
+            )
+            field_row(
+                lambda: st.session_state.__setitem__("benchmark_rate", st.number_input(
+                    "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
+                    value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
+                )),
+                lambda: help_benchmark_text(
+                    st.session_state.contract_rate, st.session_state.benchmark_rate,
+                    max(st.session_state.contract_rate + STRESS_TEST_ADDON, st.session_state.benchmark_rate),
+                ),
+                "help_benchmark",
+            )
+        with fc2:
+            field_row(
+                lambda: st.session_state.__setitem__("amortization_years", st.number_input(
+                    "Amortization (years)", min_value=1, max_value=50,
+                    value=st.session_state.amortization_years, step=1, key="analysis_amortization",
+                )),
+                lambda: help_amortization_text(st.session_state.amortization_years),
+                "help_amortization",
+            )
+            field_row(
+                lambda: st.session_state.__setitem__("rate_type", st.selectbox(
+                    "Rate Type", RATE_TYPE_OPTIONS,
+                    index=RATE_TYPE_OPTIONS.index(st.session_state.rate_type)
+                    if st.session_state.rate_type in RATE_TYPE_OPTIONS else 0,
+                    key="rate_type_select",
+                )),
+                lambda: help_rate_type_text(st.session_state.rate_type),
+                "help_rate_type",
+            )
     st.divider()
 
     # --- Aggregate data ---
@@ -4658,41 +4678,40 @@ def render_document_checklist(data):
 
     total_count = 0
     categories = data.get("categories", [])
-    for category in categories:
+    for cat_idx, category in enumerate(categories):
         items = category.get("items", [])
         if not items:
             continue
         total_count += len(items)
-        st.markdown(
-            "<div style='font-size:18px; font-weight:700; margin-top:14px; margin-bottom:6px;'>"
-            + category.get("name", "") + " (" + str(len(items)) + ")</div>",
-            unsafe_allow_html=True,
-        )
+        with st.container(key="card_doc_cat_" + str(cat_idx)):
+            st.markdown(
+                "<div style='font-size:18px; font-weight:700; margin-top:0; margin-bottom:6px;'>"
+                + category.get("name", "") + " (" + str(len(items)) + ")</div>",
+                unsafe_allow_html=True,
+            )
 
-        for (applicant, subcategory), group_items in group_checklist_items(items):
-            if applicant or subcategory:
-                heading_parts = []
-                if applicant:
-                    heading_parts.append("<b>" + applicant + "</b>")
-                if subcategory:
-                    heading_parts.append(subcategory)
-                st.markdown(
-                    "<div style='margin-left:20px; font-weight:600; margin-top:8px; margin-bottom:2px;'>"
-                    + " — ".join(heading_parts) + "</div>",
-                    unsafe_allow_html=True,
-                )
-                item_indent = 40
-            else:
-                item_indent = 20
+            for (applicant, subcategory), group_items in group_checklist_items(items):
+                if applicant or subcategory:
+                    heading_parts = []
+                    if applicant:
+                        heading_parts.append("<b>" + applicant + "</b>")
+                    if subcategory:
+                        heading_parts.append(subcategory)
+                    st.markdown(
+                        "<div style='margin-left:20px; font-weight:600; margin-top:8px; margin-bottom:2px;'>"
+                        + " — ".join(heading_parts) + "</div>",
+                        unsafe_allow_html=True,
+                    )
+                    item_indent = 40
+                else:
+                    item_indent = 20
 
-            for item in group_items:
-                st.markdown(
-                    "<div style='margin-left:" + str(item_indent) + "px; margin-bottom:2px;'>"
-                    "☐ " + item["text"] + "</div>",
-                    unsafe_allow_html=True,
-                )
-
-        st.markdown("---")
+                for item in group_items:
+                    st.markdown(
+                        "<div style='margin-left:" + str(item_indent) + "px; margin-bottom:2px;'>"
+                        "☐ " + item["text"] + "</div>",
+                        unsafe_allow_html=True,
+                    )
 
     return total_count
 
@@ -4751,63 +4770,62 @@ def render_document_checklist_editable(data):
     unchecked_keys = set()
     text_edits = {}
 
-    for category in data.get("categories", []):
+    for cat_idx, category in enumerate(data.get("categories", [])):
         cat_name = category.get("name", "")
         items = category.get("items", [])
-        st.markdown(
-            "<div style='font-size:18px; font-weight:700; margin-top:14px; margin-bottom:6px;'>"
-            + cat_name + " (" + str(len(items)) + ")</div>",
-            unsafe_allow_html=True,
-        )
-
-        if not items:
-            st.caption("No documents in this category yet.")
-
-        for (applicant, subcategory), group_items in group_checklist_items(items):
-            if applicant or subcategory:
-                heading_parts = []
-                if applicant:
-                    heading_parts.append("<b>" + applicant + "</b>")
-                if subcategory:
-                    heading_parts.append(subcategory)
-                st.markdown(
-                    "<div style='margin-left:20px; font-weight:600; margin-top:8px; margin-bottom:2px;'>"
-                    + " — ".join(heading_parts) + "</div>",
-                    unsafe_allow_html=True,
-                )
-
-            for item in group_items:
-                key = item.get("_key") or checklist_item_key(cat_name, item)
-                row_col, text_col = st.columns([1, 9])
-                with row_col:
-                    keep = st.checkbox("", value=True, key="doc_edit_keep_" + key, label_visibility="collapsed")
-                with text_col:
-                    edited_text = st.text_input(
-                        "Document", value=item["text"], key="doc_edit_text_" + key, label_visibility="collapsed",
-                    )
-                if not keep:
-                    unchecked_keys.add(key)
-                if edited_text != item["text"]:
-                    text_edits[key] = edited_text
-
-        # Add a custom document line to this category — applies immediately.
-        add_col, btn_col = st.columns([4, 1])
-        new_doc_input_key = "doc_add_new_" + cat_name
-        with add_col:
-            new_doc_text = st.text_input(
-                "Add a document to " + cat_name, value="", key=new_doc_input_key,
-                placeholder="e.g. 3 years of financial statements", label_visibility="collapsed",
+        with st.container(key="card_doc_edit_" + str(cat_idx)):
+            st.markdown(
+                "<div style='font-size:18px; font-weight:700; margin-top:0; margin-bottom:6px;'>"
+                + cat_name + " (" + str(len(items)) + ")</div>",
+                unsafe_allow_html=True,
             )
-        with btn_col:
-            if st.button("+ Add", key="doc_add_btn_" + cat_name, use_container_width=True):
-                if new_doc_text.strip():
-                    existing = dict(st.session_state.doc_custom_items)
-                    existing.setdefault(cat_name, [])
-                    existing[cat_name] = existing[cat_name] + [new_doc_text.strip()]
-                    st.session_state.doc_custom_items = existing
-                    st.rerun()
 
-        st.markdown("---")
+            if not items:
+                st.caption("No documents in this category yet.")
+
+            for (applicant, subcategory), group_items in group_checklist_items(items):
+                if applicant or subcategory:
+                    heading_parts = []
+                    if applicant:
+                        heading_parts.append("<b>" + applicant + "</b>")
+                    if subcategory:
+                        heading_parts.append(subcategory)
+                    st.markdown(
+                        "<div style='margin-left:20px; font-weight:600; margin-top:8px; margin-bottom:2px;'>"
+                        + " — ".join(heading_parts) + "</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                for item in group_items:
+                    key = item.get("_key") or checklist_item_key(cat_name, item)
+                    row_col, text_col = st.columns([1, 9])
+                    with row_col:
+                        keep = st.checkbox("", value=True, key="doc_edit_keep_" + key, label_visibility="collapsed")
+                    with text_col:
+                        edited_text = st.text_input(
+                            "Document", value=item["text"], key="doc_edit_text_" + key, label_visibility="collapsed",
+                        )
+                    if not keep:
+                        unchecked_keys.add(key)
+                    if edited_text != item["text"]:
+                        text_edits[key] = edited_text
+
+            # Add a custom document line to this category — applies immediately.
+            add_col, btn_col = st.columns([4, 1])
+            new_doc_input_key = "doc_add_new_" + cat_name
+            with add_col:
+                new_doc_text = st.text_input(
+                    "Add a document to " + cat_name, value="", key=new_doc_input_key,
+                    placeholder="e.g. 3 years of financial statements", label_visibility="collapsed",
+                )
+            with btn_col:
+                if st.button("+ Add", key="doc_add_btn_" + cat_name, use_container_width=True):
+                    if new_doc_text.strip():
+                        existing = dict(st.session_state.doc_custom_items)
+                        existing.setdefault(cat_name, [])
+                        existing[cat_name] = existing[cat_name] + [new_doc_text.strip()]
+                        st.session_state.doc_custom_items = existing
+                        st.rerun()
 
     return unchecked_keys, text_edits
 
