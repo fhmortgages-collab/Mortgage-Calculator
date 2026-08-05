@@ -455,6 +455,16 @@ def init_state():
         st.session_state.subject_has_rental_component = ""
     if "subject_num_units" not in st.session_state:
         st.session_state.subject_num_units = ""
+    if "property_appraisal_type" not in st.session_state:
+        st.session_state.property_appraisal_type = ""
+    if "property_appraisal_ordered" not in st.session_state:
+        st.session_state.property_appraisal_ordered = False
+    if "property_appraisal_value_raw" not in st.session_state:
+        st.session_state.property_appraisal_value_raw = ""
+    if "property_purchase_channel" not in st.session_state:
+        st.session_state.property_purchase_channel = ""
+    if "property_mls_link" not in st.session_state:
+        st.session_state.property_mls_link = ""
     if "subject_rental_kitchen" not in st.session_state:
         st.session_state.subject_rental_kitchen = False
     if "subject_rental_bathroom" not in st.session_state:
@@ -637,6 +647,8 @@ SAVE_STATE_KEYS = [
     "subject_address", "subject_taxes_raw", "subject_condo_raw", "subject_heat_raw",
     "subject_has_rental_component", "subject_rental_kitchen", "subject_rental_bathroom", "subject_rental_entrance",
     "subject_num_units",
+    "property_appraisal_type", "property_appraisal_ordered", "property_appraisal_value_raw",
+    "property_purchase_channel", "property_mls_link",
     "subject_prop_type", "subject_prop_purpose", "subject_prop_age", "subject_garage",
     "subject_rural_urban", "subject_sqft", "subject_storeys", "subject_heating_type",
     "subject_cooling", "subject_foundation", "subject_foundation_other",
@@ -782,6 +794,11 @@ def refresh_all():
     st.session_state.subject_rental_bathroom = False
     st.session_state.subject_rental_entrance = False
     st.session_state.subject_num_units = ""
+    st.session_state.property_appraisal_type = ""
+    st.session_state.property_appraisal_ordered = False
+    st.session_state.property_appraisal_value_raw = ""
+    st.session_state.property_purchase_channel = ""
+    st.session_state.property_mls_link = ""
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
@@ -866,6 +883,17 @@ def get_loan_amount():
     purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
     down_payment = parse_money(st.session_state.down_payment_raw) or 0.0
     return max(purchase_price - down_payment, 0.0)
+
+
+def get_reference_property_value():
+    """
+    The property value to carry into Property Details' appraisal section — whatever was
+    already entered elsewhere: purchase price for purchase/builder purchase, or the
+    property value entered on the Lender Details step for either refinance type.
+    """
+    if is_refinance():
+        return parse_money(st.session_state.subject_property_value_raw)
+    return parse_money(st.session_state.purchase_price_raw)
 
 
 def get_switch_total_mortgage_balance():
@@ -970,7 +998,7 @@ def render_stepper(active_index):
                         st.rerun()
 
 
-st.set_page_config(page_title="FH.Mortgage Calculator", page_icon="🏠", layout="centered")
+st.set_page_config(page_title="FH.Mortgages Calculator", page_icon="🏠", layout="centered")
 
 st.markdown(
     """
@@ -1113,7 +1141,12 @@ st.markdown(
 
 init_state()
 
-st.markdown("## 🏠 FH.Mortgage Calculator")
+_title_suffix = ""
+for _opt in TRANSACTION_TYPE_OPTIONS:
+    if _opt["key"] == st.session_state.transaction_type:
+        _title_suffix = " - " + _opt["label"]
+        break
+st.markdown("## 🏠 FH.Mortgages Calculator" + _title_suffix)
 st.caption("Residential Mortgage Application")
 
 render_stepper(st.session_state.step)
@@ -2070,6 +2103,11 @@ def refresh_property_details():
     st.session_state.subject_rental_bathroom = False
     st.session_state.subject_rental_entrance = False
     st.session_state.subject_num_units = ""
+    st.session_state.property_appraisal_type = ""
+    st.session_state.property_appraisal_ordered = False
+    st.session_state.property_appraisal_value_raw = ""
+    st.session_state.property_purchase_channel = ""
+    st.session_state.property_mls_link = ""
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
@@ -2168,6 +2206,74 @@ def render_property_details():
             unsafe_allow_html=True,
         )
         st.caption("To change the purchase price or down payment, go back to the Down Payment step.")
+
+    st.divider()
+
+    # --- Order Appraisal ---
+    st.markdown("#### Order Appraisal")
+    ap_c1, ap_c2 = st.columns([3, 2])
+    with ap_c1:
+        st.session_state.property_appraisal_type = st.selectbox(
+            "Appraisal Type", ["", "Appraisal", "Appraisal with Market Rent"],
+            index=["", "Appraisal", "Appraisal with Market Rent"].index(st.session_state.property_appraisal_type)
+            if st.session_state.property_appraisal_type in ["", "Appraisal", "Appraisal with Market Rent"] else 0,
+            key="property_appraisal_type_input",
+        )
+    with ap_c2:
+        st.write("")
+        if st.button("📋 Order Appraisal", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type):
+            st.session_state.property_appraisal_ordered = True
+    if st.session_state.property_appraisal_ordered:
+        st.caption(":green[✓ " + st.session_state.property_appraisal_type + " ordered (to be set up later).]")
+
+    st.divider()
+
+    # --- Property Value & Appraisal Value ---
+    st.markdown("#### Property Value & Appraisal Value")
+    ref_value = get_reference_property_value()
+    pv_c1, pv_c2 = st.columns(2)
+    with pv_c1:
+        st.markdown(
+            "<span style='font-family: \"Source Code Pro\", monospace; font-size: 15px; color:#22c55e;'>"
+            "Property Value: `" + fmt_money(ref_value) + "`</span>",
+            unsafe_allow_html=True,
+        )
+        st.caption("Carried over from " + ("the Lender Details step" if is_refinance() else "the Down Payment step") + ".")
+    with pv_c2:
+        st.session_state.property_appraisal_value_raw = st.text_input(
+            "Appraisal Value ($)", value=st.session_state.property_appraisal_value_raw,
+            placeholder="Enter once the appraisal comes back",
+        )
+        appraisal_val = parse_money(st.session_state.property_appraisal_value_raw)
+        if appraisal_val is not None:
+            st.markdown(
+                "<span style='font-family: \"Source Code Pro\", monospace; font-size: 15px; color:#22c55e;'>"
+                "Appraisal Value: `" + fmt_money(appraisal_val) + "`</span>",
+                unsafe_allow_html=True,
+            )
+            if ref_value is not None and ref_value > 0:
+                diff_pct = (appraisal_val - ref_value) / ref_value * 100
+                if abs(diff_pct) >= 1:
+                    st.caption(
+                        ("Appraisal is {:.1f}% below".format(abs(diff_pct)) if diff_pct < 0
+                         else "Appraisal is {:.1f}% above".format(diff_pct)) + " the property value above."
+                    )
+
+    st.divider()
+
+    # --- Private Purchase or MLS Purchase ---
+    st.markdown("#### Private Purchase or MLS Purchase")
+    st.session_state.property_purchase_channel = st.selectbox(
+        "How is this property being purchased?", ["", "Private Purchase", "MLS Purchase"],
+        index=["", "Private Purchase", "MLS Purchase"].index(st.session_state.property_purchase_channel)
+        if st.session_state.property_purchase_channel in ["", "Private Purchase", "MLS Purchase"] else 0,
+        key="property_purchase_channel_input",
+    )
+    if st.session_state.property_purchase_channel == "MLS Purchase":
+        st.session_state.property_mls_link = st.text_input(
+            "MLS Listing Link", value=st.session_state.property_mls_link,
+            placeholder="https://...",
+        )
 
     if st.session_state.transaction_type == "builder_purchase":
         st.divider()
@@ -3187,12 +3293,12 @@ def explain_debt_payment(debt_type, amounts):
         payment = balance * pct
         explanation = (
             debt_type["label"] + ": " + "{:.0f}%".format(pct * 100) + " of "
-            + fmt_money(balance) + " balance = " + fmt_money(payment) + "/month"
+            + "`" + fmt_money(balance) + "`" + " balance = " + "`" + fmt_money(payment) + "`" + "/month"
         )
         return payment, explanation
     else:
         payment = parse_money(amounts.get("payment", "")) or 0.0
-        explanation = debt_type["label"] + ": stated monthly payment = " + fmt_money(payment) + "/month"
+        explanation = debt_type["label"] + ": stated monthly payment = " + "`" + fmt_money(payment) + "`" + "/month"
         return payment, explanation
 
 
