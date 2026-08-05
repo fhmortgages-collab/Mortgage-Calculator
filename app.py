@@ -4900,6 +4900,38 @@ def build_system_notes():
     write, sourced entirely from what's on file.
     """
     lines = []
+    exceptions_bits = []
+
+    # --- Purpose of Funds (mandatory — per business-case guidance, must be stated on every file) ---
+    purpose_bits = []
+    if st.session_state.transaction_type == "purchase":
+        purpose_bits.append("Purchase of a resale property")
+        if st.session_state.subject_prop_purpose:
+            purpose_bits.append("intended use: " + st.session_state.subject_prop_purpose.lower())
+    elif st.session_state.transaction_type == "builder_purchase":
+        purpose_bits.append("Purchase of a newly constructed property from a builder")
+        if st.session_state.subject_prop_purpose:
+            purpose_bits.append("intended use: " + st.session_state.subject_prop_purpose.lower())
+    elif is_refinance():
+        debt_payout_bits = []
+        for dkey, included in st.session_state.debt_payout_selected.items():
+            if included:
+                dt = get_debt_type(dkey)
+                if dt:
+                    debt_payout_bits.append(debt_instance_label(dt, dkey))
+        if debt_payout_bits:
+            purpose_bits.append("Debt consolidation — paying out " + ", ".join(debt_payout_bits) + " from proceeds")
+        if st.session_state.switch_additional_funds == "Yes":
+            purpose_bits.append("client is requesting additional funds (cash out)")
+        if st.session_state.subject_has_rental_component == "Yes" and st.session_state.transaction_type == "refinance_existing_lender":
+            purpose_bits.append("refinancing to add/formalize a secondary suite")
+        if not purpose_bits:
+            purpose_bits.append(
+                "Renewal/refinance of existing mortgage financing"
+                + (" with " + st.session_state.switch_ofi_name if st.session_state.switch_ofi_name.strip() else "")
+            )
+    if purpose_bits:
+        lines.append("**PURPOSE OF FUNDS**\n" + ". ".join(purpose_bits) + ".")
 
     # --- Borrowers ---
     borrower_bits = []
@@ -4916,7 +4948,7 @@ def build_system_notes():
         borrower_bits.append(name + detail_str)
     if borrower_bits:
         lines.append(
-            "APPLICANT(S): This application includes " + str(st.session_state.borrower_count)
+            "**APPLICANT(S)**\nThis application includes " + str(st.session_state.borrower_count)
             + " borrower(s): " + "; ".join(borrower_bits) + "."
         )
 
@@ -4935,8 +4967,8 @@ def build_system_notes():
             pct_str = " ({:.1f}% of purchase price)".format(dp_pct) if dp_pct is not None else ""
             source_str = ", ".join(dp_sources) if dp_sources else "not yet specified"
             lines.append(
-                "DOWN PAYMENT: " + fmt_money(dp_amount) + pct_str + " on a purchase price of " + fmt_money(purchase_price)
-                + ". Source(s): " + source_str + "."
+                "**DOWN PAYMENT / SOURCE OF FUNDS**\n" + fmt_money(dp_amount) + pct_str + " on a purchase price of " + fmt_money(purchase_price)
+                + ". Source(s): " + source_str + ". Confirm date and manner of acquisition for AML purposes."
             )
     else:
         loan_amount_note = get_loan_amount()
@@ -4944,7 +4976,7 @@ def build_system_notes():
         if loan_amount_note or property_value_note:
             ltv_note = " (LTV: {:.1f}%)".format(loan_amount_note / property_value_note * 100) if property_value_note else ""
             lines.append(
-                "REFINANCE: Mortgage loan amount of " + fmt_money(loan_amount_note) + " against an estimated "
+                "**LOAN AMOUNT & LTV**\nMortgage loan amount of " + fmt_money(loan_amount_note) + " against an estimated "
                 "property value of " + fmt_money(property_value_note) + ltv_note + "."
             )
 
@@ -4963,7 +4995,7 @@ def build_system_notes():
     total_income = compute_total_income()
     if income_bits:
         lines.append(
-            "INCOME: Combined gross annual income of " + fmt_money(total_income) + ". "
+            "**INCOME & EMPLOYMENT**\nCombined gross annual income of " + fmt_money(total_income) + ". "
             + " | ".join(income_bits) + "."
         )
 
@@ -4980,17 +5012,19 @@ def build_system_notes():
     if st.session_state.subject_sqft:
         prop_bits.append(st.session_state.subject_sqft + " sqft")
     if prop_bits:
-        lines.append("SUBJECT PROPERTY: " + ", ".join(prop_bits) + ".")
+        lines.append("**PROPERTY**\n" + ", ".join(prop_bits) + ".")
     if st.session_state.subject_has_rental_component == "Yes":
         self_contained = (
             st.session_state.subject_rental_kitchen and st.session_state.subject_rental_bathroom
             and st.session_state.subject_rental_entrance
         )
         lines.append(
-            "RENTAL COMPONENT: Property has a rental unit. Self-contained (kitchen/bathroom/separate entrance): "
+            "Rental component: property has a rental unit. Self-contained (kitchen/bathroom/separate entrance): "
             + ("Yes — rental income usable for qualification." if self_contained
                else "No — rental income cannot be used for qualification.")
         )
+        if not self_contained:
+            exceptions_bits.append("Rental unit is not confirmed self-contained — its income was excluded from qualification; address whether the client can service the mortgage without it.")
 
     # --- GDS/TDS ---
     pi_payment, taxes, condo, heat, _ = get_subject_property_costs()
@@ -5020,7 +5054,7 @@ def build_system_notes():
         qualifies = gds <= GDS_LIMIT and tds <= TDS_LIMIT
         stress_qualifies = stressed_gds is not None and stressed_tds is not None and stressed_gds <= GDS_LIMIT and stressed_tds <= TDS_LIMIT
         lines.append(
-            "GDS/TDS: At the contract rate of {:.2f}%, GDS is {:.2f}% and TDS is {:.2f}% (limits: {:.0f}%/{:.0f}%) — {}. "
+            "**CAPACITY (TDS/GDS)**\nAt the contract rate of {:.2f}%, GDS is {:.2f}% and TDS is {:.2f}% (limits: {:.0f}%/{:.0f}%) — {}. "
             "Stressed at the qualifying rate of {:.2f}%, GDS is {} and TDS is {} — {}.".format(
                 st.session_state.contract_rate, gds, tds, GDS_LIMIT, TDS_LIMIT,
                 "within limits" if qualifies else "exceeds limits",
@@ -5030,6 +5064,12 @@ def build_system_notes():
                 "within limits" if stress_qualifies else "exceeds limits",
             )
         )
+        if not qualifies:
+            exceptions_bits.append(
+                "TDS/GDS at contract rate exceeds guidelines ({:.2f}%/{:.2f}% vs {:.0f}%/{:.0f}%) — explain the client's demonstrated ability to service this payment level.".format(gds, tds, GDS_LIMIT, TDS_LIMIT)
+            )
+        elif not stress_qualifies:
+            exceptions_bits.append("TDS/GDS exceeds guidelines when stressed at the qualifying rate — address capacity at the stressed payment.")
 
     # --- Lender & Refinance Details (both refinance types) ---
     if is_refinance():
@@ -5039,7 +5079,7 @@ def build_system_notes():
                 path_label = "Straight Switch (no discharge/re-registration)" if analysis["straight_switch"] else \
                     "Discharge & Re-Registration Required"
                 lines.append(
-                    "SWITCH-IN: Client is switching from " + (st.session_state.switch_ofi_name or "the current lender")
+                    "**SWITCH-IN**\nClient is switching from " + (st.session_state.switch_ofi_name or "the current lender")
                     + ". Path: " + path_label + ". Qualifying Rate: " + analysis["qualifying_rate"] + ". "
                     + analysis["explanation"]
                 )
@@ -5050,11 +5090,11 @@ def build_system_notes():
                     st.session_state.switch_additional_funds == "Yes",
                 )
                 lines.append(
-                    "REFINANCE (EXISTING LENDER): Client is refinancing with " + (st.session_state.switch_ofi_name or "the current lender")
+                    "**REFINANCE (EXISTING LENDER)**\nClient is refinancing with " + (st.session_state.switch_ofi_name or "the current lender")
                     + ". " + amort_note + " " + ltv_calculation_note()
                 )
             if st.session_state.switch_borrowers_changed == "Yes":
-                lines.append("CHANGE OF BORROWER: " + change_of_borrower_note())
+                lines.append("**CHANGE OF BORROWER**\n" + change_of_borrower_note())
 
         due_diligence_bits = []
         additional_lenders = get_switch_additional_lenders()
@@ -5074,8 +5114,12 @@ def build_system_notes():
             due_diligence_bits.append(
                 "mortgages/LOCs in good standing: " + st.session_state.switch_mortgages_good_standing
             )
+            if st.session_state.switch_mortgages_good_standing == "No":
+                exceptions_bits.append("An existing mortgage/LOC is not in good standing — explain the circumstances and current repayment status.")
         if st.session_state.switch_taxes_up_to_date:
             due_diligence_bits.append("property taxes up to date: " + st.session_state.switch_taxes_up_to_date)
+            if st.session_state.switch_taxes_up_to_date == "No":
+                exceptions_bits.append("Property taxes are not up to date — confirm how the arrears will be addressed.")
         if st.session_state.switch_insurance_provider or st.session_state.switch_insurance_good_standing:
             insurer = st.session_state.switch_insurance_provider or "unspecified insurer"
             insurer_bit = "insurance with " + insurer
@@ -5083,12 +5127,12 @@ def build_system_notes():
                 insurer_bit += " (good standing: " + st.session_state.switch_insurance_good_standing + ")"
             due_diligence_bits.append(insurer_bit)
         if due_diligence_bits:
-            lines.append("LENDER DUE DILIGENCE: " + "; ".join(due_diligence_bits) + ".")
+            lines.append("**LENDER DUE DILIGENCE**\n" + "; ".join(due_diligence_bits) + ".")
 
         breakdown = get_switch_payout_breakdown()
         breakdown_str = "; ".join(item["label"] + ": " + fmt_money(item["amount"]) for item in breakdown)
         lines.append(
-            "REFINANCE PAYOUT: Requested loan amount " + fmt_money(get_loan_amount())
+            "**REFINANCE PAYOUT**\nRequested loan amount " + fmt_money(get_loan_amount())
             + ". Being paid out — " + (breakdown_str if breakdown_str else "nothing entered yet") + "."
             + " Total mortgages/LOCs paid out " + fmt_money(get_switch_total_mortgage_balance())
             + ", total debts paid out " + fmt_money(get_debts_payout_total())
@@ -5102,7 +5146,7 @@ def build_system_notes():
             own_funds_bits.append(dt["label"] if dt else dkey)
     if own_funds_bits:
         lines.append(
-            "DEBTS PAID FROM OWN/GIFTED FUNDS (excluded from GDS/TDS): " + ", ".join(own_funds_bits) + "."
+            "**DEBTS PAID FROM OWN/GIFTED FUNDS** (excluded from GDS/TDS)\n" + ", ".join(own_funds_bits) + "."
         )
 
     if st.session_state.transaction_type == "builder_purchase":
@@ -5117,6 +5161,13 @@ def build_system_notes():
             builder_bits.append("product: " + st.session_state.builder_mortgage_product)
         if st.session_state.builder_amortization_years.strip():
             builder_bits.append("amortization requested: " + st.session_state.builder_amortization_years.strip() + " years")
+            amort_years_val = parse_money(st.session_state.builder_amortization_years)
+            if amort_years_val is not None and st.session_state.builder_mortgage_product:
+                b_valid, b_needs_approval, b_msg = is_amortization_valid(int(amort_years_val), st.session_state.builder_mortgage_product)
+                if not b_valid:
+                    exceptions_bits.append("Requested amortization is outside the standard range for this product — " + b_msg)
+                elif b_needs_approval:
+                    exceptions_bits.append("Requested amortization (31-35 years) requires special builder-code approval — " + b_msg)
         if st.session_state.builder_interest_rate_type:
             builder_bits.append("rate type: " + st.session_state.builder_interest_rate_type)
         if st.session_state.builder_rate_buydown:
@@ -5127,7 +5178,13 @@ def build_system_notes():
             cb_program = st.session_state.builder_cashback_program or "program not specified"
             builder_bits.append("cashback requested (" + cb_program + ")")
         if builder_bits:
-            lines.append("BUILDER PROGRAM: " + "; ".join(builder_bits) + ".")
+            lines.append("**BUILDER PROGRAM**\n" + "; ".join(builder_bits) + ".")
+
+    if exceptions_bits:
+        lines.append(
+            "**EXCEPTIONS REQUIRING BUSINESS CASE RATIONALE**\nThe following need explanation and mitigating factors "
+            "in the broker's notes before this file is submission-ready:\n- " + "\n- ".join(exceptions_bits)
+        )
 
     if not lines:
         return "No application data entered yet — complete the earlier steps to generate a summary."
@@ -5142,6 +5199,7 @@ def render_notes():
         "Combine them into one final note for the file."
     )
 
+    # --- 1. System-Generated Summary ---
     with st.expander("System-Generated Summary (from application data)", expanded=True):
         with st.container(key="notes_font_scope_summary"):
             system_notes = build_system_notes()
@@ -5149,28 +5207,23 @@ def render_notes():
 
     st.divider()
 
-    st.markdown("#### Broker's Notes")
-    with st.container(key="notes_font_scope_broker"):
-        st.session_state.broker_notes = st.text_area(
-            "Add any context the system can't infer — client's story, special circumstances, verbal explanations, etc.",
-            value=st.session_state.broker_notes, height=150, key="broker_notes_input",
-        )
-
-    st.divider()
-
-    st.markdown("#### ⚠️ Discrepancies")
-    st.caption(
-        "Compare the application data above against the Client Intake Notes captured on the Deal step "
-        "(what the client actually told you). List anything that doesn't match — these are flagged as a "
-        "risk for underwriting to review."
-    )
+    # --- 2. Intake Notes ---
+    st.markdown("#### Client Intake Notes")
+    st.caption("What the client told you in the initial conversation, captured on the Deal step.")
     if st.session_state.client_intake_notes.strip():
-        with st.expander("Client Intake Notes (from Deal step, for reference)"):
-            with st.container(key="notes_font_scope_intake"):
-                st.markdown(st.session_state.client_intake_notes.replace("\n", "  \n"))
+        with st.container(key="notes_font_scope_intake"):
+            st.markdown(st.session_state.client_intake_notes.replace("\n", "  \n"))
     else:
         st.caption("No client intake notes were captured on the Deal step.")
 
+    st.divider()
+
+    # --- 3. Discrepancies ---
+    st.markdown("#### ⚠️ Discrepancies")
+    st.caption(
+        "Compare the application data above against the Client Intake Notes. List anything that doesn't "
+        "match — these are flagged as a risk for underwriting to review."
+    )
     auto_flags = detect_intake_discrepancies()
     st.caption(
         "Auto-flagged below by matching dollar figures and keywords in the intake notes against the "
@@ -5205,23 +5258,26 @@ def render_notes():
             unsafe_allow_html=True,
         )
 
+    st.divider()
+
+    # --- 4. Combined Notes ---
+    st.markdown("#### Combined File Note")
     st.caption(
         "Note: this app isn't connected to a live AI model — \"Combine Notes\" below merges the system "
-        "summary and your notes into one clean file note using a fixed format, not generative rewriting."
+        "summary, discrepancies, and the broker's notes (further down this page) into one clean file note "
+        "using a fixed format, not generative rewriting."
     )
     if st.button("🧩 Combine Notes", type="primary", use_container_width=True, key="combine_notes_btn"):
         combined = "UNDERWRITER FILE NOTE\n" + "=" * 40 + "\n\n"
         combined += "SYSTEM-GENERATED SUMMARY\n" + "-" * 40 + "\n" + system_notes + "\n\n"
-        combined += "BROKER'S NOTES\n" + "-" * 40 + "\n"
-        combined += (st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)") + "\n\n"
         combined += "DISCREPANCIES (RISK)\n" + "-" * 40 + "\n"
-        combined += st.session_state.discrepancies_notes.strip() if st.session_state.discrepancies_notes.strip() else "(none noted)"
+        combined += (st.session_state.discrepancies_notes.strip() if st.session_state.discrepancies_notes.strip() else "(none noted)") + "\n\n"
+        combined += "BROKER'S NOTES TO UNDERWRITER\n" + "-" * 40 + "\n"
+        combined += st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)"
         st.session_state.combined_notes = combined
         st.success("Notes combined below — feel free to edit before downloading.")
 
     if st.session_state.combined_notes:
-        st.divider()
-        st.markdown("#### Combined File Note")
         with st.container(key="notes_font_scope_combined"):
             st.session_state.combined_notes = st.text_area(
                 "Final note (editable)", value=st.session_state.combined_notes, height=300, key="combined_notes_editor",
@@ -5233,6 +5289,17 @@ def render_notes():
             file_name="underwriter_file_note.txt",
             mime="text/plain",
         )
+
+    st.divider()
+
+    # --- 5. Broker Notes to Underwriter (manual input, last) ---
+    st.markdown("#### Broker Notes to Underwriter")
+    with st.container(key="notes_font_scope_broker"):
+        st.session_state.broker_notes = st.text_area(
+            "Add any context the system can't infer — client's story, special circumstances, verbal explanations, etc.",
+            value=st.session_state.broker_notes, height=150, key="broker_notes_input",
+        )
+    st.caption("After adding your notes here, re-click \"Combine Notes\" above to include them in the final file note.")
 
     st.divider()
 
