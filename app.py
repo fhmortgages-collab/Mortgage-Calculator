@@ -950,9 +950,19 @@ def attempt_mls_autofill(url):
             url.strip(), timeout=8,
             headers={"User-Agent": "Mozilla/5.0 (compatible; MortgageAppBot/1.0)"},
         )
-        resp.raise_for_status()
-    except Exception as e:
-        return {}, "Could not reach that link (" + str(e) + ")."
+    except Exception:
+        return {}, "Could not reach that link — check that it's a valid, complete URL."
+
+    if resp.status_code == 403:
+        return {}, (
+            "That site (realtor.ca and most other MLS/board listing sites) actively blocks automated "
+            "requests like this one — that's the site's own bot protection, not something this app can "
+            "get around. This is expected for most listing sites."
+        )
+    if resp.status_code == 404:
+        return {}, "That link returned a 404 (page not found) — double check the URL."
+    if resp.status_code >= 400:
+        return {}, "That link returned an error (status " + str(resp.status_code) + ") — the site may be unreachable or blocking automated access."
 
     text = resp.text
     found = {}
@@ -2301,22 +2311,24 @@ def render_property_details():
 
     # --- Appraisal, Property Value & Purchase Channel (compacted into one section) ---
     st.markdown("#### Appraisal & Purchase Channel")
-    ap_c1, ap_c2, ap_c3 = st.columns([2.2, 1.3, 2.5])
-    with ap_c1:
+    oa_c1, oa_c2 = st.columns(2)
+    with oa_c1:
         st.session_state.property_appraisal_type = st.selectbox(
             "Order Appraisal", ["", "Appraisal", "Appraisal with Market Rent"],
             index=["", "Appraisal", "Appraisal with Market Rent"].index(st.session_state.property_appraisal_type)
             if st.session_state.property_appraisal_type in ["", "Appraisal", "Appraisal with Market Rent"] else 0,
             key="property_appraisal_type_input",
         )
-    with ap_c2:
+    with oa_c2:
         st.write("")
-        if st.button("📋 Order", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type, use_container_width=True):
-            st.session_state.property_appraisal_ordered = True
-    with ap_c3:
-        st.write("")
-        if st.session_state.property_appraisal_ordered:
-            st.caption(":green[✓ " + st.session_state.property_appraisal_type + " ordered (to be set up later).]")
+        order_btn_col, order_status_col = st.columns([1, 2])
+        with order_btn_col:
+            if st.button("📋 Order", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type, use_container_width=True):
+                st.session_state.property_appraisal_ordered = True
+        with order_status_col:
+            st.write("")
+            if st.session_state.property_appraisal_ordered:
+                st.caption(":green[✓ Ordered (to be set up later).]")
 
     ref_value = get_reference_property_value()
     pv_c1, pv_c2 = st.columns(2)
@@ -2371,20 +2383,24 @@ def render_property_details():
                 )
             with mls_c2:
                 st.write("")
-                if st.button("🔎 Auto-Fill", key="mls_autofill_btn", disabled=not st.session_state.property_mls_link.strip(), use_container_width=True):
-                    with st.spinner("Attempting to read the MLS listing..."):
-                        found, error = attempt_mls_autofill(st.session_state.property_mls_link)
-                    if error:
-                        st.session_state.mls_autofill_status = "failed"
-                        st.session_state.mls_autofilled_fields = []
-                        st.warning("⚠ " + error + " Please complete the highlighted fields below manually.")
-                    else:
-                        for k, v in found.items():
-                            st.session_state[k] = v
-                        st.session_state.mls_autofilled_fields = list(found.keys())
-                        st.session_state.mls_autofill_status = "success"
-                        st.success("✓ Auto-filled " + str(len(found)) + " field(s) — please verify below, and complete any highlighted fields manually.")
-                        st.rerun()
+                autofill_clicked = st.button(
+                    "🔎 Auto-Fill", key="mls_autofill_btn",
+                    disabled=not st.session_state.property_mls_link.strip(), use_container_width=True,
+                )
+            if autofill_clicked:
+                with st.spinner("Attempting to read the MLS listing..."):
+                    found, error = attempt_mls_autofill(st.session_state.property_mls_link)
+                if error:
+                    st.session_state.mls_autofill_status = "failed"
+                    st.session_state.mls_autofilled_fields = []
+                    st.warning("⚠ " + error + " Please complete the highlighted fields below manually.")
+                else:
+                    for k, v in found.items():
+                        st.session_state[k] = v
+                    st.session_state.mls_autofilled_fields = list(found.keys())
+                    st.session_state.mls_autofill_status = "success"
+                    st.success("✓ Auto-filled " + str(len(found)) + " field(s) — please verify below, and complete any highlighted fields manually.")
+                    st.rerun()
             if st.session_state.mls_autofill_status == "failed":
                 st.caption(":orange[Could not auto-fill from that link — the fields below need to be entered manually.]")
         elif st.session_state.property_details_method == "Enter Manually":
