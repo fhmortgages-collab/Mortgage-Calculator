@@ -387,6 +387,8 @@ def init_state():
         st.session_state.client_intake_notes = ""
     if "discrepancies_notes" not in st.session_state:
         st.session_state.discrepancies_notes = ""
+    if "discrepancies_resolution" not in st.session_state:
+        st.session_state.discrepancies_resolution = ""
     if "doc_removed_items" not in st.session_state:
         st.session_state.doc_removed_items = []
     if "doc_edit_mode" not in st.session_state:
@@ -659,7 +661,7 @@ SAVE_STATE_KEYS = [
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
     "doc_text_overrides", "doc_custom_items",
     "broker_notes", "combined_notes", "mortgage_term", "rate_type",
-    "client_intake_notes", "discrepancies_notes",
+    "client_intake_notes", "discrepancies_notes", "discrepancies_resolution",
     "switch_ofi_name", "switch_ofi_is_frfi", "switch_reg_type", "switch_mortgage_type",
     "switch_timing", "switch_current_balance_raw", "switch_remaining_amortization",
     "switch_amortization_unchanged", "switch_additional_funds",
@@ -745,6 +747,7 @@ def refresh_all():
     st.session_state.combined_notes = ""
     st.session_state.client_intake_notes = ""
     st.session_state.discrepancies_notes = ""
+    st.session_state.discrepancies_resolution = ""
     st.session_state.mortgage_term = "5 Year"
     st.session_state.rate_type = "Fixed"
     st.session_state.borrower_count = 1
@@ -1153,7 +1156,7 @@ render_stepper(st.session_state.step)
 
 with st.sidebar:
     st.download_button(
-        "⬇️ Download", data=serialize_application(), file_name="mortgage_application.json",
+        "⬇️ Download / Save File", data=serialize_application(), file_name="mortgage_application.json",
         mime="application/json", use_container_width=True,
     )
     uploaded = st.file_uploader("Upload", type=["json"], key="load_app_uploader", label_visibility="collapsed")
@@ -5257,49 +5260,69 @@ def render_notes():
             "</div>",
             unsafe_allow_html=True,
         )
+        with st.container(key="notes_font_scope_resolution"):
+            st.session_state.discrepancies_resolution = st.text_area(
+                "How were these discrepancies addressed?",
+                value=st.session_state.discrepancies_resolution,
+                placeholder="e.g. Confirmed with client by phone Aug 5 — actual credit card balance is $5,000, "
+                "client misspoke during intake. Rental unit confirmed to exist; client simply hadn't mentioned it.",
+                height=100, key="discrepancies_resolution_input",
+            )
 
     st.divider()
 
-    # --- 4. Combined Notes ---
-    st.markdown("#### Combined File Note")
+    # --- 4. Combine Notes ---
+    st.markdown("#### Combine Notes")
     st.caption(
         "Note: this app isn't connected to a live AI model — \"Combine Notes\" below merges the system "
-        "summary, discrepancies, and the broker's notes (further down this page) into one clean file note "
-        "using a fixed format, not generative rewriting."
+        "summary, discrepancies, and how they were addressed into one clean note, using a fixed format, "
+        "not generative rewriting. The result is carried into Broker Notes below, where you can add your "
+        "own commentary before downloading."
     )
     if st.button("🧩 Combine Notes", type="primary", use_container_width=True, key="combine_notes_btn"):
         combined = "UNDERWRITER FILE NOTE\n" + "=" * 40 + "\n\n"
         combined += "SYSTEM-GENERATED SUMMARY\n" + "-" * 40 + "\n" + system_notes + "\n\n"
         combined += "DISCREPANCIES (RISK)\n" + "-" * 40 + "\n"
         combined += (st.session_state.discrepancies_notes.strip() if st.session_state.discrepancies_notes.strip() else "(none noted)") + "\n\n"
-        combined += "BROKER'S NOTES TO UNDERWRITER\n" + "-" * 40 + "\n"
-        combined += st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)"
+        combined += "HOW DISCREPANCIES WERE ADDRESSED\n" + "-" * 40 + "\n"
+        combined += st.session_state.discrepancies_resolution.strip() if st.session_state.discrepancies_resolution.strip() else "(none noted)"
         st.session_state.combined_notes = combined
-        st.success("Notes combined below — feel free to edit before downloading.")
+        # Seed Broker Notes with the combined content so the broker's box below always
+        # holds everything so far, plus room to add their own commentary on top.
+        broker_existing = st.session_state.broker_notes.strip()
+        if not broker_existing or not broker_existing.startswith("UNDERWRITER FILE NOTE"):
+            st.session_state.broker_notes = combined + "\n\n" + "BROKER'S ADDITIONAL NOTES\n" + "-" * 40 + "\n"
+        else:
+            # Replace the auto-generated portion, keep whatever the broker had typed after it
+            marker = "BROKER'S ADDITIONAL NOTES\n" + "-" * 40 + "\n"
+            existing_addition = broker_existing.split(marker, 1)[1] if marker in broker_existing else ""
+            st.session_state.broker_notes = combined + "\n\n" + marker + existing_addition
+        st.success("Combined below and carried into Broker Notes — scroll down to add your own commentary.")
 
     if st.session_state.combined_notes:
         with st.container(key="notes_font_scope_combined"):
-            st.session_state.combined_notes = st.text_area(
-                "Final note (editable)", value=st.session_state.combined_notes, height=300, key="combined_notes_editor",
-                label_visibility="collapsed",
-            )
-        st.download_button(
-            "Download File Note (.txt)",
-            data=st.session_state.combined_notes,
-            file_name="underwriter_file_note.txt",
-            mime="text/plain",
-        )
+            st.markdown(st.session_state.combined_notes.replace("\n", "  \n"))
 
     st.divider()
 
-    # --- 5. Broker Notes to Underwriter (manual input, last) ---
-    st.markdown("#### Broker Notes to Underwriter")
+    # --- 5. Broker Notes (final deliverable: combined content + broker's own additions, editable) ---
+    st.markdown("#### Broker Notes")
+    st.caption(
+        "Pre-filled with the combined summary and discrepancies once you click \"Combine Notes\" above — add "
+        "your own commentary anywhere in this box. This is the final version that gets downloaded."
+    )
     with st.container(key="notes_font_scope_broker"):
         st.session_state.broker_notes = st.text_area(
-            "Add any context the system can't infer — client's story, special circumstances, verbal explanations, etc.",
-            value=st.session_state.broker_notes, height=150, key="broker_notes_input",
+            "Broker Notes to Underwriter (editable — includes combined notes plus your own additions)",
+            value=st.session_state.broker_notes, height=350, key="broker_notes_input",
         )
-    st.caption("After adding your notes here, re-click \"Combine Notes\" above to include them in the final file note.")
+    st.download_button(
+        "⬇️ Download / Save File Note (.txt)",
+        data=st.session_state.broker_notes,
+        file_name="underwriter_file_note.txt",
+        mime="text/plain",
+        use_container_width=True,
+    )
 
     st.divider()
 
