@@ -4704,6 +4704,7 @@ def extract_dollar_mentions(text, keywords):
 
 
 
+def detect_intake_discrepancies():
     """
     Pattern-matches the free-text Client Intake Notes against structured application
     data and flags obvious mismatches. This is regex/keyword matching, not AI — it
