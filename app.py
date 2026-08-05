@@ -76,7 +76,7 @@ PROPERTY_STATUS_OPTIONS = [
     "Being Sold — Firm (Unconditional) Sale Agreement", "Being Sold — Not Yet Firm / Listed Only",
 ]
 
-STEPS = ["Deal", "Client Details", "Down Payment", "Property Details", "Income", "Debts", "Analysis", "Docs", "Notes"]
+STEPS = ["Deal", "Client", "Payment", "Property", "Income", "Debts", "Analysis", "Docs", "Notes"]
 
 TRANSACTION_TYPE_OPTIONS = [
     {
@@ -1087,7 +1087,7 @@ def render_stepper(active_index):
             btn_type = "primary" if i == active_index else "secondary"
             display_label = label
             if i == 2 and is_refinance():
-                display_label = "Lender Details"
+                display_label = "Lender"
             with cols[i]:
                 with st.container(key="stepbtn_" + str(i)):
                     if st.button(display_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
@@ -1126,26 +1126,17 @@ st.markdown(
     }
     div[class*="st-key-stepper_row"] button {
         font-size: 12px !important;
-        white-space: normal !important;
-        word-break: keep-all !important;
+        white-space: nowrap !important;
         padding: 4px 2px !important;
         letter-spacing: -0.1px !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        min-height: 3.4em !important;
-        height: 3.4em !important;
+        min-height: 2.1em !important;
+        height: 2.1em !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         line-height: 1.2 !important;
-    }
-    div[class*="st-key-stepbtn_0"] button,
-    div[class*="st-key-stepbtn_4"] button,
-    div[class*="st-key-stepbtn_5"] button,
-    div[class*="st-key-stepbtn_6"] button,
-    div[class*="st-key-stepbtn_7"] button,
-    div[class*="st-key-stepbtn_8"] button {
-        white-space: nowrap !important;
     }
     div[class*="st-key-fieldrow_"] div[data-testid="stHorizontalBlock"] {
         align-items: flex-end !important;
@@ -1215,6 +1206,12 @@ st.markdown(
         border-top: 1px solid #e5e7eb; padding-top: 1.2rem; margin-top: 0.5rem;
         font-size: 13px; color: #6b7280; line-height:1.6;
     }
+    .stApp hr {
+        margin: 10px 0 !important;
+    }
+    .stApp div[data-testid="stMarkdownContainer"] p {
+        margin-bottom: 0.35rem !important;
+    }
     .doc-list {
         background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
         padding: 10px 14px; margin-top: 6px; font-size: 13px; color:#374151;
@@ -1223,14 +1220,18 @@ st.markdown(
     div[class*="st-key-notes_font_scope_"] {
         background: rgba(255,255,255,0.035);
         border: 1px solid rgba(255,255,255,0.09);
-        border-radius: 12px;
-        padding: 14px 18px 18px;
-        margin: 10px 0 16px;
+        border-radius: 10px;
+        padding: 10px 14px 12px;
+        margin: 6px 0 10px;
     }
-    .metric-row {display:flex; gap: 16px; margin: 10px 0 4px; align-items: stretch;}
+    div[class*="st-key-card_"] hr,
+    div[class*="st-key-notes_font_scope_"] hr {
+        margin: 8px 0 !important;
+    }
+    .metric-row {display:flex; gap: 12px; margin: 6px 0 2px; align-items: stretch;}
     .metric-card {
-        flex:1; border:1px solid #e5e7eb; border-radius:10px; padding: 14px 16px; background:#f9fafb;
-        min-height: 78px; box-sizing: border-box; display:flex; flex-direction:column; justify-content:center;
+        flex:1; border:1px solid #e5e7eb; border-radius:10px; padding: 10px 14px; background:#f9fafb;
+        min-height: 62px; box-sizing: border-box; display:flex; flex-direction:column; justify-content:center;
     }
     .metric-label {font-size:12px; color:#6b7280; margin-bottom:4px;}
     .metric-value {font-size:20px; font-weight:700; color:#111827; word-break:break-word;}
@@ -2066,7 +2067,8 @@ def render_down_payment():
         selected = st.session_state.selected_sources
         for source in DOWN_PAYMENT_SOURCES:
             checked = source["key"] in selected
-            new_checked = st.checkbox("**" + source["label"] + "**", value=checked, key="src_" + source["key"])
+            label_text = "**" + source["label"] + "**" if checked else source["label"]
+            new_checked = st.checkbox(label_text, value=checked, key="src_" + source["key"])
 
             if new_checked and source["key"] not in selected:
                 selected.append(source["key"])
@@ -3281,8 +3283,9 @@ def render_income():
             for source in INCOME_SOURCES_ALPHA:
                 skey = source["key"]
                 checked = skey in selected
+                label_text = "**" + source["label"] + "**" if checked else source["label"]
                 new_checked = st.checkbox(
-                    "**" + source["label"] + "**", value=checked, key="inc_src_" + bidx + "_" + skey
+                    label_text, value=checked, key="inc_src_" + bidx + "_" + skey
                 )
 
                 if new_checked and skey not in selected:
@@ -3686,7 +3689,8 @@ def render_debts():
         for debt_type in DEBT_TYPES:
             dkey = debt_type["key"]
             was_checked = st.session_state.debt_type_checked.get(dkey, dkey in selected)
-            new_checked = st.checkbox("**" + debt_type["label"] + "**", value=was_checked, key="debt_" + dkey)
+            debt_label_text = "**" + debt_type["label"] + "**" if was_checked else debt_type["label"]
+            new_checked = st.checkbox(debt_label_text, value=was_checked, key="debt_" + dkey)
             st.session_state.debt_type_checked[dkey] = new_checked
 
             if new_checked:
