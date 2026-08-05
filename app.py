@@ -1116,6 +1116,10 @@ st.markdown(
     div[class*="st-key-notes_font_scope"] [data-testid="stIconMaterial"] {
         font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons", sans-serif !important;
     }
+    div[class*="st-key-sub_checkbox"] label p {
+        font-size: 13px !important;
+        color: #b0b6c0 !important;
+    }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
         min-width: 0 !important;
         flex: 1 1 0 !important;
@@ -1916,7 +1920,7 @@ def render_client_details():
         unsafe_allow_html=True,
     )
     st.session_state.consent = st.checkbox(
-        "I acknowledge and consent to the above terms", value=st.session_state.consent
+        "**I acknowledge and consent to the above terms**", value=st.session_state.consent
     )
     consent_error_slot = st.empty()
 
@@ -2052,7 +2056,7 @@ def render_down_payment():
     selected = st.session_state.selected_sources
     for source in DOWN_PAYMENT_SOURCES:
         checked = source["key"] in selected
-        new_checked = st.checkbox(source["label"], value=checked, key="src_" + source["key"])
+        new_checked = st.checkbox("**" + source["label"] + "**", value=checked, key="src_" + source["key"])
 
         if new_checked and source["key"] not in selected:
             selected.append(source["key"])
@@ -2376,7 +2380,7 @@ def render_property_details():
 
     if st.session_state.property_purchase_channel == "MLS Listed":
         if st.session_state.property_details_method == "Auto-fill from MLS Link":
-            mls_c1, mls_c2 = st.columns([3, 1])
+            mls_c1, mls_c2 = st.columns(2)
             with mls_c1:
                 st.session_state.property_mls_link = st.text_input(
                     "MLS Listing Link", value=st.session_state.property_mls_link, placeholder="https://...",
@@ -2541,19 +2545,20 @@ def render_property_details():
             )
     if st.session_state.subject_has_rental_component == "Yes":
         st.caption("For the rental income to be usable for qualification, the unit must be self-contained:")
-        rc1, rc2, rc3 = st.columns(3)
-        with rc1:
-            st.session_state.subject_rental_kitchen = st.checkbox(
-                "Has its own kitchen", value=st.session_state.subject_rental_kitchen, key="subject_rental_kitchen_input",
-            )
-        with rc2:
-            st.session_state.subject_rental_bathroom = st.checkbox(
-                "Has its own bathroom", value=st.session_state.subject_rental_bathroom, key="subject_rental_bathroom_input",
-            )
-        with rc3:
-            st.session_state.subject_rental_entrance = st.checkbox(
-                "Has a separate entrance", value=st.session_state.subject_rental_entrance, key="subject_rental_entrance_input",
-            )
+        with st.container(key="sub_checkbox_rental"):
+            rc1, rc2, rc3 = st.columns(3)
+            with rc1:
+                st.session_state.subject_rental_kitchen = st.checkbox(
+                    "Has its own kitchen", value=st.session_state.subject_rental_kitchen, key="subject_rental_kitchen_input",
+                )
+            with rc2:
+                st.session_state.subject_rental_bathroom = st.checkbox(
+                    "Has its own bathroom", value=st.session_state.subject_rental_bathroom, key="subject_rental_bathroom_input",
+                )
+            with rc3:
+                st.session_state.subject_rental_entrance = st.checkbox(
+                    "Has a separate entrance", value=st.session_state.subject_rental_entrance, key="subject_rental_entrance_input",
+                )
         is_self_contained = (
             st.session_state.subject_rental_kitchen and st.session_state.subject_rental_bathroom
             and st.session_state.subject_rental_entrance
@@ -2586,7 +2591,7 @@ def render_property_details():
         else:
             st.caption(":orange[⚠ not found — enter manually]")
 
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     with c1:
         st.session_state.subject_prop_purpose = st.selectbox(
             "Property Purpose", PROPERTY_PURPOSE_OPTIONS,
@@ -2602,6 +2607,30 @@ def render_property_details():
             render_other_description_field(
                 "Describe title type", "subject_title_type_other", "subject_title_type_other_input",
             )
+        st.session_state.subject_prop_type = st.selectbox(
+            "Property Type", PROPERTY_STYLE_TYPES,
+            index=PROPERTY_STYLE_TYPES.index(st.session_state.subject_prop_type)
+            if st.session_state.subject_prop_type in PROPERTY_STYLE_TYPES else 0,
+            key="subject_prop_type_select",
+        )
+        if st.session_state.subject_prop_type == "Other":
+            render_other_description_field(
+                "Describe property type", "subject_prop_type_other", "subject_prop_type_other_input",
+            )
+        else:
+            mls_field_note("subject_prop_type")
+        st.session_state.subject_prop_age = st.text_input(
+            "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
+            placeholder="e.g. 15 years or Built 2011",
+        )
+        st.session_state.subject_rural_urban = st.selectbox(
+            "Rural / Urban / Agricultural",
+            RURAL_URBAN_OPTIONS,
+            index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
+            if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
+        )
+
+    with c2:
         st.session_state.subject_sqft = st.text_input(
             "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
         )
@@ -2610,15 +2639,47 @@ def render_property_details():
             "Number of Storeys", value=st.session_state.subject_storeys, placeholder="e.g. 2",
         )
         mls_field_note("subject_storeys")
+        st.session_state.subject_land_size = st.text_input(
+            "Land Size", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
+        )
         st.session_state.subject_parking_spaces = st.text_input(
             "Total Parking Spaces", value=st.session_state.subject_parking_spaces, placeholder="e.g. 4",
         )
         mls_field_note("subject_parking_spaces")
+        st.session_state.subject_garage = st.selectbox(
+            "Garage", GARAGE_OPTIONS,
+            index=GARAGE_OPTIONS.index(st.session_state.subject_garage)
+            if st.session_state.subject_garage in GARAGE_OPTIONS else 0,
+        )
+        if st.session_state.subject_garage == "Other":
+            render_other_description_field(
+                "Describe garage / parking", "subject_garage_other", "subject_garage_other_input",
+            )
+        st.session_state.subject_foundation = st.selectbox(
+            "Foundation Type", FOUNDATION_TYPE_OPTIONS,
+            index=FOUNDATION_TYPE_OPTIONS.index(st.session_state.subject_foundation)
+            if st.session_state.subject_foundation in FOUNDATION_TYPE_OPTIONS else 0,
+        )
+        if st.session_state.subject_foundation == "Other":
+            render_other_description_field(
+                "Describe foundation type", "subject_foundation_other", "subject_foundation_other_input",
+            )
+
+    with c3:
         st.session_state.subject_cooling = st.selectbox(
             "Cooling", COOLING_OPTIONS,
             index=COOLING_OPTIONS.index(st.session_state.subject_cooling)
             if st.session_state.subject_cooling in COOLING_OPTIONS else 0,
         )
+        st.session_state.subject_heating_type = st.selectbox(
+            "Heating Type", HEATING_TYPE_OPTIONS,
+            index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
+            if st.session_state.subject_heating_type in HEATING_TYPE_OPTIONS else 0,
+        )
+        if st.session_state.subject_heating_type == "Other":
+            render_other_description_field(
+                "Describe heating type", "subject_heating_type_other", "subject_heating_type_other_input",
+            )
         st.session_state.subject_exterior_finish = st.selectbox(
             "Exterior Finish", EXTERIOR_FINISH_OPTIONS,
             index=EXTERIOR_FINISH_OPTIONS.index(st.session_state.subject_exterior_finish)
@@ -2637,53 +2698,6 @@ def render_property_details():
             render_other_description_field(
                 "Describe water source", "subject_water_other", "subject_water_other_input",
             )
-    with c2:
-        st.session_state.subject_prop_type = st.selectbox(
-            "Property Type", PROPERTY_STYLE_TYPES,
-            index=PROPERTY_STYLE_TYPES.index(st.session_state.subject_prop_type)
-            if st.session_state.subject_prop_type in PROPERTY_STYLE_TYPES else 0,
-            key="subject_prop_type_select",
-        )
-        if st.session_state.subject_prop_type == "Other":
-            render_other_description_field(
-                "Describe property type", "subject_prop_type_other", "subject_prop_type_other_input",
-            )
-        else:
-            mls_field_note("subject_prop_type")
-        st.session_state.subject_prop_age = st.text_input(
-            "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
-            placeholder="e.g. 15 years or Built 2011",
-        )
-        st.session_state.subject_land_size = st.text_input(
-            "Land Size", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
-        )
-        st.session_state.subject_garage = st.selectbox(
-            "Garage", GARAGE_OPTIONS,
-            index=GARAGE_OPTIONS.index(st.session_state.subject_garage)
-            if st.session_state.subject_garage in GARAGE_OPTIONS else 0,
-        )
-        if st.session_state.subject_garage == "Other":
-            render_other_description_field(
-                "Describe garage / parking", "subject_garage_other", "subject_garage_other_input",
-            )
-        st.session_state.subject_heating_type = st.selectbox(
-            "Heating Type", HEATING_TYPE_OPTIONS,
-            index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
-            if st.session_state.subject_heating_type in HEATING_TYPE_OPTIONS else 0,
-        )
-        if st.session_state.subject_heating_type == "Other":
-            render_other_description_field(
-                "Describe heating type", "subject_heating_type_other", "subject_heating_type_other_input",
-            )
-        st.session_state.subject_foundation = st.selectbox(
-            "Foundation Type", FOUNDATION_TYPE_OPTIONS,
-            index=FOUNDATION_TYPE_OPTIONS.index(st.session_state.subject_foundation)
-            if st.session_state.subject_foundation in FOUNDATION_TYPE_OPTIONS else 0,
-        )
-        if st.session_state.subject_foundation == "Other":
-            render_other_description_field(
-                "Describe foundation type", "subject_foundation_other", "subject_foundation_other_input",
-            )
         st.session_state.subject_sewer = st.selectbox(
             "Utility Sewer", SEWER_OPTIONS,
             index=SEWER_OPTIONS.index(st.session_state.subject_sewer)
@@ -2693,12 +2707,6 @@ def render_property_details():
             render_other_description_field(
                 "Describe utility sewer", "subject_sewer_other", "subject_sewer_other_input",
             )
-        st.session_state.subject_rural_urban = st.selectbox(
-            "Rural / Urban / Agricultural",
-            RURAL_URBAN_OPTIONS,
-            index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
-            if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
-        )
 
     st.divider()
 
@@ -3258,7 +3266,7 @@ def render_income():
                 skey = source["key"]
                 checked = skey in selected
                 new_checked = st.checkbox(
-                    source["label"], value=checked, key="inc_src_" + bidx + "_" + skey
+                    "**" + source["label"] + "**", value=checked, key="inc_src_" + bidx + "_" + skey
                 )
 
                 if new_checked and skey not in selected:
@@ -3661,7 +3669,7 @@ def render_debts():
     for debt_type in DEBT_TYPES:
         dkey = debt_type["key"]
         was_checked = st.session_state.debt_type_checked.get(dkey, dkey in selected)
-        new_checked = st.checkbox(debt_type["label"], value=was_checked, key="debt_" + dkey)
+        new_checked = st.checkbox("**" + debt_type["label"] + "**", value=was_checked, key="debt_" + dkey)
         st.session_state.debt_type_checked[dkey] = new_checked
 
         if new_checked:
@@ -3737,31 +3745,32 @@ def render_debts():
                 payment_value = compute_debt_payment(debt_type, amounts)
 
                 payout_checked = False
-                if is_refinance():
-                    payout_checked = st.checkbox(
-                        "Include in payout from mortgage proceeds",
-                        value=st.session_state.debt_payout_selected.get(instance_key, False),
-                        key="debt_payout_" + instance_key,
-                    )
-                    st.session_state.debt_payout_selected[instance_key] = payout_checked
-                    if payout_checked:
-                        payout_bal = get_debt_balance(debt_type, amounts)
-                        st.caption(
-                            "Balance included in payout: "
-                            + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
+                with st.container(key="sub_checkbox_debt_" + instance_key):
+                    if is_refinance():
+                        payout_checked = st.checkbox(
+                            "Include in payout from mortgage proceeds",
+                            value=st.session_state.debt_payout_selected.get(instance_key, False),
+                            key="debt_payout_" + instance_key,
                         )
+                        st.session_state.debt_payout_selected[instance_key] = payout_checked
+                        if payout_checked:
+                            payout_bal = get_debt_balance(debt_type, amounts)
+                            st.caption(
+                                "Balance included in payout: "
+                                + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
+                            )
 
-                own_funds_checked = st.checkbox(
-                    "Being paid off from the client's own funds / gifted funds prior to closing",
-                    value=st.session_state.debt_paid_from_own_funds.get(instance_key, False),
-                    key="debt_own_funds_" + instance_key,
-                )
-                st.session_state.debt_paid_from_own_funds[instance_key] = own_funds_checked
-                if own_funds_checked:
-                    st.caption(
-                        "Excluded from GDS/TDS — will require proof of payout (current statement "
-                        "showing zero balance, or receipt) before closing."
+                    own_funds_checked = st.checkbox(
+                        "Being paid off from the client's own funds / gifted funds prior to closing",
+                        value=st.session_state.debt_paid_from_own_funds.get(instance_key, False),
+                        key="debt_own_funds_" + instance_key,
                     )
+                    st.session_state.debt_paid_from_own_funds[instance_key] = own_funds_checked
+                    if own_funds_checked:
+                        st.caption(
+                            "Excluded from GDS/TDS — will require proof of payout (current statement "
+                            "showing zero balance, or receipt) before closing."
+                        )
 
                 excluded_from_debt_service = payout_checked or own_funds_checked
 
