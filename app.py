@@ -465,6 +465,12 @@ def init_state():
         st.session_state.property_purchase_channel = ""
     if "property_mls_link" not in st.session_state:
         st.session_state.property_mls_link = ""
+    if "property_details_method" not in st.session_state:
+        st.session_state.property_details_method = ""
+    if "mls_autofill_status" not in st.session_state:
+        st.session_state.mls_autofill_status = ""
+    if "mls_autofilled_fields" not in st.session_state:
+        st.session_state.mls_autofilled_fields = []
     if "subject_rental_kitchen" not in st.session_state:
         st.session_state.subject_rental_kitchen = False
     if "subject_rental_bathroom" not in st.session_state:
@@ -649,6 +655,7 @@ SAVE_STATE_KEYS = [
     "subject_num_units",
     "property_appraisal_type", "property_appraisal_ordered", "property_appraisal_value_raw",
     "property_purchase_channel", "property_mls_link",
+    "property_details_method", "mls_autofill_status", "mls_autofilled_fields",
     "subject_prop_type", "subject_prop_purpose", "subject_prop_age", "subject_garage",
     "subject_rural_urban", "subject_sqft", "subject_storeys", "subject_heating_type",
     "subject_cooling", "subject_foundation", "subject_foundation_other",
@@ -799,6 +806,9 @@ def refresh_all():
     st.session_state.property_appraisal_value_raw = ""
     st.session_state.property_purchase_channel = ""
     st.session_state.property_mls_link = ""
+    st.session_state.property_details_method = ""
+    st.session_state.mls_autofill_status = ""
+    st.session_state.mls_autofilled_fields = []
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
@@ -894,6 +904,83 @@ def get_reference_property_value():
     if is_refinance():
         return parse_money(st.session_state.subject_property_value_raw)
     return parse_money(st.session_state.purchase_price_raw)
+
+
+# Maps the field this app can attempt to auto-fill to a friendly label, used for highlighting.
+MLS_AUTOFILL_TARGET_FIELDS = {
+    "subject_prop_type": "Property Type",
+    "subject_sqft": "Square Footage",
+    "subject_storeys": "Number of Storeys",
+    "subject_parking_spaces": "Total Parking Spaces",
+}
+
+MLS_AUTOFILL_PROPERTY_TYPE_KEYWORDS = {
+    "semi-detached": "Semi-Detached", "semi detached": "Semi-Detached",
+    "townhouse": "Townhouse", "town house": "Townhouse",
+    "condo": "Condo / Apartment", "apartment": "Condo / Apartment",
+    "duplex": "Duplex", "triplex": "Triplex",
+    "bungalow": "Detached", "detached": "Detached",
+}
+
+
+def attempt_mls_autofill(url):
+    """
+    Best-effort attempt to read a few basic property characteristics off an MLS listing
+    page by fetching its raw HTML and keyword/regex-matching common phrasing (square
+    footage, storeys, parking spaces, property type).
+
+    This is NOT a real MLS data integration — there's no licensed MLS/board API connected.
+    Most listing sites render their key details client-side via JavaScript or actively
+    block automated requests, so this frequently finds nothing at all. When that happens,
+    it fails cleanly and the broker enters everything manually — that's expected, not a bug.
+
+    Returns (found_fields_dict, error_message) — exactly one is populated.
+    found_fields_dict maps session_state keys (from MLS_AUTOFILL_TARGET_FIELDS) to values.
+    """
+    if not url or not url.strip():
+        return {}, "No MLS link entered."
+
+    try:
+        import requests
+    except ImportError:
+        return {}, "The 'requests' package isn't installed on this deployment."
+
+    try:
+        resp = requests.get(
+            url.strip(), timeout=8,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; MortgageAppBot/1.0)"},
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        return {}, "Could not reach that link (" + str(e) + ")."
+
+    text = resp.text
+    found = {}
+
+    sqft_match = re.search(r'([\d,]{3,6})\s*(?:sq\.?\s?ft\.?|square feet|sqft)', text, re.IGNORECASE)
+    if sqft_match:
+        found["subject_sqft"] = sqft_match.group(1).replace(",", "")
+
+    storeys_match = re.search(r'(\d)\s*(?:storeys?|stor(?:y|ies))', text, re.IGNORECASE)
+    if storeys_match:
+        found["subject_storeys"] = storeys_match.group(1)
+
+    parking_match = re.search(r'(\d)\s*(?:parking spaces?|car garage)', text, re.IGNORECASE)
+    if parking_match:
+        found["subject_parking_spaces"] = parking_match.group(1)
+
+    for keyword, prop_type in MLS_AUTOFILL_PROPERTY_TYPE_KEYWORDS.items():
+        if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
+            found["subject_prop_type"] = prop_type
+            break
+
+    if not found:
+        return {}, (
+            "No recognizable property details found on that page. Most listing sites load their "
+            "details via JavaScript or block automated requests, so this often won't work — that's "
+            "a limitation of the source page, not this app."
+        )
+    return found, None
 
 
 def get_switch_total_mortgage_balance():
@@ -2108,6 +2195,9 @@ def refresh_property_details():
     st.session_state.property_appraisal_value_raw = ""
     st.session_state.property_purchase_channel = ""
     st.session_state.property_mls_link = ""
+    st.session_state.property_details_method = ""
+    st.session_state.mls_autofill_status = ""
+    st.session_state.mls_autofilled_fields = []
     st.session_state.subject_taxes_raw = ""
     st.session_state.subject_condo_raw = ""
     st.session_state.subject_heat_raw = ""
@@ -2209,36 +2299,34 @@ def render_property_details():
 
     st.divider()
 
-    # --- Order Appraisal ---
-    st.markdown("#### Order Appraisal")
-    ap_c1, ap_c2 = st.columns([3, 2])
+    # --- Appraisal, Property Value & Purchase Channel (compacted into one section) ---
+    st.markdown("#### Appraisal & Purchase Channel")
+    ap_c1, ap_c2, ap_c3 = st.columns([2.2, 1.3, 2.5])
     with ap_c1:
         st.session_state.property_appraisal_type = st.selectbox(
-            "Appraisal Type", ["", "Appraisal", "Appraisal with Market Rent"],
+            "Order Appraisal", ["", "Appraisal", "Appraisal with Market Rent"],
             index=["", "Appraisal", "Appraisal with Market Rent"].index(st.session_state.property_appraisal_type)
             if st.session_state.property_appraisal_type in ["", "Appraisal", "Appraisal with Market Rent"] else 0,
             key="property_appraisal_type_input",
         )
     with ap_c2:
         st.write("")
-        if st.button("📋 Order Appraisal", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type):
+        if st.button("📋 Order", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type, use_container_width=True):
             st.session_state.property_appraisal_ordered = True
-    if st.session_state.property_appraisal_ordered:
-        st.caption(":green[✓ " + st.session_state.property_appraisal_type + " ordered (to be set up later).]")
+    with ap_c3:
+        st.write("")
+        if st.session_state.property_appraisal_ordered:
+            st.caption(":green[✓ " + st.session_state.property_appraisal_type + " ordered (to be set up later).]")
 
-    st.divider()
-
-    # --- Property Value & Appraisal Value ---
-    st.markdown("#### Property Value & Appraisal Value")
     ref_value = get_reference_property_value()
     pv_c1, pv_c2 = st.columns(2)
     with pv_c1:
         st.markdown(
-            "<span style='font-family: \"Source Code Pro\", monospace; font-size: 15px; color:#22c55e;'>"
+            "<span style='font-family: \"Source Code Pro\", monospace; font-size: 14px; color:#22c55e;'>"
             "Property Value: `" + fmt_money(ref_value) + "`</span>",
             unsafe_allow_html=True,
         )
-        st.caption("Carried over from " + ("the Lender Details step" if is_refinance() else "the Down Payment step") + ".")
+        st.caption("Carried over from " + ("Lender Details" if is_refinance() else "Down Payment") + ".")
     with pv_c2:
         st.session_state.property_appraisal_value_raw = st.text_input(
             "Appraisal Value ($)", value=st.session_state.property_appraisal_value_raw,
@@ -2246,34 +2334,64 @@ def render_property_details():
         )
         appraisal_val = parse_money(st.session_state.property_appraisal_value_raw)
         if appraisal_val is not None:
-            st.markdown(
-                "<span style='font-family: \"Source Code Pro\", monospace; font-size: 15px; color:#22c55e;'>"
-                "Appraisal Value: `" + fmt_money(appraisal_val) + "`</span>",
-                unsafe_allow_html=True,
-            )
+            diff_caption = ""
             if ref_value is not None and ref_value > 0:
                 diff_pct = (appraisal_val - ref_value) / ref_value * 100
                 if abs(diff_pct) >= 1:
-                    st.caption(
-                        ("Appraisal is {:.1f}% below".format(abs(diff_pct)) if diff_pct < 0
-                         else "Appraisal is {:.1f}% above".format(diff_pct)) + " the property value above."
-                    )
+                    diff_caption = " (" + ("{:.1f}% below" if diff_pct < 0 else "{:.1f}% above").format(abs(diff_pct)) + " property value)"
+            st.markdown(
+                "<span style='font-family: \"Source Code Pro\", monospace; font-size: 14px; color:#22c55e;'>"
+                "Appraisal Value: `" + fmt_money(appraisal_val) + "`</span>" + diff_caption,
+                unsafe_allow_html=True,
+            )
 
-    st.divider()
-
-    # --- Private Purchase or MLS Purchase ---
-    st.markdown("#### Private Purchase or MLS Purchase")
-    st.session_state.property_purchase_channel = st.selectbox(
-        "How is this property being purchased?", ["", "Private Purchase", "MLS Purchase"],
-        index=["", "Private Purchase", "MLS Purchase"].index(st.session_state.property_purchase_channel)
-        if st.session_state.property_purchase_channel in ["", "Private Purchase", "MLS Purchase"] else 0,
-        key="property_purchase_channel_input",
-    )
-    if st.session_state.property_purchase_channel == "MLS Purchase":
-        st.session_state.property_mls_link = st.text_input(
-            "MLS Listing Link", value=st.session_state.property_mls_link,
-            placeholder="https://...",
+    pc_c1, pc_c2 = st.columns(2)
+    with pc_c1:
+        st.session_state.property_purchase_channel = st.selectbox(
+            "Purchase Channel", ["", "Private Sale - No MLS", "MLS Listed"],
+            index=["", "Private Sale - No MLS", "MLS Listed"].index(st.session_state.property_purchase_channel)
+            if st.session_state.property_purchase_channel in ["", "Private Sale - No MLS", "MLS Listed"] else 0,
+            key="property_purchase_channel_input",
         )
+    with pc_c2:
+        if st.session_state.property_purchase_channel == "MLS Listed":
+            st.session_state.property_details_method = st.selectbox(
+                "Property Characteristics", ["", "Auto-fill from MLS Link", "Enter Manually"],
+                index=["", "Auto-fill from MLS Link", "Enter Manually"].index(st.session_state.property_details_method)
+                if st.session_state.property_details_method in ["", "Auto-fill from MLS Link", "Enter Manually"] else 0,
+                key="property_details_method_input",
+            )
+
+    if st.session_state.property_purchase_channel == "MLS Listed":
+        if st.session_state.property_details_method == "Auto-fill from MLS Link":
+            mls_c1, mls_c2 = st.columns([3, 1])
+            with mls_c1:
+                st.session_state.property_mls_link = st.text_input(
+                    "MLS Listing Link", value=st.session_state.property_mls_link, placeholder="https://...",
+                )
+            with mls_c2:
+                st.write("")
+                if st.button("🔎 Auto-Fill", key="mls_autofill_btn", disabled=not st.session_state.property_mls_link.strip(), use_container_width=True):
+                    with st.spinner("Attempting to read the MLS listing..."):
+                        found, error = attempt_mls_autofill(st.session_state.property_mls_link)
+                    if error:
+                        st.session_state.mls_autofill_status = "failed"
+                        st.session_state.mls_autofilled_fields = []
+                        st.warning("⚠ " + error + " Please complete the highlighted fields below manually.")
+                    else:
+                        for k, v in found.items():
+                            st.session_state[k] = v
+                        st.session_state.mls_autofilled_fields = list(found.keys())
+                        st.session_state.mls_autofill_status = "success"
+                        st.success("✓ Auto-filled " + str(len(found)) + " field(s) — please verify below, and complete any highlighted fields manually.")
+                        st.rerun()
+            if st.session_state.mls_autofill_status == "failed":
+                st.caption(":orange[Could not auto-fill from that link — the fields below need to be entered manually.]")
+        elif st.session_state.property_details_method == "Enter Manually":
+            st.session_state.property_mls_link = st.text_input(
+                "MLS Listing Link (for reference)", value=st.session_state.property_mls_link, placeholder="https://...",
+            )
+            st.caption("Property characteristics below will be entered manually.")
 
     if st.session_state.transaction_type == "builder_purchase":
         st.divider()
@@ -2441,6 +2559,17 @@ def render_property_details():
         "Best-effort is fine here — the client may only have what's on the MLS listing "
         "or heard secondhand, not a formal appraisal. Leave anything unknown blank."
     )
+    if st.session_state.mls_autofill_status == "success":
+        st.caption(":green[✓ green] = auto-filled from the MLS link, please verify · :orange[⚠ orange] = not found automatically, needs manual entry")
+
+    def mls_field_note(field_key):
+        if st.session_state.mls_autofill_status != "success":
+            return
+        if field_key in st.session_state.mls_autofilled_fields:
+            st.caption(":green[✓ auto-filled from MLS — verify]")
+        else:
+            st.caption(":orange[⚠ not found — enter manually]")
+
     c1, c2 = st.columns(2)
     with c1:
         st.session_state.subject_prop_purpose = st.selectbox(
@@ -2460,12 +2589,15 @@ def render_property_details():
         st.session_state.subject_sqft = st.text_input(
             "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
         )
+        mls_field_note("subject_sqft")
         st.session_state.subject_storeys = st.text_input(
             "Number of Storeys", value=st.session_state.subject_storeys, placeholder="e.g. 2",
         )
+        mls_field_note("subject_storeys")
         st.session_state.subject_parking_spaces = st.text_input(
             "Total Parking Spaces", value=st.session_state.subject_parking_spaces, placeholder="e.g. 4",
         )
+        mls_field_note("subject_parking_spaces")
         st.session_state.subject_cooling = st.selectbox(
             "Cooling", COOLING_OPTIONS,
             index=COOLING_OPTIONS.index(st.session_state.subject_cooling)
@@ -2500,6 +2632,8 @@ def render_property_details():
             render_other_description_field(
                 "Describe property type", "subject_prop_type_other", "subject_prop_type_other_input",
             )
+        else:
+            mls_field_note("subject_prop_type")
         st.session_state.subject_prop_age = st.text_input(
             "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
             placeholder="e.g. 15 years or Built 2011",
