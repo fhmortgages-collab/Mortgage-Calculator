@@ -1454,7 +1454,12 @@ st.markdown(
         border: none !important;
         border-radius: 8px !important;
         padding: 0 !important;
+        margin: 0 !important;
         min-height: 0 !important;
+    }
+    [data-testid="stFileUploader"] {
+        margin: 0 !important;
+        padding: 0 !important;
     }
     [data-testid="stFileUploader"] svg,
     [data-testid="stFileUploader"] [data-testid="stIconMaterial"],
@@ -1465,6 +1470,22 @@ st.markdown(
         width: 100% !important;
         min-height: 3.4em !important;
         border-radius: 8px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+        font-size: 13px !important;
+        white-space: normal !important;
+        line-height: 1.2 !important;
+    }
+    [data-testid="stFileUploaderDropzone"] button p,
+    [data-testid="stFileUploaderDropzone"] button div,
+    [data-testid="stFileUploaderDropzone"] button span {
+        text-align: center !important;
+        width: 100% !important;
+        margin: 0 !important;
     }
     section[data-testid="stSidebar"] input {
         text-align: center !important;
@@ -3529,9 +3550,24 @@ def render_income_category_card(bidx, skey, source, amounts):
             )
 
     elif skey == "rental":
+        rental_disposition_hints = (
+            "Converting to Rental Property", "Currently Rented — Lease Continuing",
+            "Currently Rented — Lease Ending", "Keeping as Secondary/Vacation Home",
+        )
+        borrower_idx_int = int(bidx) if bidx.isdigit() else -1
+        suggested_address = ""
+        if 0 <= borrower_idx_int < len(st.session_state.borrowers):
+            b = st.session_state.borrowers[borrower_idx_int]
+            if b.get("residence_disposition") in rental_disposition_hints:
+                suggested_address = b.get("address", "").strip()
         c1, c2 = st.columns(2)
         with c1:
-            amounts["property_address"] = st.text_input("Property Address", value=amounts.get("property_address", ""), key=prefix + "property_address")
+            amounts["property_address"] = st.text_input(
+                "Property Address", value=amounts.get("property_address", "") or suggested_address,
+                key=prefix + "property_address",
+            )
+            if suggested_address and not amounts.get("property_address", "").strip():
+                st.caption("Suggested from this borrower's current address on Client Details, based on their stated disposition — edit if this is a different property.")
             cur_prop_type = amounts.get("prop_type", "")
             amounts["prop_type"] = st.selectbox(
                 "Property Type", PROPERTY_TYPES,
@@ -4169,13 +4205,13 @@ def render_debts():
                     if len(instance_keys_for_type) > 1:
                         st.markdown("**" + debt_instance_label(debt_type, instance_key) + "**")
 
-                    amounts["lender"] = st.text_input(
-                        "Lender / Issuer", value=amounts.get("lender", ""),
-                        placeholder="e.g. RBC, Chase, TD", key="debt_lender_" + instance_key,
-                    )
-
                     if debt_type["calc"] == "percent_of_balance":
-                        bal_col, calc_col = st.columns([2, 1.4])
+                        lender_col, bal_col, calc_col = st.columns([1.6, 1.6, 1.6])
+                        with lender_col:
+                            amounts["lender"] = st.text_input(
+                                "Lender / Issuer", value=amounts.get("lender", ""),
+                                placeholder="e.g. RBC, Chase, TD", key="debt_lender_" + instance_key,
+                            )
                         with bal_col:
                             amounts["balance"] = money_text_input("Total Outstanding Balance ($)", amounts.get("balance", ""),
                                 placeholder="Enter total balance", key="debt_bal_" + instance_key,
@@ -4187,7 +4223,12 @@ def render_debts():
                             st.markdown("<div style='margin-top:1.9rem;'></div>", unsafe_allow_html=True)
                             st.caption(debt_explanation)
                     else:
-                        pay_col, bal_col = st.columns(2)
+                        lender_col, pay_col, bal_col = st.columns([1.6, 1.6, 1.6])
+                        with lender_col:
+                            amounts["lender"] = st.text_input(
+                                "Lender / Issuer", value=amounts.get("lender", ""),
+                                placeholder="e.g. RBC, Chase, TD", key="debt_lender_" + instance_key,
+                            )
                         with pay_col:
                             amounts["payment"] = money_text_input("Monthly Payment Amount ($)", amounts.get("payment", ""),
                                 placeholder="Enter monthly payment amount", key="debt_pay_" + instance_key,
@@ -4628,12 +4669,15 @@ def render_analysis():
     with gds_help_col:
         with st.container(key="helpbtn_help_gds_tds"):
             with st.popover("?", key="help_gds_tds"):
+                def mo_yr(monthly_val):
+                    return "**" + fmt_money(monthly_val) + "**/mo  ·  **" + fmt_money(monthly_val * 12) + "**/yr"
+
                 st.markdown("**Housing costs (GDS numerator)**")
-                st.markdown("- Principal & Interest (contract, " + "{:.2f}%".format(st.session_state.contract_rate) + "): **" + fmt_money(pi_payment) + "**/mo")
-                st.markdown("- Principal & Interest (stressed, " + "{:.2f}%".format(qualifying_rate) + "): **" + fmt_money(stressed_pi) + "**/mo")
-                st.markdown("- Property Taxes: **" + fmt_money(taxes) + "**/mo")
-                st.markdown("- Heat: **" + fmt_money(heat) + "**/mo")
-                st.markdown("- Condo Fees (50% counted): **" + fmt_money(condo * 0.5) + "**/mo (" + fmt_money(condo) + " full)")
+                st.markdown("- Principal & Interest (contract, " + "{:.2f}%".format(st.session_state.contract_rate) + "): " + mo_yr(pi_payment))
+                st.markdown("- Principal & Interest (stressed, " + "{:.2f}%".format(qualifying_rate) + "): " + mo_yr(stressed_pi))
+                st.markdown("- Property Taxes: " + mo_yr(taxes))
+                st.markdown("- Heat: " + mo_yr(heat))
+                st.markdown("- Condo Fees (50% counted): " + mo_yr(condo * 0.5) + "  (full fee: " + mo_yr(condo) + ")")
                 st.divider()
                 st.markdown("**Other debts (added for TDS only)**")
                 any_debt_line = False
@@ -4651,21 +4695,25 @@ def render_analysis():
                     pay_val = compute_debt_payment(dt, amounts)
                     label = debt_instance_label(dt, instance_key)
                     lender = amounts.get("lender", "").strip()
-                    st.markdown("- " + label + (" (" + lender + ")" if lender else "") + ": **" + fmt_money(pay_val) + "**/mo")
+                    st.markdown("- " + label + (" (" + lender + ")" if lender else "") + ": " + mo_yr(pay_val))
                     any_debt_line = True
                 for prop in st.session_state.properties:
                     if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
                         continue
-                    p_total, _, _, _, _ = compute_property_total(prop)
-                    st.markdown("- Other Property (" + (prop.get("address", "").strip() or "unnamed") + "): **" + fmt_money(p_total) + "**/mo")
+                    p_total, m, t, c, h = compute_property_total(prop)
+                    prop_label = "Other Property (" + (prop.get("address", "").strip() or "unnamed") + ")"
+                    st.markdown("- " + prop_label + " — total: " + mo_yr(p_total))
+                    st.markdown("&nbsp;&nbsp;&nbsp;mortgage " + mo_yr(m) + "  ·  taxes " + mo_yr(t) + "  ·  condo " + mo_yr(c) + "  ·  heat " + mo_yr(h))
                     any_debt_line = True
                 if not any_debt_line:
                     st.caption("No other debts counted toward TDS.")
                 st.divider()
                 st.markdown("**Totals**")
-                st.markdown("- Total Housing Costs (GDS): **" + fmt_money(annual_housing / 12) + "**/mo")
-                st.markdown("- Total Debt Obligations (TDS): **" + fmt_money((annual_housing + annual_other_debt) / 12) + "**/mo")
-                st.markdown("- Combined Gross Annual Income: **" + fmt_money(total_income) + "**")
+                st.markdown("- Total Housing Costs (GDS, contract): " + mo_yr(annual_housing / 12))
+                st.markdown("- Total Housing Costs (GDS, stressed): " + mo_yr(stressed_annual_housing / 12))
+                st.markdown("- Total Debt Obligations (TDS, contract): " + mo_yr((annual_housing + annual_other_debt) / 12))
+                st.markdown("- Total Debt Obligations (TDS, stressed): " + mo_yr((stressed_annual_housing + stressed_annual_other_debt) / 12))
+                st.markdown("- Combined Gross Annual Income: **" + fmt_money(total_income) + "**/yr  ·  **" + fmt_money(total_income / 12) + "**/mo")
                 st.divider()
                 st.caption(help_gds_text(total_income, annual_housing, gds))
                 st.divider()
