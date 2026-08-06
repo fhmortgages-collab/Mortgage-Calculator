@@ -1320,6 +1320,15 @@ st.markdown(
     .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stCaptionContainer"] p {
         font-size: 13px !important;
     }
+    /* App-wide fix: when two fields sit side by side in columns and one label wraps to
+       2 lines while the other doesn't, the input boxes end up at different heights.
+       Giving every label a fixed min-height (room for 2 lines) keeps every input box
+       in a row starting at the same vertical position, regardless of label length. */
+    [data-testid="stWidgetLabel"] {
+        min-height: 2.4em !important;
+        display: flex !important;
+        align-items: flex-end !important;
+    }
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
     div[class*="st-key-notes_font_scope"] span:not([data-testid="stIconMaterial"]),
@@ -1465,6 +1474,9 @@ st.markdown(
         align-items: center !important;
         justify-content: center !important;
         box-sizing: border-box !important;
+        writing-mode: horizontal-tb !important;
+        word-break: keep-all !important;
+        overflow-wrap: normal !important;
     }
     [data-testid="stFileUploader"] {
         margin: 0 !important;
@@ -1478,9 +1490,14 @@ st.markdown(
     }
     [data-testid="stFileUploaderDropzone"] * {
         width: auto !important;
+        min-width: 0 !important;
         writing-mode: horizontal-tb !important;
         white-space: normal !important;
+        word-break: keep-all !important;
+        overflow-wrap: normal !important;
+        hyphens: none !important;
         text-align: center !important;
+        text-orientation: mixed !important;
     }
     [data-testid="stFileUploaderDropzone"] button {
         min-height: 3.4em !important;
@@ -1539,7 +1556,10 @@ st.markdown(
     }
     .doc-list {
         background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
-        padding: 10px 14px; margin-top: 6px; font-size: 13px; color:#374151;
+        padding: 10px 14px; margin-top: 6px; margin-bottom: 10px; font-size: 13px; color:#374151;
+    }
+    .doc-list-note {
+        margin: 4px 0 14px 2px; font-size: 13px; color: #9ca3af;
     }
     div[class*="st-key-docs_reviewed_box_pending"] {
         background-color: rgba(239,68,68,0.12);
@@ -2531,12 +2551,13 @@ def render_down_payment():
                     docs_html = ""
                     for d in source["documents"]:
                         docs_html += "<li>" + d + "</li>"
-                    notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
                     st.markdown(
                         "<div class='doc-list'><b>Required Documentation</b>"
-                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
+                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
                         unsafe_allow_html=True,
                     )
+                    if source["notes"]:
+                        st.markdown("<div class='doc-list-note'>" + source["notes"] + "</div>", unsafe_allow_html=True)
 
         st.session_state.selected_sources = selected
 
@@ -3682,12 +3703,13 @@ def render_income_category_card(bidx, skey, source, amounts):
 
     # --- Required documentation (unchanged from before) ---
     docs_html = "".join("<li>" + d + "</li>" for d in source["documents"])
-    notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
     st.markdown(
         "<div class='doc-list'><b>Required Documentation</b>"
-        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
+        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
         unsafe_allow_html=True,
     )
+    if source["notes"]:
+        st.markdown("<div class='doc-list-note'>" + source["notes"] + "</div>", unsafe_allow_html=True)
 
 
 def render_income():
@@ -4304,12 +4326,13 @@ def render_debts():
                     docs_html = ""
                     for d in debt_type["documents"]:
                         docs_html += "<li>" + d + "</li>"
-                    notes_html = "<div style='margin-top:6px;'>" + debt_type["notes"] + "</div>" if debt_type["notes"] else ""
                     st.markdown(
                         "<div class='doc-list'><b>Required Documentation</b>"
-                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
+                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
                         unsafe_allow_html=True,
                     )
+                    if debt_type["notes"]:
+                        st.markdown("<div class='doc-list-note'>" + debt_type["notes"] + "</div>", unsafe_allow_html=True)
 
                 st.session_state.debt_amounts[instance_key] = amounts
 
