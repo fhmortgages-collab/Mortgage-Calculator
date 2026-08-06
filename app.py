@@ -1118,6 +1118,8 @@ st.markdown(
     }
     div[class*="st-key-sub_checkbox"] label p {
         font-size: 13px !important;
+    }
+    div[class*="st-key-sub_checkbox"] label p:not(:has(span)) {
         color: #b0b6c0 !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
@@ -1125,14 +1127,14 @@ st.markdown(
         flex: 1 1 0 !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 12px !important;
+        font-size: 13px !important;
         white-space: nowrap !important;
-        padding: 4px 2px !important;
+        padding: 8px 4px !important;
         letter-spacing: -0.1px !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        min-height: 2.1em !important;
-        height: 2.1em !important;
+        min-height: 3.4em !important;
+        height: 3.4em !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -1930,7 +1932,9 @@ def render_client_details():
         unsafe_allow_html=True,
     )
     st.session_state.consent = st.checkbox(
-        "**I acknowledge and consent to the above terms**", value=st.session_state.consent
+        ":blue[**I acknowledge and consent to the above terms**]" if st.session_state.consent
+        else "I acknowledge and consent to the above terms",
+        value=st.session_state.consent,
     )
     consent_error_slot = st.empty()
 
@@ -2067,7 +2071,7 @@ def render_down_payment():
         selected = st.session_state.selected_sources
         for source in DOWN_PAYMENT_SOURCES:
             checked = source["key"] in selected
-            label_text = "**" + source["label"] + "**" if checked else source["label"]
+            label_text = ":blue[**" + source["label"] + "**]" if checked else source["label"]
             new_checked = st.checkbox(label_text, value=checked, key="src_" + source["key"])
 
             if new_checked and source["key"] not in selected:
@@ -2338,14 +2342,10 @@ def render_property_details():
             )
         with oa_c2:
             st.write("")
-            order_btn_col, order_status_col = st.columns([1, 2])
-            with order_btn_col:
-                if st.button("📋 Order", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type, use_container_width=True):
-                    st.session_state.property_appraisal_ordered = True
-            with order_status_col:
-                st.write("")
-                if st.session_state.property_appraisal_ordered:
-                    st.caption(":green[✓ Ordered (to be set up later).]")
+            if st.button("📋 Order Appraisal", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type, use_container_width=True):
+                st.session_state.property_appraisal_ordered = True
+            if st.session_state.property_appraisal_ordered:
+                st.caption(":green[✓ Ordered (to be set up later).]")
 
         ref_value = get_reference_property_value()
         pv_c1, pv_c2 = st.columns(2)
@@ -2565,15 +2565,18 @@ def render_property_details():
                 rc1, rc2, rc3 = st.columns(3)
                 with rc1:
                     st.session_state.subject_rental_kitchen = st.checkbox(
-                        "Has its own kitchen", value=st.session_state.subject_rental_kitchen, key="subject_rental_kitchen_input",
+                        ":blue[Has its own kitchen]" if st.session_state.subject_rental_kitchen else "Has its own kitchen",
+                        value=st.session_state.subject_rental_kitchen, key="subject_rental_kitchen_input",
                     )
                 with rc2:
                     st.session_state.subject_rental_bathroom = st.checkbox(
-                        "Has its own bathroom", value=st.session_state.subject_rental_bathroom, key="subject_rental_bathroom_input",
+                        ":blue[Has its own bathroom]" if st.session_state.subject_rental_bathroom else "Has its own bathroom",
+                        value=st.session_state.subject_rental_bathroom, key="subject_rental_bathroom_input",
                     )
                 with rc3:
                     st.session_state.subject_rental_entrance = st.checkbox(
-                        "Has a separate entrance", value=st.session_state.subject_rental_entrance, key="subject_rental_entrance_input",
+                        ":blue[Has a separate entrance]" if st.session_state.subject_rental_entrance else "Has a separate entrance",
+                        value=st.session_state.subject_rental_entrance, key="subject_rental_entrance_input",
                     )
             is_self_contained = (
                 st.session_state.subject_rental_kitchen and st.session_state.subject_rental_bathroom
@@ -2646,6 +2649,15 @@ def render_property_details():
                 index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
                 if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
             )
+            st.session_state.subject_foundation = st.selectbox(
+                "Foundation Type", FOUNDATION_TYPE_OPTIONS,
+                index=FOUNDATION_TYPE_OPTIONS.index(st.session_state.subject_foundation)
+                if st.session_state.subject_foundation in FOUNDATION_TYPE_OPTIONS else 0,
+            )
+            if st.session_state.subject_foundation == "Other":
+                render_other_description_field(
+                    "Describe foundation type", "subject_foundation_other", "subject_foundation_other_input",
+                )
 
         with c2:
             st.session_state.subject_sqft = st.text_input(
@@ -2671,15 +2683,6 @@ def render_property_details():
             if st.session_state.subject_garage == "Other":
                 render_other_description_field(
                     "Describe garage / parking", "subject_garage_other", "subject_garage_other_input",
-                )
-            st.session_state.subject_foundation = st.selectbox(
-                "Foundation Type", FOUNDATION_TYPE_OPTIONS,
-                index=FOUNDATION_TYPE_OPTIONS.index(st.session_state.subject_foundation)
-                if st.session_state.subject_foundation in FOUNDATION_TYPE_OPTIONS else 0,
-            )
-            if st.session_state.subject_foundation == "Other":
-                render_other_description_field(
-                    "Describe foundation type", "subject_foundation_other", "subject_foundation_other_input",
                 )
 
         with c3:
@@ -3283,7 +3286,7 @@ def render_income():
             for source in INCOME_SOURCES_ALPHA:
                 skey = source["key"]
                 checked = skey in selected
-                label_text = "**" + source["label"] + "**" if checked else source["label"]
+                label_text = ":blue[**" + source["label"] + "**]" if checked else source["label"]
                 new_checked = st.checkbox(
                     label_text, value=checked, key="inc_src_" + bidx + "_" + skey
                 )
@@ -3339,7 +3342,9 @@ def render_income():
                     st.caption(":red[" + msg + "]")
 
     st.divider()
-    st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
+    income_header_col, income_help_col = st.columns([12, 1])
+    with income_header_col:
+        st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
 
     calc_terms = []
     for idx in range(borrower_count):
@@ -3352,14 +3357,15 @@ def render_income():
             if src:
                 calc_terms.append((name + " — " + src["label"], val))
     if calc_terms:
-        st.caption(
-            "Calculation: " + " + ".join(fmt_money(v) for _, v in calc_terms) + " = " + fmt_money(grand_total)
-        )
-        with st.expander("Show breakdown by source"):
-            for label, v in calc_terms:
-                st.markdown("- " + label + ": **" + fmt_money(v) + "**")
-    st.divider()
-
+        with income_help_col:
+            with st.container(key="helpbtn_help_income_calc"):
+                with st.popover("?", key="help_income_calc"):
+                    st.caption(
+                        "Calculation: " + " + ".join(fmt_money(v) for _, v in calc_terms) + " = " + fmt_money(grand_total)
+                    )
+                    st.divider()
+                    for label, v in calc_terms:
+                        st.markdown("- " + label + ": **" + fmt_money(v) + "**")
     st.divider()
 
     income_missing_items = []
@@ -3689,7 +3695,7 @@ def render_debts():
         for debt_type in DEBT_TYPES:
             dkey = debt_type["key"]
             was_checked = st.session_state.debt_type_checked.get(dkey, dkey in selected)
-            debt_label_text = "**" + debt_type["label"] + "**" if was_checked else debt_type["label"]
+            debt_label_text = ":blue[**" + debt_type["label"] + "**]" if was_checked else debt_type["label"]
             new_checked = st.checkbox(debt_label_text, value=was_checked, key="debt_" + dkey)
             st.session_state.debt_type_checked[dkey] = new_checked
 
@@ -3767,10 +3773,11 @@ def render_debts():
 
                     payout_checked = False
                     with st.container(key="sub_checkbox_debt_" + instance_key):
+                        prior_payout = st.session_state.debt_payout_selected.get(instance_key, False)
                         if is_refinance():
                             payout_checked = st.checkbox(
-                                "Include in payout from mortgage proceeds",
-                                value=st.session_state.debt_payout_selected.get(instance_key, False),
+                                ":blue[Include in payout from mortgage proceeds]" if prior_payout else "Include in payout from mortgage proceeds",
+                                value=prior_payout,
                                 key="debt_payout_" + instance_key,
                             )
                             st.session_state.debt_payout_selected[instance_key] = payout_checked
@@ -3781,9 +3788,11 @@ def render_debts():
                                     + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
                                 )
 
+                        prior_own_funds = st.session_state.debt_paid_from_own_funds.get(instance_key, False)
                         own_funds_checked = st.checkbox(
-                            "Being paid off from the client's own funds / gifted funds prior to closing",
-                            value=st.session_state.debt_paid_from_own_funds.get(instance_key, False),
+                            ":blue[Being paid off from the client's own funds / gifted funds prior to closing]" if prior_own_funds
+                            else "Being paid off from the client's own funds / gifted funds prior to closing",
+                            value=prior_own_funds,
                             key="debt_own_funds_" + instance_key,
                         )
                         st.session_state.debt_paid_from_own_funds[instance_key] = own_funds_checked
@@ -4129,7 +4138,6 @@ def render_analysis():
         "</div>",
         unsafe_allow_html=True,
     )
-    st.caption(help_combined_ltv_text())
 
     if is_refinance():
         st.markdown("**Refinance Payout Summary**")
@@ -4684,15 +4692,20 @@ def render_document_checklist(data):
     categories = data.get("categories", [])
     for cat_idx, category in enumerate(categories):
         items = category.get("items", [])
-        if not items:
+        cat_name = category.get("name", "")
+        always_show = cat_name == "Additional Documents"
+        if not items and not always_show:
             continue
         total_count += len(items)
         with st.container(key="card_doc_cat_" + str(cat_idx)):
             st.markdown(
                 "<div style='font-size:18px; font-weight:700; margin-top:0; margin-bottom:6px;'>"
-                + category.get("name", "") + " (" + str(len(items)) + ")</div>",
+                + cat_name + " (" + str(len(items)) + ")</div>",
                 unsafe_allow_html=True,
             )
+            if not items:
+                st.caption("N/A — no additional documents added for this file.")
+                continue
 
             for (applicant, subcategory), group_items in group_checklist_items(items):
                 if applicant or subcategory:
