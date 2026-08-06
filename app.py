@@ -1533,20 +1533,17 @@ for _opt in TRANSACTION_TYPE_OPTIONS:
         _title_suffix = " - " + _opt["label"]
         break
 
-_title_col, _timer_col = st.columns([5, 1])
-with _title_col:
-    st.markdown(
-        "<div style='font-size:17.5px; font-weight:700; white-space:nowrap; overflow:hidden; "
-        "text-overflow:ellipsis; line-height:1.3;'>🏠 FH.Mortgages Calculator" + _title_suffix + "</div>",
-        unsafe_allow_html=True,
-    )
-    st.caption("Residential Mortgage Application")
-with _timer_col:
-    timer_placeholder = st.empty()
+st.markdown(
+    "<div style='font-size:17.5px; font-weight:700; white-space:nowrap; overflow:hidden; "
+    "text-overflow:ellipsis; line-height:1.3;'>🏠 FH.Mortgages Calculator" + _title_suffix + "</div>",
+    unsafe_allow_html=True,
+)
+st.caption("Residential Mortgage Application")
 
 stepper_placeholder = st.empty()
 
 with st.sidebar:
+    timer_placeholder = st.empty()
     st.download_button(
         "⬇️ Download / Save File", data=serialize_application(), file_name="mortgage_application.json",
         mime="application/json", use_container_width=True,
