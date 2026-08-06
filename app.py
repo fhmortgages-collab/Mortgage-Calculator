@@ -1395,7 +1395,7 @@ for _opt in TRANSACTION_TYPE_OPTIONS:
 st.markdown("## 🏠 FH.Mortgages Calculator" + _title_suffix)
 st.caption("Residential Mortgage Application")
 
-render_stepper(st.session_state.step)
+stepper_placeholder = st.empty()
 
 with st.sidebar:
     st.download_button(
@@ -5672,6 +5672,9 @@ def render_notes():
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
+
+with stepper_placeholder.container():
+    render_stepper(st.session_state.step)
 
 if st.session_state.step == 0:
     render_transaction_type()
