@@ -1154,6 +1154,20 @@ def get_step_missing_fields(step_index):
     return missing
 
 
+def is_step_fully_complete(step_index):
+    """
+    A step is only shown as complete (green) if its own required fields are
+    filled in AND every step before it is also complete — this stops
+    downstream pages like Analysis/Docs/Notes (which have no fields of their
+    own) from showing green on a blank application just because they
+    individually have nothing to fill in.
+    """
+    for i in range(step_index + 1):
+        if get_step_missing_fields(i):
+            return False
+    return True
+
+
 def render_stepper(active_index):
     with st.container(key="stepper_row"):
         cols = st.columns(len(STEPS), gap="small")
@@ -1163,7 +1177,7 @@ def render_stepper(active_index):
             if i == 2 and is_refinance():
                 display_label = "Lender"
             step_missing = get_step_missing_fields(i)
-            is_step_complete = not step_missing
+            is_step_complete = is_step_fully_complete(i)
             container_key = "stepbtn_" + str(i) + ("_complete" if is_step_complete else "")
             with cols[i]:
                 with st.container(key=container_key):
@@ -1216,18 +1230,20 @@ st.markdown(
         flex: 1 1 0 !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 9px !important;
-        white-space: nowrap !important;
-        padding: 8px 1px !important;
-        letter-spacing: -0.4px !important;
+        font-size: 11.5px !important;
+        white-space: normal !important;
+        word-break: keep-all !important;
+        padding: 6px 3px !important;
+        letter-spacing: -0.2px !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        min-height: 3.4em !important;
-        height: 3.4em !important;
+        min-height: 4.4em !important;
+        height: 4.4em !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        line-height: 1.2 !important;
+        text-align: center !important;
+        line-height: 1.25 !important;
         overflow: hidden !important;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button {
