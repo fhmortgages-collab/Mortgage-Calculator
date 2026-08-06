@@ -236,7 +236,7 @@ def help_tds_text(total_income_val, annual_housing_val, annual_other_debt_val, t
 
 def fmt_money(value):
     try:
-        return "${:,.0f}".format(value)
+        return "${:,.2f}".format(value)
     except (TypeError, ValueError):
         return "—"
 
@@ -1088,8 +1088,8 @@ def get_step_missing_fields(step_index):
     Returns a list of short descriptions of what's still needed to consider
     this step complete. Empty list means the step is complete. Best-effort —
     covers the fields each step's own on-page validation already treats as
-    required; steps with no hard requirements (Analysis, Docs, Notes) always
-    return an empty list.
+    required; Analysis has no hard requirements of its own (it's a computed
+    summary) and always returns an empty list.
     """
     missing = []
 
@@ -1153,6 +1153,18 @@ def get_step_missing_fields(step_index):
                 else:
                     if not amounts.get("payment", "").strip():
                         missing.append(debt_instance_label(dt, dkey) + ": monthly payment is required")
+
+    elif step_index == 7:
+        checklist_data = build_document_checklist_data()
+        total_items = sum(len(cat.get("items", [])) for cat in checklist_data.get("categories", []))
+        if total_items == 0:
+            missing.append("No documents generated yet — complete the earlier steps first")
+
+    elif step_index == 8:
+        if not st.session_state.broker_notes.strip():
+            missing.append("Broker Notes to Underwriter must be filled in")
+        if not st.session_state.combined_notes.strip():
+            missing.append("Click \"Combine Notes\" to generate the final file note")
 
     return missing
 
@@ -1971,8 +1983,6 @@ def render_transaction_type():
         st.caption("Capture the initial conversation with the client here — what they told you, in their own words, before the application was filled in. This is the reference point for spotting discrepancies later.")
         st.session_state.client_intake_notes = st.text_area(
             "Client Intake Notes / Initial Conversation", value=st.session_state.client_intake_notes,
-            placeholder="e.g. Client called Aug 4 — wants to refinance to consolidate two credit cards and a car loan, "
-            "mentioned a rental suite in the basement, said current balance is roughly $420,000 with Bank of Example...",
             height=140, key="client_intake_notes_input",
         )
 
@@ -2040,7 +2050,7 @@ def render_client_details():
             col1, col2 = st.columns(2)
             with col1:
                 borrower["full_name"] = st.text_input(
-                    "Full Name", value=borrower["full_name"], placeholder="Jane Smith", key="name_" + str(idx)
+                    "Full Name", value=borrower["full_name"], key="name_" + str(idx)
                 )
                 if errors.get("full_name"):
                     st.caption(":red[" + errors["full_name"] + "]")
@@ -2061,7 +2071,7 @@ def render_client_details():
 
             with col2:
                 borrower["email"] = st.text_input(
-                    "Email Address", value=borrower["email"], placeholder="jane@example.com", key="email_" + str(idx)
+                    "Email Address", value=borrower["email"], key="email_" + str(idx)
                 )
                 if errors.get("email"):
                     st.caption(":red[" + errors["email"] + "]")
