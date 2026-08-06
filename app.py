@@ -1456,14 +1456,6 @@ st.markdown(
         padding: 0 !important;
         margin: 0 !important;
         min-height: 0 !important;
-        max-height: 3.4em !important;
-        overflow: hidden !important;
-        display: block !important;
-    }
-    /* Bulletproof backstop: whatever Streamlit calls its internal elements in this
-       version, hide every direct child of the dropzone that isn't the actual button. */
-    [data-testid="stFileUploaderDropzone"] > *:not(button) {
-        display: none !important;
     }
     [data-testid="stFileUploader"] {
         margin: 0 !important;
@@ -1477,8 +1469,6 @@ st.markdown(
     [data-testid="stFileUploaderDropzone"] button {
         width: 100% !important;
         min-height: 3.4em !important;
-        max-height: 3.4em !important;
-        overflow: hidden !important;
         border-radius: 8px !important;
         display: flex !important;
         align-items: center !important;
@@ -1573,6 +1563,15 @@ st.markdown(
     div[class*="st-key-card_doc_edit_"] {
         padding: 8px 12px 10px !important;
         margin: 4px 0 6px !important;
+    }
+    div[class*="st-key-card_debt_totals"] {
+        padding: 8px 12px 10px !important;
+    }
+    div[class*="st-key-card_debt_totals"] [data-testid="stCaptionContainer"] {
+        margin-bottom: 1px !important;
+    }
+    div[class*="st-key-card_debt_totals"] hr {
+        margin: 6px 0 !important;
     }
     div[class*="st-key-card_"] hr,
     div[class*="st-key-notes_font_scope_"] hr {
@@ -4252,12 +4251,6 @@ def render_debts():
                         _, debt_explanation = explain_debt_payment(debt_type, amounts)
                         st.caption(debt_explanation)
 
-                    if dkey == "other":
-                        st.session_state.debt_other_desc = st.text_input(
-                            "Describe the other obligation", value=st.session_state.debt_other_desc,
-                            key="debt_other_desc_input_" + instance_key,
-                        )
-
                     payment_value = compute_debt_payment(debt_type, amounts)
 
                     payout_checked = False
@@ -4315,8 +4308,22 @@ def render_debts():
     st.divider()
 
     with st.container(key="card_debt_totals"):
+        any_property_shown = False
+        for prop in st.session_state.properties:
+            if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+                continue
+            p_total, _, _, _, _ = compute_property_total(prop)
+            if not any_property_shown:
+                st.write("**1. Other Property Obligations**")
+                any_property_shown = True
+            addr = prop.get("address", "").strip() or "Unnamed property"
+            st.caption(addr + ": **" + fmt_money(p_total) + "**/mo")
+        if any_property_shown:
+            st.markdown("Subtotal — Properties: **" + fmt_money(total_property_debt) + "**/mo")
+            st.divider()
+
         if selected:
-            st.write("**Other Debt Breakdown**")
+            st.write("**" + ("2" if any_property_shown else "1") + ". Other Debt Obligations**")
             for instance_key in selected:
                 dt = get_debt_type(instance_key)
                 amounts = st.session_state.debt_amounts.get(instance_key, {})
@@ -4329,9 +4336,12 @@ def render_debts():
                 elif st.session_state.debt_paid_from_own_funds.get(instance_key, False):
                     excluded_note = " — excluded from GDS/TDS (paid from own/gifted funds)"
                 st.caption(label_prefix + exp + lender_note + excluded_note)
+            st.markdown("Subtotal — Other Debts: **" + fmt_money(total_other_debt) + "**/mo")
+            st.divider()
 
         total_monthly_debt = total_property_debt + total_other_debt
-        st.markdown("#### Total Monthly Debt Obligations (Other Properties + Debts): " + fmt_money(total_monthly_debt))
+        st.write("**" + ("3" if any_property_shown and selected else "2" if any_property_shown or selected else "1") + ". Combined Total**")
+        st.markdown("#### Total Monthly Debt Obligations: " + fmt_money(total_monthly_debt))
         st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
         st.caption("Full GDS/TDS qualification is calculated on the Analysis step, after financing terms are set.")
 
@@ -6051,11 +6061,11 @@ def render_notes():
     # --- 2. Intake Notes ---
     st.markdown("#### Client Intake Notes")
     st.caption("What the client told you in the initial conversation, captured on the Deal step.")
-    if st.session_state.client_intake_notes.strip():
-        with st.container(key="notes_font_scope_intake"):
+    with st.container(key="card_intake_notes_readonly"):
+        if st.session_state.client_intake_notes.strip():
             st.markdown(st.session_state.client_intake_notes.replace("\n", "  \n"))
-    else:
-        st.caption("No client intake notes were captured on the Deal step.")
+        else:
+            st.caption("No client intake notes were captured on the Deal step.")
 
     st.divider()
 
