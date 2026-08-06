@@ -1315,6 +1315,10 @@ st.markdown(
     .stApp p, .stApp span:not([data-testid="stIconMaterial"]), .stApp li, .stApp label,
     .stApp textarea, .stApp input, .stApp div[data-baseweb="select"] {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        font-size: 14px !important;
+    }
+    .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stCaptionContainer"] p {
+        font-size: 13px !important;
     }
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
@@ -1455,37 +1459,35 @@ st.markdown(
         border-radius: 8px !important;
         padding: 0 !important;
         margin: 0 !important;
-        min-height: 0 !important;
+        min-height: 3.4em !important;
+        width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
     }
     [data-testid="stFileUploader"] {
         margin: 0 !important;
         padding: 0 !important;
+        width: 100% !important;
     }
     [data-testid="stFileUploader"] svg,
     [data-testid="stFileUploader"] [data-testid="stIconMaterial"],
     [data-testid="stFileUploader"] [data-testid*="Icon"] {
         display: none !important;
     }
-    [data-testid="stFileUploaderDropzone"] button {
-        width: 100% !important;
-        min-height: 3.4em !important;
-        border-radius: 8px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-align: center !important;
-        margin: 0 !important;
-        box-sizing: border-box !important;
-        font-size: 13px !important;
+    [data-testid="stFileUploaderDropzone"] * {
+        width: auto !important;
+        writing-mode: horizontal-tb !important;
         white-space: normal !important;
-        line-height: 1.2 !important;
-    }
-    [data-testid="stFileUploaderDropzone"] button p,
-    [data-testid="stFileUploaderDropzone"] button div,
-    [data-testid="stFileUploaderDropzone"] button span {
         text-align: center !important;
+    }
+    [data-testid="stFileUploaderDropzone"] button {
+        min-height: 3.4em !important;
         width: 100% !important;
-        margin: 0 !important;
+        border-radius: 8px !important;
+        font-size: 13px !important;
+        line-height: 1.2 !important;
     }
     section[data-testid="stSidebar"] input {
         text-align: center !important;
@@ -1561,8 +1563,16 @@ st.markdown(
     }
     div[class*="st-key-card_doc_cat_"],
     div[class*="st-key-card_doc_edit_"] {
-        padding: 8px 12px 10px !important;
+        padding: 10px 12px 10px !important;
         margin: 4px 0 6px !important;
+    }
+    div[class*="st-key-card_doc_cat_"] [data-testid="stCheckbox"],
+    div[class*="st-key-card_doc_edit_"] [data-testid="stCheckbox"] {
+        margin-bottom: 2px !important;
+    }
+    div[class*="st-key-card_doc_cat_"] [data-testid="stMarkdownContainer"] p,
+    div[class*="st-key-card_doc_edit_"] [data-testid="stMarkdownContainer"] p {
+        margin-bottom: 4px !important;
     }
     div[class*="st-key-card_debt_totals"] {
         padding: 8px 12px 10px !important;
@@ -2714,6 +2724,16 @@ def render_property_details():
         st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
     render_calculator_popover("property")
 
+    with st.container(key="card_property_address"):
+        st.session_state.subject_address = st.text_area(
+            "Property Address", value=st.session_state.subject_address,
+            placeholder="Enter the full address of the property you're purchasing", height=70,
+        )
+        if not st.session_state.subject_address.strip():
+            st.caption(":red[Please enter the property address.]")
+
+    st.divider()
+
     if is_refinance():
         loan_amount = get_loan_amount()
         st.session_state.subject_property_value_raw = money_text_input(
@@ -2946,16 +2966,6 @@ def render_property_details():
                 reqs = builder_document_requirements()
                 for d in reqs["documents"]:
                     st.markdown("- " + d)
-
-    st.divider()
-
-    with st.container(key="card_property_address"):
-        st.session_state.subject_address = st.text_area(
-            "Property Address", value=st.session_state.subject_address,
-            placeholder="Enter the full address of the property you're purchasing", height=70,
-        )
-        if not st.session_state.subject_address.strip():
-            st.caption(":red[Please enter the property address.]")
 
     st.divider()
 
