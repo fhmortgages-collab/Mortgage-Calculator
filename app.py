@@ -361,17 +361,17 @@ def render_calculator_popover(key_prefix):
     visible on screen at all times regardless of scroll position.
     """
     with st.sidebar:
-        st.caption("🧮 Calculator (+ − × ÷)")
-        expr = st.text_input(
-            "Expression", key=key_prefix + "_calc_expr", placeholder="1200 + 350*12",
-            label_visibility="collapsed",
-        )
-        if expr.strip():
-            try:
-                result = safe_calculate(expr)
-                st.markdown("**= " + "{:,.2f}".format(result) + "**")
-            except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
-                st.caption(":red[Invalid expression]")
+        with st.popover("Calculator", use_container_width=True):
+            expr = st.text_input(
+                "Expression", key=key_prefix + "_calc_expr", placeholder="1200 + 350*12",
+                label_visibility="collapsed",
+            )
+            if expr.strip():
+                try:
+                    result = safe_calculate(expr)
+                    st.markdown("**= " + "{:,.2f}".format(result) + "**")
+                except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
+                    st.caption(":red[Invalid expression]")
 
 
 def empty_borrower():
@@ -1446,7 +1446,9 @@ st.markdown(
         padding: 0 !important;
         min-height: 0 !important;
     }
-    [data-testid="stFileUploaderDropzone"] svg {
+    [data-testid="stFileUploader"] svg,
+    [data-testid="stFileUploader"] [data-testid="stIconMaterial"],
+    [data-testid="stFileUploader"] [data-testid*="Icon"] {
         display: none !important;
     }
     [data-testid="stFileUploaderDropzone"] button {
@@ -6065,7 +6067,7 @@ with timer_placeholder.container():
             unsafe_allow_html=True,
         )
     elif st.session_state.app_start_time is None:
-        if st.button("▶ Start Timer", key="start_timer_btn", use_container_width=True):
+        if st.button("Start Timer", key="start_timer_btn", use_container_width=True):
             st.session_state.app_start_time = time.time()
             st.rerun()
     else:
