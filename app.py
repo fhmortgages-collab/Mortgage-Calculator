@@ -1143,6 +1143,10 @@ st.markdown(
     div[class*="st-key-fieldrow_"] div[data-testid="stHorizontalBlock"] {
         align-items: flex-end !important;
     }
+    div[class*="st-key-order_appraisal_btn_wrap"],
+    div[class*="st-key-mls_autofill_btn_wrap"] {
+        margin-top: 1.8rem;
+    }
     div[class*="st-key-helpbtn_"] {
         display: flex;
         justify-content: center;
@@ -2346,9 +2350,9 @@ def render_property_details():
                 key="property_appraisal_type_input",
             )
         with oa_c2:
-            st.write("")
-            if st.button("📋 Order Appraisal", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type, use_container_width=True):
-                st.session_state.property_appraisal_ordered = True
+            with st.container(key="order_appraisal_btn_wrap"):
+                if st.button("📋 Order Appraisal", key="order_appraisal_btn", disabled=not st.session_state.property_appraisal_type, use_container_width=True):
+                    st.session_state.property_appraisal_ordered = True
             if st.session_state.property_appraisal_ordered:
                 st.caption(":green[✓ Ordered (to be set up later).]")
 
@@ -2404,11 +2408,11 @@ def render_property_details():
                         "MLS Listing Link", value=st.session_state.property_mls_link, placeholder="https://...",
                     )
                 with mls_c2:
-                    st.write("")
-                    autofill_clicked = st.button(
-                        "🔎 Auto-Fill", key="mls_autofill_btn",
-                        disabled=not st.session_state.property_mls_link.strip(), use_container_width=True,
-                    )
+                    with st.container(key="mls_autofill_btn_wrap"):
+                        autofill_clicked = st.button(
+                            "🔎 Auto-Fill", key="mls_autofill_btn",
+                            disabled=not st.session_state.property_mls_link.strip(), use_container_width=True,
+                        )
                 if autofill_clicked:
                     with st.spinner("Attempting to read the MLS listing..."):
                         found, error = attempt_mls_autofill(st.session_state.property_mls_link)
@@ -4129,20 +4133,20 @@ def render_analysis():
             "property value and mortgage balance for each property under Debts & Liabilities to populate this."
         )
 
-    ltv_header_col, ltv_help_col = st.columns([12, 1])
-    with ltv_header_col:
-        st.markdown("**Combined LTV (Subject + Other Properties)**")
+    st.markdown("**Combined LTV (Subject + Other Properties)**")
+    ltv_card_col, ltv_help_col = st.columns([12, 1])
+    with ltv_card_col:
+        st.markdown(
+            "<div class='metric-row'>"
+            "<div class='metric-card'><div class='metric-label'>Combined LTV (Subject + Other Properties)</div>"
+            "<div class='metric-value'>" + combined_ltv_display + "</div></div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
     with ltv_help_col:
         with st.container(key="helpbtn_help_combined_ltv"):
             with st.popover("?", key="help_combined_ltv"):
                 st.caption(help_combined_ltv_text())
-    st.markdown(
-        "<div class='metric-row'>"
-        "<div class='metric-card'><div class='metric-label'>Combined LTV (Subject + Other Properties)</div>"
-        "<div class='metric-value'>" + combined_ltv_display + "</div></div>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
 
     if is_refinance():
         st.markdown("**Refinance Payout Summary**")
@@ -4184,9 +4188,24 @@ def render_analysis():
         stressed_pi, taxes, heat, condo, other_debt_monthly, total_income
     )
 
-    gds_header_col, gds_help_col = st.columns([12, 1])
-    with gds_header_col:
-        st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
+    st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
+
+    gds_display = "{:.2f}%".format(gds) if gds is not None else "—"
+    tds_display = "{:.2f}%".format(tds) if tds is not None else "—"
+    stressed_gds_display = "{:.2f}%".format(stressed_gds) if stressed_gds is not None else "—"
+    stressed_tds_display = "{:.2f}%".format(stressed_tds) if stressed_tds is not None else "—"
+
+    gds_card_col, gds_help_col = st.columns([12, 1])
+    with gds_card_col:
+        st.markdown(
+            "<div class='metric-row'>"
+            "<div class='metric-card'><div class='metric-label'>GDS — Contract Rate</div>"
+            "<div class='metric-value'>" + gds_display + "</div></div>"
+            "<div class='metric-card'><div class='metric-label'>GDS — Stressed</div>"
+            "<div class='metric-value'>" + stressed_gds_display + "</div></div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
     with gds_help_col:
         with st.container(key="helpbtn_help_gds_tds"):
             with st.popover("?", key="help_gds_tds"):
@@ -4194,20 +4213,6 @@ def render_analysis():
                 st.divider()
                 st.caption(help_tds_text(total_income, annual_housing, annual_other_debt, tds))
 
-    gds_display = "{:.2f}%".format(gds) if gds is not None else "—"
-    tds_display = "{:.2f}%".format(tds) if tds is not None else "—"
-    stressed_gds_display = "{:.2f}%".format(stressed_gds) if stressed_gds is not None else "—"
-    stressed_tds_display = "{:.2f}%".format(stressed_tds) if stressed_tds is not None else "—"
-
-    st.markdown(
-        "<div class='metric-row'>"
-        "<div class='metric-card'><div class='metric-label'>GDS — Contract Rate</div>"
-        "<div class='metric-value'>" + gds_display + "</div></div>"
-        "<div class='metric-card'><div class='metric-label'>GDS — Stressed</div>"
-        "<div class='metric-value'>" + stressed_gds_display + "</div></div>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
     st.markdown(
         "<div class='metric-row'>"
         "<div class='metric-card'><div class='metric-label'>TDS — Contract Rate</div>"
