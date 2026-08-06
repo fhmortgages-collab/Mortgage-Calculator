@@ -5,6 +5,7 @@ import time
 from datetime import date
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from downpayment_sources import DOWN_PAYMENT_SOURCES
 from income_sources import INCOME_SOURCES
@@ -5789,23 +5790,43 @@ st.session_state.visited_steps.add(st.session_state.step)
 if st.session_state.app_completed_seconds is None and is_step_fully_complete(8):
     st.session_state.app_completed_seconds = time.time() - st.session_state.app_start_time
 
-if st.session_state.app_completed_seconds is not None:
-    elapsed_seconds = st.session_state.app_completed_seconds
-    timer_label = "Completed in"
-else:
-    elapsed_seconds = time.time() - st.session_state.app_start_time
-    timer_label = "Time elapsed"
-
-_mins, _secs = divmod(int(elapsed_seconds), 60)
 with timer_placeholder.container():
-    st.markdown(
-        "<div style='text-align:right; margin-top:6px;'>"
-        "<div style='font-size:11px; color:#6b7280;'>" + timer_label + "</div>"
-        "<div style='font-size:18px; font-weight:700; font-family:monospace;'>"
-        + "{:02d}:{:02d}".format(_mins, _secs) + "</div>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
+    if st.session_state.app_completed_seconds is not None:
+        _mins, _secs = divmod(int(st.session_state.app_completed_seconds), 60)
+        st.markdown(
+            "<div style='text-align:right; margin-top:6px;'>"
+            "<div style='font-size:11px; color:#6b7280;'>Completed in</div>"
+            "<div style='font-size:18px; font-weight:700; font-family:monospace;'>"
+            + "{:02d}:{:02d}".format(_mins, _secs) + "</div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        _start_ms = int(st.session_state.app_start_time * 1000)
+        components.html(
+            """
+            <div style="margin:0; padding:0; text-align:right;
+                        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+              <div style="font-size:11px; color:#6b7280;">Time elapsed</div>
+              <div id="fh-timer" style="font-size:18px; font-weight:700; font-family:monospace; color:#e5e7eb;">00:00</div>
+            </div>
+            <script>
+              (function() {
+                var startMs = """ + str(_start_ms) + """;
+                function tick() {
+                  var elapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+                  var m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                  var s = String(elapsed % 60).padStart(2, '0');
+                  var el = document.getElementById('fh-timer');
+                  if (el) { el.textContent = m + ':' + s; }
+                }
+                tick();
+                setInterval(tick, 1000);
+              })();
+            </script>
+            """,
+            height=48,
+        )
 
 with stepper_placeholder.container():
     render_stepper(st.session_state.step)
