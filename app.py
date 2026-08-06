@@ -1,6 +1,7 @@
 import re
 import json
 import ast
+import time
 from datetime import date
 
 import streamlit as st
@@ -381,6 +382,10 @@ def init_state():
         st.session_state.step = 0
     if "visited_steps" not in st.session_state:
         st.session_state.visited_steps = set()
+    if "app_start_time" not in st.session_state:
+        st.session_state.app_start_time = time.time()
+    if "app_completed_seconds" not in st.session_state:
+        st.session_state.app_completed_seconds = None
     if "transaction_type" not in st.session_state:
         st.session_state.transaction_type = ""
     if "transaction_type_error" not in st.session_state:
@@ -747,6 +752,8 @@ def load_application(json_text):
 def refresh_all():
     st.session_state.step = 0
     st.session_state.visited_steps = set()
+    st.session_state.app_start_time = time.time()
+    st.session_state.app_completed_seconds = None
     st.session_state.transaction_type = ""
     st.session_state.transaction_type_error = ""
     st.session_state.doc_removed_items = []
@@ -1234,7 +1241,7 @@ def render_stepper(active_index):
             else:
                 state_suffix = ""
 
-            container_key = "stepbtn_" + str(i) + state_suffix
+            container_key = "stepbtn_" + str(i) + state_suffix + ("_active" if is_currently_active else "")
             with cols[i]:
                 with st.container(key=container_key):
                     if st.button(display_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
@@ -1316,6 +1323,15 @@ st.markdown(
         border: 1px solid #eab308 !important;
         color: #1a1a1a !important;
         font-weight: 700 !important;
+    }
+    @keyframes stepbtn-active-flash {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.85); }
+        50% { box-shadow: 0 0 0 4px rgba(239,68,68,0.85); }
+    }
+    div[class*="st-key-stepbtn_"][class*="_active"] button {
+        outline: 2px solid #ef4444 !important;
+        outline-offset: 1px !important;
+        animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
         min-width: 0 !important;
@@ -1472,8 +1488,18 @@ for _opt in TRANSACTION_TYPE_OPTIONS:
     if _opt["key"] == st.session_state.transaction_type:
         _title_suffix = " - " + _opt["label"]
         break
-st.markdown("## 🏠 FH.Mortgages Calculator" + _title_suffix)
-st.caption("Residential Mortgage Application")
+_title_suffix = ""
+for _opt in TRANSACTION_TYPE_OPTIONS:
+    if _opt["key"] == st.session_state.transaction_type:
+        _title_suffix = " - " + _opt["label"]
+        break
+
+_title_col, _timer_col = st.columns([5, 1])
+with _title_col:
+    st.markdown("## 🏠 FH.Mortgages Calculator" + _title_suffix)
+    st.caption("Residential Mortgage Application")
+with _timer_col:
+    timer_placeholder = st.empty()
 
 stepper_placeholder = st.empty()
 
@@ -5759,6 +5785,27 @@ def render_notes():
 # ---------------------------------------------------------------------------
 
 st.session_state.visited_steps.add(st.session_state.step)
+
+if st.session_state.app_completed_seconds is None and is_step_fully_complete(8):
+    st.session_state.app_completed_seconds = time.time() - st.session_state.app_start_time
+
+if st.session_state.app_completed_seconds is not None:
+    elapsed_seconds = st.session_state.app_completed_seconds
+    timer_label = "Completed in"
+else:
+    elapsed_seconds = time.time() - st.session_state.app_start_time
+    timer_label = "Time elapsed"
+
+_mins, _secs = divmod(int(elapsed_seconds), 60)
+with timer_placeholder.container():
+    st.markdown(
+        "<div style='text-align:right; margin-top:6px;'>"
+        "<div style='font-size:11px; color:#6b7280;'>" + timer_label + "</div>"
+        "<div style='font-size:18px; font-weight:700; font-family:monospace;'>"
+        + "{:02d}:{:02d}".format(_mins, _secs) + "</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
 with stepper_placeholder.container():
     render_stepper(st.session_state.step)
