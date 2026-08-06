@@ -50,7 +50,12 @@ PHONE_RE = re.compile(r"^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$")
 GENDER_OPTIONS = ["", "Male", "Female", "Other", "Prefer not to say"]
 MARITAL_OPTIONS = ["", "Single", "Married", "Divorced", "Widowed", "Common-Law"]
 RESIDENCE_STATUS_OPTIONS = ["", "Owned", "Rented", "Living with Parents/Family", "Other"]
-RESIDENCE_DISPOSITION_OPTIONS = ["", "Sold", "Kept as Primary Residence", "Converted to Rental", "Lease Ending", "Not Applicable"]
+RESIDENCE_DISPOSITION_OPTIONS = [
+    "", "Sold (firm sale)", "Listed / Being Sold", "Kept as Rental Property",
+    "Kept as Second/Vacation Home", "Lease Ending (currently renting)",
+    "Lease Continuing (currently renting)", "Rent-to-Own Arrangement",
+    "Gifted / Transferred to Family", "Still Deciding", "Not Applicable", "Other",
+]
 PROPERTY_TYPES = ["", "Primary Residence", "Secondary Home", "Investment Property", "Cottage / Vacation Home", "Other"]
 PROPERTY_STYLE_TYPES = [
     "", "Detached", "Semi-Detached", "Townhouse / Row House", "Condo / Apartment",
@@ -257,6 +262,21 @@ def parse_money(raw):
         return None
 
 
+def money_text_input(label, value, key, placeholder=None):
+    """
+    A text_input for dollar amounts that displays the stored value reformatted
+    as $X,XXX.XX (once it parses as a number) instead of a bare number string,
+    so the field itself always reads like a dollar amount, not raw digits.
+    Returns the new raw string — store it back into session_state as usual.
+    """
+    parsed = parse_money(value)
+    display_value = fmt_money(parsed) if parsed is not None else value
+    kwargs = {"key": key}
+    if placeholder is not None:
+        kwargs["placeholder"] = placeholder
+    return st.text_input(label, value=display_value, **kwargs)
+
+
 def render_missing_fields_warning(missing_items):
     """Shows a consolidated warning listing everything still needed before continuing, if anything is missing."""
     if missing_items:
@@ -363,7 +383,9 @@ def empty_borrower():
         "email": "",
         "address": "",
         "residence_status": "",
+        "residence_status_other": "",
         "residence_disposition": "",
+        "residence_disposition_other": "",
     }
 
 
@@ -399,6 +421,8 @@ def init_state():
         st.session_state.client_intake_notes = ""
     if "discrepancies_notes" not in st.session_state:
         st.session_state.discrepancies_notes = ""
+    if "discrepancy_entries" not in st.session_state:
+        st.session_state.discrepancy_entries = []
     if "doc_removed_items" not in st.session_state:
         st.session_state.doc_removed_items = []
     if "doc_edit_mode" not in st.session_state:
@@ -680,7 +704,7 @@ SAVE_STATE_KEYS = [
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
     "doc_text_overrides", "doc_custom_items", "docs_reviewed",
     "broker_notes", "combined_notes", "mortgage_term", "rate_type",
-    "client_intake_notes", "discrepancies_notes",
+    "client_intake_notes", "discrepancies_notes", "discrepancy_entries",
     "switch_ofi_name", "switch_ofi_is_frfi", "switch_reg_type", "switch_mortgage_type",
     "switch_timing", "switch_current_balance_raw", "switch_remaining_amortization",
     "switch_amortization_unchanged", "switch_additional_funds",
@@ -770,6 +794,7 @@ def refresh_all():
     st.session_state.combined_notes = ""
     st.session_state.client_intake_notes = ""
     st.session_state.discrepancies_notes = ""
+    st.session_state.discrepancy_entries = []
     st.session_state.mortgage_term = "5 Year"
     st.session_state.rate_type = "Fixed"
     st.session_state.borrower_count = 1
@@ -1452,6 +1477,18 @@ st.markdown(
     .doc-list {
         background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
         padding: 10px 14px; margin-top: 6px; font-size: 13px; color:#374151;
+    }
+    div[class*="st-key-docs_reviewed_box_pending"] {
+        background-color: rgba(239,68,68,0.12);
+        border: 1px solid #ef4444;
+        border-radius: 8px;
+        padding: 10px 14px;
+    }
+    div[class*="st-key-docs_reviewed_box_done"] {
+        background-color: rgba(34,197,94,0.12);
+        border: 1px solid #16a34a;
+        border-radius: 8px;
+        padding: 10px 14px;
     }
     div[class*="st-key-card_"],
     div[class*="st-key-notes_font_scope_"] {
@@ -2204,6 +2241,11 @@ def render_client_details():
                     if borrower.get("residence_status", "") in RESIDENCE_STATUS_OPTIONS else 0,
                     key="residence_status_" + str(idx),
                 )
+                if borrower["residence_status"] == "Other":
+                    borrower["residence_status_other"] = st.text_input(
+                        "Please describe", value=borrower.get("residence_status_other", ""),
+                        key="residence_status_other_" + str(idx),
+                    )
             with rc2:
                 borrower["residence_disposition"] = st.selectbox(
                     "What's happening with it?", RESIDENCE_DISPOSITION_OPTIONS,
@@ -2211,6 +2253,11 @@ def render_client_details():
                     if borrower.get("residence_disposition", "") in RESIDENCE_DISPOSITION_OPTIONS else 0,
                     key="residence_disposition_" + str(idx),
                 )
+                if borrower["residence_disposition"] == "Other":
+                    borrower["residence_disposition_other"] = st.text_input(
+                        "Please describe", value=borrower.get("residence_disposition_other", ""),
+                        key="residence_disposition_other_" + str(idx),
+                    )
 
         st.session_state.borrowers[idx] = borrower
 
@@ -2310,12 +2357,14 @@ def render_down_payment():
 
     col1, col2 = st.columns(2)
     with col1:
-        st.session_state.purchase_price_raw = st.text_input(
-            "Purchase Price ($)", value=st.session_state.purchase_price_raw, placeholder="e.g., 500,000"
+        st.session_state.purchase_price_raw = money_text_input(
+            "Purchase Price ($)", st.session_state.purchase_price_raw, key="purchase_price_input",
+            placeholder="e.g., 500,000",
         )
     with col2:
-        st.session_state.down_payment_raw = st.text_input(
-            "Down Payment Amount ($)", value=st.session_state.down_payment_raw, placeholder="e.g., 100,000"
+        st.session_state.down_payment_raw = money_text_input(
+            "Down Payment Amount ($)", st.session_state.down_payment_raw, key="down_payment_input",
+            placeholder="e.g., 100,000",
         )
 
     purchase_price = parse_money(st.session_state.purchase_price_raw)
@@ -2384,11 +2433,11 @@ def render_down_payment():
                         unsafe_allow_html=True,
                     )
                 else:
-                    amount_raw = st.text_input(
+                    amount_raw = money_text_input(
                         source["label"] + " Amount ($)",
-                        value=st.session_state.source_amounts.get(source["key"], ""),
-                        placeholder="Enter amount",
+                        st.session_state.source_amounts.get(source["key"], ""),
                         key="amt_" + source["key"],
+                        placeholder="Enter amount",
                     )
                     st.session_state.source_amounts[source["key"]] = amount_raw
 
@@ -3808,9 +3857,20 @@ def render_debts():
     render_calculator_popover("debts")
 
     st.write("**Property Debts**")
+    st.caption("Other properties the client owns besides the one being purchased/refinanced.")
 
-    if st.button("+ Add Property", key="add_property"):
-        st.session_state.properties.append(empty_property())
+    num_other_props = st.selectbox(
+        "Number of Other Properties Owned", [0, 1, 2, 3, 4],
+        index=min(len(st.session_state.properties), 4),
+        key="num_other_properties_select",
+    )
+    if num_other_props != len(st.session_state.properties):
+        current = st.session_state.properties
+        if num_other_props > len(current):
+            current = current + [empty_property() for _ in range(num_other_props - len(current))]
+        else:
+            current = current[:num_other_props]
+        st.session_state.properties = current
         st.rerun()
 
     total_property_debt = 0.0
@@ -4731,6 +4791,31 @@ ALL_CHECKLIST_CATEGORIES = [
 ]
 
 
+def get_relevant_checklist_categories():
+    """
+    The subset of ALL_CHECKLIST_CATEGORIES that could plausibly apply to the
+    CURRENT transaction type — used so edit mode doesn't offer categories
+    like Builder Program or Switch-In on, say, a plain resale Purchase file.
+    Categories that depend on other data (Other Properties Owned, Other
+    Debts & Liabilities, Debts Paid from Own/Gifted Funds) stay available
+    for every type, since any deal can have those.
+    """
+    relevant = [
+        "Application & Consent", "Identification", "Income", "Other Properties Owned",
+        "Other Debts & Liabilities", "Debts Paid from Own/Gifted Funds", "Additional Documents",
+    ]
+    if not is_refinance():
+        relevant += ["Down Payment", "Property Being Purchased"]
+    if st.session_state.transaction_type == "builder_purchase":
+        relevant.append("Builder Program")
+    if st.session_state.transaction_type == "refinance_new_lender":
+        relevant.append("Switch-In (Refinance - New Lender)")
+    if st.session_state.transaction_type == "refinance_existing_lender":
+        relevant.append("Refinance (Existing Lender)")
+    # Preserve the canonical ordering from ALL_CHECKLIST_CATEGORIES.
+    return [c for c in ALL_CHECKLIST_CATEGORIES if c in relevant]
+
+
 def borrower_display_name(idx):
     borrowers = st.session_state.borrowers
     if idx < len(borrowers) and borrowers[idx]["full_name"].strip():
@@ -4786,9 +4871,18 @@ def build_document_checklist_data():
         categories.append({"name": "Income", "items": income_items})
 
     if not is_refinance():
+        subject_prop_items = []
+        for d in SUBJECT_PROPERTY_DOCS:
+            if d == "MLS listing or property summary, if available":
+                if st.session_state.property_purchase_channel == "Private Sale - No MLS":
+                    continue  # no MLS listing exists for a private sale — nothing to request
+                elif st.session_state.property_purchase_channel == "MLS Listed":
+                    subject_prop_items.append({"text": "MLS listing printout"})
+                    continue
+            subject_prop_items.append({"text": d})
         categories.append({
             "name": "Property Being Purchased",
-            "items": [{"text": d} for d in SUBJECT_PROPERTY_DOCS],
+            "items": subject_prop_items,
         })
 
     # Other Properties Owned — one item per property per standard doc label
@@ -5152,7 +5246,7 @@ def render_documents():
     raw_checklist_data = build_document_checklist_data()
     annotate_item_keys(raw_checklist_data)
     apply_text_overrides(raw_checklist_data, st.session_state.doc_text_overrides)
-    add_custom_items(raw_checklist_data, st.session_state.doc_custom_items, ALL_CHECKLIST_CATEGORIES)
+    add_custom_items(raw_checklist_data, st.session_state.doc_custom_items, get_relevant_checklist_categories())
     checklist_data = filter_checklist_data(raw_checklist_data, st.session_state.doc_removed_items)
 
     always_present = ("Application & Consent", "Property Being Purchased")
@@ -5191,10 +5285,15 @@ def render_documents():
 
         st.divider()
         reviewed_checked = st.session_state.get("docs_reviewed_input", st.session_state.docs_reviewed)
-        reviewed_label = ":blue[**I've reviewed this checklist**]" if reviewed_checked else "I've reviewed this checklist"
-        st.session_state.docs_reviewed = st.checkbox(
-            reviewed_label, value=reviewed_checked, key="docs_reviewed_input",
-        )
+        box_key = "docs_reviewed_box_done" if reviewed_checked else "docs_reviewed_box_pending"
+        with st.container(key=box_key):
+            reviewed_label = (
+                ":green[**✓ I have reviewed the checklist**]" if reviewed_checked
+                else "**⚠ I have reviewed the checklist**"
+            )
+            st.session_state.docs_reviewed = st.checkbox(
+                reviewed_label, value=reviewed_checked, key="docs_reviewed_input",
+            )
     else:
         st.warning(
             "**Edit mode:** uncheck an item to permanently remove it, edit its text to reword it (e.g. "
@@ -5737,25 +5836,44 @@ def render_notes():
                     "so it only catches the phrasing it recognizes. Always review manually."
                 )
     auto_flags = detect_intake_discrepancies()
-    if auto_flags:
-        for flag in auto_flags:
-            st.markdown("- :orange[" + flag + "]")
-        if st.button("↓ Add auto-flagged items to Discrepancies below", key="add_auto_flags_btn"):
-            existing = st.session_state.discrepancies_notes.strip()
-            addition = "\n".join("- " + f for f in auto_flags)
-            st.session_state.discrepancies_notes = (existing + "\n" + addition).strip() if existing else addition
-            st.rerun()
-    elif st.session_state.client_intake_notes.strip():
+    existing_texts = {e["text"] for e in st.session_state.discrepancy_entries}
+    for flag in auto_flags:
+        if flag not in existing_texts:
+            st.session_state.discrepancy_entries.append({"text": flag, "reason": "", "source": "auto"})
+
+    if not st.session_state.discrepancy_entries and st.session_state.client_intake_notes.strip():
         st.caption("No pattern-based mismatches found.")
 
     with st.container(key="notes_font_scope_discrepancies"):
-        st.session_state.discrepancies_notes = st.text_area(
-            "Discrepancies between the application and the original client conversation",
-            value=st.session_state.discrepancies_notes,
-            placeholder="e.g. Client said the credit card balance was $3,000 but the application shows $5,000; "
-            "client didn't mention a rental unit during intake but Property Details indicates one — confirm with client.",
-            height=120, key="discrepancies_notes_input",
-        )
+        to_remove = None
+        for i, entry in enumerate(st.session_state.discrepancy_entries):
+            num_col, text_col, del_col = st.columns([0.4, 5, 0.6])
+            with num_col:
+                st.markdown("**" + str(i + 1) + ".**")
+            with text_col:
+                st.markdown(entry["text"])
+                entry["reason"] = st.text_input(
+                    "Explanation", value=entry["reason"], key="disc_reason_" + str(i),
+                    label_visibility="collapsed", placeholder="Explain or resolve this discrepancy...",
+                )
+            with del_col:
+                if st.button("✕", key="disc_remove_" + str(i)):
+                    to_remove = i
+        if to_remove is not None:
+            st.session_state.discrepancy_entries.pop(to_remove)
+            st.rerun()
+
+        add_col1, add_col2 = st.columns([5, 1])
+        with add_col1:
+            new_disc_text = st.text_input(
+                "Add a discrepancy", key="new_discrepancy_input", label_visibility="collapsed",
+                placeholder="Add another discrepancy manually...",
+            )
+        with add_col2:
+            if st.button("+ Add", key="add_discrepancy_btn", use_container_width=True):
+                if new_disc_text.strip():
+                    st.session_state.discrepancy_entries.append({"text": new_disc_text.strip(), "reason": "", "source": "manual"})
+                    st.rerun()
 
     st.divider()
 
@@ -5789,7 +5907,16 @@ def render_notes():
         combined = "UNDERWRITER FILE NOTE\n" + "=" * 40 + "\n\n"
         combined += "SYSTEM-GENERATED SUMMARY\n" + "-" * 40 + "\n" + system_notes + "\n\n"
         combined += "DISCREPANCIES (RISK)\n" + "-" * 40 + "\n"
-        combined += (st.session_state.discrepancies_notes.strip() if st.session_state.discrepancies_notes.strip() else "(none noted)") + "\n\n"
+        if st.session_state.discrepancy_entries:
+            disc_lines = []
+            for i, entry in enumerate(st.session_state.discrepancy_entries):
+                line = str(i + 1) + ". " + entry["text"]
+                if entry["reason"].strip():
+                    line += "\n   Explanation: " + entry["reason"].strip()
+                disc_lines.append(line)
+            combined += "\n".join(disc_lines) + "\n\n"
+        else:
+            combined += "(none noted)\n\n"
         combined += "BROKER'S NOTES TO UNDERWRITER\n" + "-" * 40 + "\n"
         combined += st.session_state.broker_notes.strip() if st.session_state.broker_notes.strip() else "(none provided)"
         st.session_state.combined_notes = combined
@@ -5840,6 +5967,24 @@ def render_notes():
 # ---------------------------------------------------------------------------
 
 st.session_state.visited_steps.add(st.session_state.step)
+
+if st.session_state.get("last_rendered_step") != st.session_state.step:
+    st.session_state.last_rendered_step = st.session_state.step
+    components.html(
+        """
+        <script>
+          (function() {
+            var doc = window.parent.document;
+            doc.documentElement.scrollTop = 0;
+            doc.body.scrollTop = 0;
+            var main = doc.querySelector('section.main');
+            if (main) { main.scrollTop = 0; }
+            window.parent.scrollTo(0, 0);
+          })();
+        </script>
+        """,
+        height=0,
+    )
 
 if st.session_state.app_completed_seconds is None and is_step_fully_complete(8):
     st.session_state.app_completed_seconds = time.time() - st.session_state.app_start_time
