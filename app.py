@@ -1545,12 +1545,12 @@ stepper_placeholder = st.empty()
 with st.sidebar:
     timer_placeholder = st.empty()
     st.download_button(
-        "⬇️ Download / Save File", data=serialize_application(), file_name="mortgage_application.json",
+        "Download / Save File", data=serialize_application(), file_name="mortgage_application.json",
         mime="application/json", use_container_width=True,
     )
     uploaded = st.file_uploader("Upload", type=["json"], key="load_app_uploader", label_visibility="collapsed")
     if uploaded is not None:
-        if st.button("📂 Load this file", use_container_width=True, key="load_app_confirm"):
+        if st.button("Load this file", use_container_width=True, key="load_app_confirm"):
             success, message = load_application(uploaded.read().decode("utf-8"))
             if success:
                 st.success(message)
@@ -1558,7 +1558,7 @@ with st.sidebar:
             else:
                 st.error(message)
 
-    if st.button("🔄 Refresh", use_container_width=True, key="sidebar_refresh"):
+    if st.button("Refresh", use_container_width=True, key="sidebar_refresh"):
         st.session_state["sidebar_show_refresh_confirm"] = True
     if st.session_state.get("sidebar_show_refresh_confirm"):
         st.warning("Clear all data? Cannot be undone.")
