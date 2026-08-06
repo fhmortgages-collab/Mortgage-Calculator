@@ -400,7 +400,8 @@ def empty_property():
         "heating": "",
         "status": "",
         "property_value": "",
-        "mortgage_balance": "",
+        "num_mortgages": "",
+        "mortgages": [],
     }
 
 
@@ -1825,10 +1826,10 @@ def render_switch_in_step():
             "Mortgage Type", MORTGAGE_TYPES,
             index=MORTGAGE_TYPES.index(st.session_state.switch_mortgage_type), key="switch_mortgage_type_input",
         )
-        st.session_state.switch_current_balance_raw = st.text_input(
+        st.session_state.switch_current_balance_raw = money_text_input(
             "Current Outstanding Balance ($)" if not is_new_lender else "Current Outstanding Balance at OFI ($)",
-            value=st.session_state.switch_current_balance_raw,
-            placeholder="e.g. 425,000", key="switch_current_balance_input",
+            st.session_state.switch_current_balance_raw,
+            key="switch_current_balance_input", placeholder="e.g. 425,000",
         )
 
     def render_additional_lender(n):
@@ -1850,8 +1851,7 @@ def render_switch_in_step():
                 index=MORTGAGE_TYPES.index(st.session_state["switch_lender" + str(n) + "_mortgage_type"]),
                 key="switch_lender" + str(n) + "_mortgage_type_input",
             )
-            st.session_state["switch_lender" + str(n) + "_balance_raw"] = st.text_input(
-                "Balance ($)", value=st.session_state["switch_lender" + str(n) + "_balance_raw"],
+            st.session_state["switch_lender" + str(n) + "_balance_raw"] = money_text_input("Balance ($)", st.session_state["switch_lender" + str(n) + "_balance_raw"],
                 placeholder="e.g. 45,000", key="switch_lender" + str(n) + "_balance_input",
             )
 
@@ -1969,8 +1969,7 @@ def render_switch_in_step():
 
     # --- Section 5: Loan amount being requested ---
     st.markdown("#### Loan Amount Requested")
-    st.session_state.switch_requested_loan_amount_raw = st.text_input(
-        "Loan Amount Being Requested ($)", value=st.session_state.switch_requested_loan_amount_raw,
+    st.session_state.switch_requested_loan_amount_raw = money_text_input("Loan Amount Being Requested ($)", st.session_state.switch_requested_loan_amount_raw,
         placeholder="Defaults to Lender 1's balance above if left blank", key="switch_requested_loan_amount_input",
     )
     st.markdown(
@@ -2646,8 +2645,7 @@ def render_property_details():
 
     if is_refinance():
         loan_amount = get_loan_amount()
-        st.session_state.subject_property_value_raw = st.text_input(
-            "Current Estimated Property Value ($)", value=st.session_state.subject_property_value_raw,
+        st.session_state.subject_property_value_raw = money_text_input("Current Estimated Property Value ($)", st.session_state.subject_property_value_raw,
             placeholder="e.g. 650,000",
         )
         st.caption(ltv_calculation_note())
@@ -2703,8 +2701,7 @@ def render_property_details():
             )
             st.caption("Carried over from " + ("Lender Details" if is_refinance() else "Down Payment") + ".")
         with pv_c2:
-            st.session_state.property_appraisal_value_raw = st.text_input(
-                "Appraisal Value ($)", value=st.session_state.property_appraisal_value_raw,
+            st.session_state.property_appraisal_value_raw = money_text_input("Appraisal Value ($)", st.session_state.property_appraisal_value_raw,
                 placeholder="Enter once the appraisal comes back",
             )
             appraisal_val = parse_money(st.session_state.property_appraisal_value_raw)
@@ -3078,18 +3075,15 @@ def render_property_details():
         st.markdown("#### Monthly Carrying Costs")
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.session_state.subject_taxes_raw = st.text_input(
-                "Monthly Property Taxes ($)", value=st.session_state.subject_taxes_raw,
+            st.session_state.subject_taxes_raw = money_text_input("Monthly Property Taxes ($)", st.session_state.subject_taxes_raw,
                 placeholder="Enter monthly tax amount",
             )
         with c2:
-            st.session_state.subject_condo_raw = st.text_input(
-                "Monthly Condo / Strata Fees ($)", value=st.session_state.subject_condo_raw,
+            st.session_state.subject_condo_raw = money_text_input("Monthly Condo / Strata Fees ($)", st.session_state.subject_condo_raw,
                 placeholder="Enter monthly fee amount (0 if none)",
             )
         with c3:
-            st.session_state.subject_heat_raw = st.text_input(
-                "Monthly Heating Costs ($)", value=st.session_state.subject_heat_raw,
+            st.session_state.subject_heat_raw = money_text_input("Monthly Heating Costs ($)", st.session_state.subject_heat_raw,
                 placeholder="Enter monthly heating amount",
             )
 
@@ -3334,7 +3328,7 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c2:
             amounts["employer_address"] = st.text_input("Employer Address", value=amounts.get("employer_address", ""), key=prefix + "employer_address")
             amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
-        amounts["amount"] = st.text_input("Gross Annual Base Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        amounts["amount"] = money_text_input("Gross Annual Base Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "commission":
         needs_24mo_check = True
@@ -3396,7 +3390,7 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c1:
             amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
         with c2:
-            amounts["amount"] = st.text_input("Gross Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey in ("self_employed_incorporated", "self_employed_professional"):
         needs_24mo_check = True
@@ -3423,14 +3417,14 @@ def render_income_category_card(bidx, skey, source, amounts):
                 key=prefix + "duration_type",
             )
         with c2:
-            amounts["amount"] = st.text_input("Gross Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "ei_parental_benefits":
         c1, c2 = st.columns(2)
         with c1:
             amounts["return_to_work_date"] = st.text_input("Expected Return-to-Work Date (MM/YYYY)", value=amounts.get("return_to_work_date", ""), key=prefix + "return_to_work_date")
         with c2:
-            amounts["amount"] = st.text_input("Gross Annual Benefit Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Gross Annual Benefit Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
         st.caption("Note: EI/maternity/parental benefits are usually weaker for qualification since they're temporary.")
 
     elif skey == "foreign_income":
@@ -3438,7 +3432,7 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c1:
             amounts["country"] = st.text_input("Country of Income Source", value=amounts.get("country", ""), key=prefix + "country")
         with c2:
-            amounts["amount"] = st.text_input("Gross Annual Income ($, CAD equivalent)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Gross Annual Income ($, CAD equivalent)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
         st.caption("Note: lenders are usually conservative with foreign income due to currency and jurisdiction risk.")
 
     elif skey == "capital_gains":
@@ -3446,7 +3440,7 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c1:
             amounts["description"] = st.text_input("Source / Description", value=amounts.get("description", ""), key=prefix + "description")
         with c2:
-            amounts["amount"] = st.text_input("Amount ($, for reference only)", value=amounts.get("amount", ""), placeholder="Enter amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Amount ($, for reference only)", amounts.get("amount", ""), placeholder="Enter amount", key=prefix + "amount")
         st.caption("⚠️ Capital gains are not recurring income — this amount is recorded for reference only and is excluded from GDS/TDS qualification.")
 
     elif skey == "board_director_fees":
@@ -3454,7 +3448,7 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c1:
             amounts["organization_name"] = st.text_input("Organization Name", value=amounts.get("organization_name", ""), key=prefix + "organization_name")
         with c2:
-            amounts["amount"] = st.text_input("Gross Annual Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "investment":
         c1, c2 = st.columns(2)
@@ -3462,7 +3456,7 @@ def render_income_category_card(bidx, skey, source, amounts):
             amounts["institution_name"] = st.text_input("Financial Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
             amounts["account_number"] = st.text_input("Account Number", value=amounts.get("account_number", ""), key=prefix + "account_number")
         with c2:
-            amounts["amount"] = st.text_input("Average Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Average Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "rental_component_primary":
         c1, c2 = st.columns(2)
@@ -3473,8 +3467,7 @@ def render_income_category_card(bidx, skey, source, amounts):
                 placeholder="Defaults to the subject property address", key=prefix + "property_address",
             )
         with c2:
-            amounts["amount"] = st.text_input(
-                "Gross Annual Amount ($)", value=amounts.get("amount", ""),
+            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""),
                 placeholder="Enter annual amount", key=prefix + "amount",
             )
         is_self_contained = (
@@ -3505,7 +3498,7 @@ def render_income_category_card(bidx, skey, source, amounts):
                 key=prefix + "status",
             )
         with c2:
-            amounts["gross_rental"] = st.text_input("Gross Annual Rental Income ($)", value=amounts.get("gross_rental", ""), placeholder="Enter annual amount", key=prefix + "gross_rental")
+            amounts["gross_rental"] = money_text_input("Gross Annual Rental Income ($)", amounts.get("gross_rental", ""), placeholder="Enter annual amount", key=prefix + "gross_rental")
             cur_rate = amounts.get("inclusion_rate", "50%")
             amounts["inclusion_rate"] = st.selectbox(
                 "Rental Income Inclusion Rate",
@@ -3535,27 +3528,27 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c1:
             amounts["institution_name"] = st.text_input("Provider / Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
         with c2:
-            amounts["amount"] = st.text_input("Gross Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "government_benefits":
         c1, c2 = st.columns(2)
         with c1:
             amounts["benefit_type"] = st.text_input("Benefit Type", value=amounts.get("benefit_type", ""), key=prefix + "benefit_type")
         with c2:
-            amounts["amount"] = st.text_input("Gross Annual Income ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "alimony":
         st.caption(
             "Notice: You do not have to disclose alimony, child support, or separate maintenance income if "
             "you do not wish to have it considered as a basis for repaying this obligation."
         )
-        amounts["amount"] = st.text_input("Gross Annual Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "trust_inheritance":
         c1, c2 = st.columns(2)
         with c1:
             amounts["institution_name"] = st.text_input("Trust / Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
-            amounts["amount"] = st.text_input("Gross Annual Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
         with c2:
             amounts["duration"] = st.text_input("Expected Duration of Continued Payments (Months/Years)", value=amounts.get("duration", ""), key=prefix + "duration")
 
@@ -3564,7 +3557,7 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c1:
             amounts["source_desc"] = st.text_input("Source Description", value=amounts.get("source_desc", ""), key=prefix + "source_desc")
         with c2:
-            amounts["amount"] = st.text_input("Gross Annual Amount ($)", value=amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     # --- 24-month rule: salaried, commission, self-employed only ---
     if needs_24mo_check:
@@ -3954,35 +3947,66 @@ def render_debts():
 
             c1, c2 = st.columns(2)
             with c1:
-                prop["mortgage_payment"] = st.text_input(
-                    "Monthly Mortgage / Loan Payment ($)", value=prop["mortgage_payment"],
-                    placeholder="Enter monthly payment amount", key="prop_mtg_" + str(pidx),
+                prop["mortgage_payment"] = money_text_input(
+                    "Monthly Mortgage / Loan Payment ($)", prop["mortgage_payment"],
+                    key="prop_mtg_" + str(pidx), placeholder="Enter monthly payment amount",
                 )
-                prop["condo_fees"] = st.text_input(
-                    "Monthly Condo / Strata Fees ($)", value=prop["condo_fees"],
-                    placeholder="Enter monthly fee amount (0 if none)", key="prop_condo_" + str(pidx),
+                prop["condo_fees"] = money_text_input(
+                    "Monthly Condo / Strata Fees ($)", prop["condo_fees"],
+                    key="prop_condo_" + str(pidx), placeholder="Enter monthly fee amount (0 if none)",
                 )
             with c2:
-                prop["property_taxes"] = st.text_input(
-                    "Monthly Property Taxes ($)", value=prop["property_taxes"],
-                    placeholder="Enter monthly tax amount", key="prop_tax_" + str(pidx),
+                prop["property_taxes"] = money_text_input(
+                    "Monthly Property Taxes ($)", prop["property_taxes"],
+                    key="prop_tax_" + str(pidx), placeholder="Enter monthly tax amount",
                 )
-                prop["heating"] = st.text_input(
-                    "Monthly Heating Costs ($)", value=prop["heating"],
-                    placeholder="Enter monthly heating amount", key="prop_heat_" + str(pidx),
+                prop["heating"] = money_text_input(
+                    "Monthly Heating Costs ($)", prop["heating"],
+                    key="prop_heat_" + str(pidx), placeholder="Enter monthly heating amount",
                 )
 
             c3, c4 = st.columns(2)
             with c3:
-                prop["property_value"] = st.text_input(
-                    "Current Property Value ($)", value=prop.get("property_value", ""),
-                    placeholder="Enter estimated value", key="prop_value_" + str(pidx),
+                prop["property_value"] = money_text_input(
+                    "Current Property Value ($)", prop.get("property_value", ""),
+                    key="prop_value_" + str(pidx), placeholder="Enter estimated value",
                 )
             with c4:
-                prop["mortgage_balance"] = st.text_input(
-                    "Outstanding Mortgage Balance ($)", value=prop.get("mortgage_balance", ""),
-                    placeholder="Enter current balance owing", key="prop_balance_" + str(pidx),
+                num_mtg_options = ["", "Free and Clear", "1", "2", "3", "4"]
+                current_num = prop.get("num_mortgages", "")
+                prop["num_mortgages"] = st.selectbox(
+                    "Number of Mortgages on this Property", num_mtg_options,
+                    index=num_mtg_options.index(current_num) if current_num in num_mtg_options else 0,
+                    key="prop_num_mtg_" + str(pidx),
                 )
+
+            if prop["num_mortgages"] not in ("", "Free and Clear"):
+                num_mtg = int(prop["num_mortgages"])
+                mortgages = prop.get("mortgages", [])
+                if len(mortgages) != num_mtg:
+                    if len(mortgages) < num_mtg:
+                        mortgages = mortgages + [{"lender": "", "balance": ""} for _ in range(num_mtg - len(mortgages))]
+                    else:
+                        mortgages = mortgages[:num_mtg]
+                    prop["mortgages"] = mortgages
+                for midx, mtg in enumerate(mortgages):
+                    mc1, mc2 = st.columns(2)
+                    with mc1:
+                        mtg["lender"] = st.text_input(
+                            "Lender" + (" #" + str(midx + 1) if num_mtg > 1 else ""),
+                            value=mtg.get("lender", ""), key="prop_mtg_lender_" + str(pidx) + "_" + str(midx),
+                        )
+                    with mc2:
+                        mtg["balance"] = money_text_input(
+                            "Outstanding Balance ($)" + (" #" + str(midx + 1) if num_mtg > 1 else ""),
+                            mtg.get("balance", ""), key="prop_mtg_balance_" + str(pidx) + "_" + str(midx),
+                            placeholder="Enter current balance owing",
+                        )
+                prop["mortgages"] = mortgages
+            elif prop["num_mortgages"] == "Free and Clear":
+                prop["mortgages"] = []
+                st.caption(":green[✓ Free and clear — no mortgage lender or balance to enter.]")
+
             st.caption("Property value and mortgage balance feed the Combined LTV figure on the Analysis step.")
 
             prop_total, m, t, c, h = compute_property_total(prop)
@@ -4099,21 +4123,18 @@ def render_debts():
                         st.markdown("**" + debt_instance_label(debt_type, instance_key) + "**")
 
                     if debt_type["calc"] == "percent_of_balance":
-                        amounts["balance"] = st.text_input(
-                            "Total Outstanding Balance ($)", value=amounts.get("balance", ""),
+                        amounts["balance"] = money_text_input("Total Outstanding Balance ($)", amounts.get("balance", ""),
                             placeholder="Enter total balance", key="debt_bal_" + instance_key,
                         )
                         if amounts.get("balance", "").strip() == "":
                             other_debt_errors_any = True
                     else:
-                        amounts["payment"] = st.text_input(
-                            "Monthly Payment Amount ($)", value=amounts.get("payment", ""),
+                        amounts["payment"] = money_text_input("Monthly Payment Amount ($)", amounts.get("payment", ""),
                             placeholder="Enter monthly payment amount", key="debt_pay_" + instance_key,
                         )
                         if amounts.get("payment", "").strip() == "":
                             other_debt_errors_any = True
-                        amounts["total_balance"] = st.text_input(
-                            "Total Balance Owing ($)", value=amounts.get("total_balance", ""),
+                        amounts["total_balance"] = money_text_input("Total Balance Owing ($)", amounts.get("total_balance", ""),
                             placeholder="Enter total balance owing", key="debt_totalbal_" + instance_key,
                         )
 
@@ -4469,7 +4490,8 @@ def render_analysis():
     for prop in st.session_state.properties:
         if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
             continue
-        combined_loan += parse_money(prop.get("mortgage_balance", "")) or 0.0
+        for mtg in prop.get("mortgages", []):
+            combined_loan += parse_money(mtg.get("balance", "")) or 0.0
         combined_value += parse_money(prop.get("property_value", "")) or 0.0
     combined_ltv = (combined_loan / combined_value * 100) if combined_value else None
     combined_ltv_display = "{:.2f}%".format(combined_ltv) if combined_ltv is not None else "—"
