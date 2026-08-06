@@ -51,10 +51,11 @@ GENDER_OPTIONS = ["", "Male", "Female", "Other", "Prefer not to say"]
 MARITAL_OPTIONS = ["", "Single", "Married", "Divorced", "Widowed", "Common-Law"]
 RESIDENCE_STATUS_OPTIONS = ["", "Owned", "Rented", "Living with Parents/Family", "Other"]
 RESIDENCE_DISPOSITION_OPTIONS = [
-    "", "Sold (firm sale)", "Listed / Being Sold", "Kept as Rental Property",
-    "Kept as Second/Vacation Home", "Lease Ending (currently renting)",
-    "Lease Continuing (currently renting)", "Rent-to-Own Arrangement",
-    "Gifted / Transferred to Family", "Still Deciding", "Not Applicable", "Other",
+    "", "Sold — Firm Sale", "Sold — Conditional Sale", "To Be Sold / Listed",
+    "Converting to Rental Property", "Keeping as Secondary/Vacation Home",
+    "Currently Rented — Lease Continuing", "Currently Rented — Lease Ending",
+    "Rent-to-Own Arrangement", "Gifted / Transferred to Family",
+    "Bridge Financing Required", "Still Deciding", "Not Applicable", "Other",
 ]
 PROPERTY_TYPES = ["", "Primary Residence", "Secondary Home", "Investment Property", "Cottage / Vacation Home", "Other"]
 PROPERTY_STYLE_TYPES = [
@@ -411,7 +412,7 @@ def init_state():
     if "visited_steps" not in st.session_state:
         st.session_state.visited_steps = set()
     if "app_start_time" not in st.session_state:
-        st.session_state.app_start_time = time.time()
+        st.session_state.app_start_time = None
     if "app_completed_seconds" not in st.session_state:
         st.session_state.app_completed_seconds = None
     if "transaction_type" not in st.session_state:
@@ -782,7 +783,7 @@ def load_application(json_text):
 def refresh_all():
     st.session_state.step = 0
     st.session_state.visited_steps = set()
-    st.session_state.app_start_time = time.time()
+    st.session_state.app_start_time = None
     st.session_state.app_completed_seconds = None
     st.session_state.transaction_type = ""
     st.session_state.transaction_type_error = ""
@@ -2645,8 +2646,9 @@ def render_property_details():
 
     if is_refinance():
         loan_amount = get_loan_amount()
-        st.session_state.subject_property_value_raw = money_text_input("Current Estimated Property Value ($)", st.session_state.subject_property_value_raw,
-            placeholder="e.g. 650,000",
+        st.session_state.subject_property_value_raw = money_text_input(
+            "Current Estimated Property Value ($)", st.session_state.subject_property_value_raw,
+            key="subject_property_value_input", placeholder="e.g. 650,000",
         )
         st.caption(ltv_calculation_note())
         st.markdown(
@@ -2701,8 +2703,9 @@ def render_property_details():
             )
             st.caption("Carried over from " + ("Lender Details" if is_refinance() else "Down Payment") + ".")
         with pv_c2:
-            st.session_state.property_appraisal_value_raw = money_text_input("Appraisal Value ($)", st.session_state.property_appraisal_value_raw,
-                placeholder="Enter once the appraisal comes back",
+            st.session_state.property_appraisal_value_raw = money_text_input(
+                "Appraisal Value ($)", st.session_state.property_appraisal_value_raw,
+                key="property_appraisal_value_input", placeholder="Enter once the appraisal comes back",
             )
             appraisal_val = parse_money(st.session_state.property_appraisal_value_raw)
             if appraisal_val is not None:
@@ -3075,16 +3078,19 @@ def render_property_details():
         st.markdown("#### Monthly Carrying Costs")
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.session_state.subject_taxes_raw = money_text_input("Monthly Property Taxes ($)", st.session_state.subject_taxes_raw,
-                placeholder="Enter monthly tax amount",
+            st.session_state.subject_taxes_raw = money_text_input(
+                "Monthly Property Taxes ($)", st.session_state.subject_taxes_raw,
+                key="subject_taxes_input", placeholder="Enter monthly tax amount",
             )
         with c2:
-            st.session_state.subject_condo_raw = money_text_input("Monthly Condo / Strata Fees ($)", st.session_state.subject_condo_raw,
-                placeholder="Enter monthly fee amount (0 if none)",
+            st.session_state.subject_condo_raw = money_text_input(
+                "Monthly Condo / Strata Fees ($)", st.session_state.subject_condo_raw,
+                key="subject_condo_input", placeholder="Enter monthly fee amount (0 if none)",
             )
         with c3:
-            st.session_state.subject_heat_raw = money_text_input("Monthly Heating Costs ($)", st.session_state.subject_heat_raw,
-                placeholder="Enter monthly heating amount",
+            st.session_state.subject_heat_raw = money_text_input(
+                "Monthly Heating Costs ($)", st.session_state.subject_heat_raw,
+                key="subject_heat_input", placeholder="Enter monthly heating amount",
             )
 
         st.caption(
@@ -5437,13 +5443,28 @@ def detect_intake_discrepancies():
     Pattern-matches the free-text Client Intake Notes against structured application
     data and flags obvious mismatches. This is regex/keyword matching, not AI — it
     only catches the phrasing patterns below and can miss or misfire; always confirm
-    manually before relying on it.
+    manually before relying on it. Also includes a couple of purely structured
+    (non-text) internal consistency checks that don't depend on intake notes at all.
     """
+    flags = []
+
+    # --- Residence disposition vs rental income (structured — no intake notes needed) ---
+    sold_dispositions = ("Sold — Firm Sale", "Sold — Conditional Sale", "To Be Sold / Listed")
+    for idx, b in enumerate(st.session_state.borrowers[:st.session_state.borrower_count]):
+        if b.get("residence_disposition") in sold_dispositions:
+            bidx = str(idx)
+            name = b.get("full_name", "").strip() or ("Borrower " + str(idx + 1))
+            if "rental" in st.session_state.income_selected.get(bidx, []):
+                flags.append(
+                    name + " indicated their current property is being sold/listed (\""
+                    + b["residence_disposition"] + "\"), but Rental Property Income is included in their "
+                    "income — confirm this rental income is from a different property, not the one being sold."
+                )
+
     text = st.session_state.client_intake_notes
     if not text.strip():
-        return []
+        return flags
 
-    flags = []
     lower_text = text.lower()
 
     # --- Income ---
@@ -5480,20 +5501,40 @@ def detect_intake_discrepancies():
                 )
 
     # --- Property type ---
+    # Naive keyword matching can't tell "buying a condo" from "selling my detached house" —
+    # a bare first-match would wrongly flag the client's OLD home's type against the NEW
+    # subject property. Instead, prefer a property-type keyword sitting near purchase-ish
+    # language ("buying", "purchasing", "new home"), and skip any mention sitting near
+    # "current/existing/selling" language, since that's describing a different property.
     property_type_keywords = {
         "detached": "Detached", "semi-detached": "Semi-Detached", "semi detached": "Semi-Detached",
         "townhouse": "Townhouse", "condo": "Condominium", "duplex": "Duplex", "triplex": "Triplex",
         "bungalow": "Detached",
     }
+    purchase_context_words = ["buying", "purchasing", "purchase of", "new home", "new property", "new place"]
+    current_context_words = ["current", "existing", "currently liv", "selling my", "sell their", "sell his", "sell her", "my current", "their current"]
+
+    purchase_match = None
+    fallback_match = None
     for keyword, implied_type in property_type_keywords.items():
-        if keyword in lower_text:
-            app_type = st.session_state.subject_prop_type
-            if app_type and implied_type not in app_type and app_type not in implied_type:
-                flags.append(
-                    "Intake notes mention \"" + keyword + "\", but Property Details shows the property type as \""
-                    + app_type + "\"."
-                )
-            break
+        for m in re.finditer(re.escape(keyword), lower_text):
+            window = lower_text[max(0, m.start() - 40): m.start()]
+            near_purchase = any(w in window for w in purchase_context_words)
+            near_current = any(w in window for w in current_context_words)
+            if near_purchase:
+                purchase_match = (keyword, implied_type)
+            elif not near_current and fallback_match is None:
+                fallback_match = (keyword, implied_type)
+
+    best_match = purchase_match or fallback_match
+    if best_match:
+        keyword, implied_type = best_match
+        app_type = st.session_state.subject_prop_type
+        if app_type and implied_type not in app_type and app_type not in implied_type:
+            flags.append(
+                "Intake notes mention \"" + keyword + "\" in the context of the purchase, but Property Details "
+                "shows the property type as \"" + app_type + "\" — confirm which property this refers to."
+            )
 
     # --- Rental unit / secondary suite ---
     rental_keywords = ["rental unit", "secondary suite", "basement suite", "basement apartment", "rented out", "in-law suite"]
@@ -6008,7 +6049,7 @@ if st.session_state.get("last_rendered_step") != st.session_state.step:
         height=0,
     )
 
-if st.session_state.app_completed_seconds is None and is_step_fully_complete(8):
+if st.session_state.app_start_time is not None and st.session_state.app_completed_seconds is None and is_step_fully_complete(8):
     st.session_state.app_completed_seconds = time.time() - st.session_state.app_start_time
 
 with timer_placeholder.container():
@@ -6023,6 +6064,10 @@ with timer_placeholder.container():
             "</div>",
             unsafe_allow_html=True,
         )
+    elif st.session_state.app_start_time is None:
+        if st.button("▶ Start Timer", key="start_timer_btn", use_container_width=True):
+            st.session_state.app_start_time = time.time()
+            st.rerun()
     else:
         _start_ms = int(st.session_state.app_start_time * 1000)
         components.html(
