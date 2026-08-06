@@ -49,6 +49,8 @@ PHONE_RE = re.compile(r"^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$")
 
 GENDER_OPTIONS = ["", "Male", "Female", "Other", "Prefer not to say"]
 MARITAL_OPTIONS = ["", "Single", "Married", "Divorced", "Widowed", "Common-Law"]
+RESIDENCE_STATUS_OPTIONS = ["", "Owned", "Rented", "Living with Parents/Family", "Other"]
+RESIDENCE_DISPOSITION_OPTIONS = ["", "Sold", "Kept as Primary Residence", "Converted to Rental", "Lease Ending", "Not Applicable"]
 PROPERTY_TYPES = ["", "Primary Residence", "Secondary Home", "Investment Property", "Cottage / Vacation Home", "Other"]
 PROPERTY_STYLE_TYPES = [
     "", "Detached", "Semi-Detached", "Townhouse / Row House", "Condo / Apartment",
@@ -360,6 +362,8 @@ def empty_borrower():
         "phone": "",
         "email": "",
         "address": "",
+        "residence_status": "",
+        "residence_disposition": "",
     }
 
 
@@ -1489,15 +1493,14 @@ for _opt in TRANSACTION_TYPE_OPTIONS:
     if _opt["key"] == st.session_state.transaction_type:
         _title_suffix = " - " + _opt["label"]
         break
-_title_suffix = ""
-for _opt in TRANSACTION_TYPE_OPTIONS:
-    if _opt["key"] == st.session_state.transaction_type:
-        _title_suffix = " - " + _opt["label"]
-        break
 
 _title_col, _timer_col = st.columns([5, 1])
 with _title_col:
-    st.markdown("## 🏠 FH.Mortgages Calculator" + _title_suffix)
+    st.markdown(
+        "<div style='font-size:17.5px; font-weight:700; white-space:nowrap; overflow:hidden; "
+        "text-overflow:ellipsis; line-height:1.3;'>🏠 FH.Mortgages Calculator" + _title_suffix + "</div>",
+        unsafe_allow_html=True,
+    )
     st.caption("Residential Mortgage Application")
 with _timer_col:
     timer_placeholder = st.empty()
@@ -1639,6 +1642,39 @@ def compute_switch_in_analysis():
         "requires_refinance_registration": requires_refi_reg,
         "explanation": explanation,
     }
+
+
+def clear_transaction_type_specific_fields():
+    """
+    Called whenever the transaction type actually changes. Clears fields
+    specific to OTHER transaction types (switch-in/lender details, builder
+    program, purchase channel/MLS) so nothing from a previously-tested
+    transaction type can leak into the document checklist or elsewhere.
+    Does not touch borrowers, income, debts, or notes.
+    """
+    refresh_switch_in()
+    st.session_state.builder_name = ""
+    st.session_state.builder_code = ""
+    st.session_state.builder_type = ""
+    st.session_state.builder_warranty_provider = ""
+    st.session_state.builder_mortgage_product = ""
+    st.session_state.builder_amortization_years = ""
+    st.session_state.builder_interest_rate_type = ""
+    st.session_state.builder_gst_hst_included = ""
+    st.session_state.builder_gst_hst_percent_raw = ""
+    st.session_state.builder_cashback_requested = ""
+    st.session_state.builder_cashback_program = ""
+    st.session_state.builder_rate_buydown = ""
+    st.session_state.property_purchase_channel = ""
+    st.session_state.property_mls_link = ""
+    st.session_state.property_details_method = ""
+    st.session_state.mls_autofill_status = ""
+    st.session_state.mls_autofilled_fields = []
+    st.session_state.purchase_price_raw = ""
+    st.session_state.down_payment_raw = ""
+    st.session_state.selected_sources = []
+    st.session_state.source_amounts = {}
+    st.session_state.subject_property_value_raw = ""
 
 
 def refresh_switch_in():
@@ -2018,6 +2054,8 @@ def render_transaction_type():
                     use_container_width=True,
                     type="primary" if selected else "secondary",
                 ):
+                    if st.session_state.transaction_type != opt["key"]:
+                        clear_transaction_type_specific_fields()
                     st.session_state.transaction_type = opt["key"]
                     st.session_state.transaction_type_error = ""
                     st.rerun()
@@ -2113,7 +2151,7 @@ def render_client_details():
                     st.caption(":red[" + errors["full_name"] + "]")
 
                 borrower["phone"] = st.text_input(
-                    "Phone Number", value=borrower["phone"], placeholder="(416) 555-0100", key="phone_" + str(idx)
+                    "Phone Number", value=borrower["phone"], key="phone_" + str(idx)
                 )
                 if errors.get("phone"):
                     st.caption(":red[" + errors["phone"] + "]")
@@ -2135,7 +2173,7 @@ def render_client_details():
 
                 borrower["dob"] = st.date_input(
                     "Date of Birth",
-                    value=borrower["dob"] or date(1990, 1, 1),
+                    value=borrower["dob"],
                     min_value=date(1900, 1, 1),
                     max_value=date.today(),
                     key="dob_" + str(idx),
@@ -2152,11 +2190,27 @@ def render_client_details():
                     st.caption(":red[" + errors["marital_status"] + "]")
 
             borrower["address"] = st.text_area(
-                "Current Address", value=borrower["address"], placeholder="123 Main St, Toronto, ON M5V 1A1",
+                "Current Address", value=borrower["address"],
                 key="address_" + str(idx), height=80,
             )
             if errors.get("address"):
                 st.caption(":red[" + errors["address"] + "]")
+
+            rc1, rc2 = st.columns(2)
+            with rc1:
+                borrower["residence_status"] = st.selectbox(
+                    "What is this property?", RESIDENCE_STATUS_OPTIONS,
+                    index=RESIDENCE_STATUS_OPTIONS.index(borrower.get("residence_status", ""))
+                    if borrower.get("residence_status", "") in RESIDENCE_STATUS_OPTIONS else 0,
+                    key="residence_status_" + str(idx),
+                )
+            with rc2:
+                borrower["residence_disposition"] = st.selectbox(
+                    "What's happening with it?", RESIDENCE_DISPOSITION_OPTIONS,
+                    index=RESIDENCE_DISPOSITION_OPTIONS.index(borrower.get("residence_disposition", ""))
+                    if borrower.get("residence_disposition", "") in RESIDENCE_DISPOSITION_OPTIONS else 0,
+                    key="residence_disposition_" + str(idx),
+                )
 
         st.session_state.borrowers[idx] = borrower
 
@@ -5794,9 +5848,10 @@ with timer_placeholder.container():
     if st.session_state.app_completed_seconds is not None:
         _mins, _secs = divmod(int(st.session_state.app_completed_seconds), 60)
         st.markdown(
-            "<div style='text-align:right; margin-top:6px;'>"
-            "<div style='font-size:11px; color:#6b7280;'>Completed in</div>"
-            "<div style='font-size:18px; font-weight:700; font-family:monospace;'>"
+            "<div style='text-align:center; margin-top:6px; padding:6px 10px; border-radius:8px; "
+            "background-color:#16a34a; border:1px solid #16a34a;'>"
+            "<div style='font-size:10px; color:#dcfce7;'>Completed in</div>"
+            "<div style='font-size:17px; font-weight:700; font-family:monospace; color:white;'>"
             + "{:02d}:{:02d}".format(_mins, _secs) + "</div>"
             "</div>",
             unsafe_allow_html=True,
@@ -5805,10 +5860,21 @@ with timer_placeholder.container():
         _start_ms = int(st.session_state.app_start_time * 1000)
         components.html(
             """
-            <div style="margin:0; padding:0; text-align:right;
-                        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-              <div style="font-size:11px; color:#6b7280;">Time elapsed</div>
-              <div id="fh-timer" style="font-size:18px; font-weight:700; font-family:monospace; color:#e5e7eb;">00:00</div>
+            <style>
+              @keyframes timerbox-flash {
+                0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.85); border-color: #ef4444; }
+                50% { box-shadow: 0 0 0 3px rgba(239,68,68,0.85); border-color: #ef4444; }
+              }
+              .fh-timer-box {
+                text-align: center; margin-top: 6px; padding: 6px 10px; border-radius: 8px;
+                border: 1px solid #ef4444; background-color: rgba(239,68,68,0.12);
+                animation: timerbox-flash 1.4s ease-in-out infinite;
+                box-sizing: border-box; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+              }
+            </style>
+            <div class="fh-timer-box">
+              <div style="font-size:10px; color:#fca5a5;">Time elapsed</div>
+              <div id="fh-timer" style="font-size:17px; font-weight:700; font-family:monospace; color:#fecaca;">00:00</div>
             </div>
             <script>
               (function() {
@@ -5825,7 +5891,7 @@ with timer_placeholder.container():
               })();
             </script>
             """,
-            height=48,
+            height=58,
         )
 
 with stepper_placeholder.container():
