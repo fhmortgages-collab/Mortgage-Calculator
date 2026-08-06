@@ -1176,14 +1176,12 @@ def render_stepper(active_index):
         for i, label in enumerate(STEPS):
             step_missing = get_step_missing_fields(i)
             with help_cols[i]:
-                with st.container(key="helpbtn_step_" + str(i)):
-                    with st.popover("?", key="step_help_" + str(i)):
-                        if step_missing:
+                if step_missing:
+                    with st.container(key="helpbtn_step_" + str(i)):
+                        with st.popover("?", key="step_help_" + str(i)):
                             st.markdown("**Still needed on this page:**")
                             for m in step_missing:
                                 st.markdown("- " + m)
-                        else:
-                            st.markdown(":green[✓ All required fields complete.]")
 
 
 st.set_page_config(page_title="FH.Mortgages Calculator", page_icon="🏠", layout="centered")
@@ -1218,10 +1216,10 @@ st.markdown(
         flex: 1 1 0 !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 10.5px !important;
+        font-size: 9px !important;
         white-space: nowrap !important;
-        padding: 8px 2px !important;
-        letter-spacing: -0.3px !important;
+        padding: 8px 1px !important;
+        letter-spacing: -0.4px !important;
         width: 100% !important;
         box-sizing: border-box !important;
         min-height: 3.4em !important;
@@ -1233,9 +1231,10 @@ st.markdown(
         overflow: hidden !important;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button {
-        background-color: rgba(34,197,94,0.18) !important;
+        background-color: #16a34a !important;
         border: 1px solid #16a34a !important;
-        color: #22c55e !important;
+        color: white !important;
+        font-weight: 700 !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
         min-width: 0 !important;
