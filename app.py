@@ -1456,6 +1456,14 @@ st.markdown(
         padding: 0 !important;
         margin: 0 !important;
         min-height: 0 !important;
+        max-height: 3.4em !important;
+        overflow: hidden !important;
+        display: block !important;
+    }
+    /* Bulletproof backstop: whatever Streamlit calls its internal elements in this
+       version, hide every direct child of the dropzone that isn't the actual button. */
+    [data-testid="stFileUploaderDropzone"] > *:not(button) {
+        display: none !important;
     }
     [data-testid="stFileUploader"] {
         margin: 0 !important;
@@ -1469,6 +1477,8 @@ st.markdown(
     [data-testid="stFileUploaderDropzone"] button {
         width: 100% !important;
         min-height: 3.4em !important;
+        max-height: 3.4em !important;
+        overflow: hidden !important;
         border-radius: 8px !important;
         display: flex !important;
         align-items: center !important;
