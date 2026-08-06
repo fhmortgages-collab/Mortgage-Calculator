@@ -1315,19 +1315,6 @@ st.markdown(
     .stApp p, .stApp span:not([data-testid="stIconMaterial"]), .stApp li, .stApp label,
     .stApp textarea, .stApp input, .stApp div[data-baseweb="select"] {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-        font-size: 14px !important;
-    }
-    .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stCaptionContainer"] p {
-        font-size: 13px !important;
-    }
-    /* App-wide fix: when two fields sit side by side in columns and one label wraps to
-       2 lines while the other doesn't, the input boxes end up at different heights.
-       Giving every label a fixed min-height (room for 2 lines) keeps every input box
-       in a row starting at the same vertical position, regardless of label length. */
-    [data-testid="stWidgetLabel"] {
-        min-height: 2.4em !important;
-        display: flex !important;
-        align-items: flex-end !important;
     }
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
@@ -1467,44 +1454,17 @@ st.markdown(
         border: none !important;
         border-radius: 8px !important;
         padding: 0 !important;
-        margin: 0 !important;
-        min-height: 3.4em !important;
-        width: 100% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-sizing: border-box !important;
-        writing-mode: horizontal-tb !important;
-        word-break: keep-all !important;
-        overflow-wrap: normal !important;
-    }
-    [data-testid="stFileUploader"] {
-        margin: 0 !important;
-        padding: 0 !important;
-        width: 100% !important;
+        min-height: 0 !important;
     }
     [data-testid="stFileUploader"] svg,
     [data-testid="stFileUploader"] [data-testid="stIconMaterial"],
     [data-testid="stFileUploader"] [data-testid*="Icon"] {
         display: none !important;
     }
-    [data-testid="stFileUploaderDropzone"] * {
-        width: auto !important;
-        min-width: 0 !important;
-        writing-mode: horizontal-tb !important;
-        white-space: normal !important;
-        word-break: keep-all !important;
-        overflow-wrap: normal !important;
-        hyphens: none !important;
-        text-align: center !important;
-        text-orientation: mixed !important;
-    }
     [data-testid="stFileUploaderDropzone"] button {
-        min-height: 3.4em !important;
         width: 100% !important;
+        min-height: 3.4em !important;
         border-radius: 8px !important;
-        font-size: 13px !important;
-        line-height: 1.2 !important;
     }
     section[data-testid="stSidebar"] input {
         text-align: center !important;
@@ -1521,13 +1481,6 @@ st.markdown(
         font-size: 13px !important;
         padding: 4px 8px !important;
         box-sizing: border-box !important;
-    }
-    section[data-testid="stSidebar"] button p,
-    section[data-testid="stSidebar"] button div,
-    section[data-testid="stSidebar"] button span {
-        text-align: center !important;
-        width: 100% !important;
-        margin: 0 !important;
     }
     .stButton > button {
         min-height: 3.4em;
@@ -1556,10 +1509,7 @@ st.markdown(
     }
     .doc-list {
         background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
-        padding: 10px 14px; margin-top: 6px; margin-bottom: 10px; font-size: 13px; color:#374151;
-    }
-    .doc-list-note {
-        margin: 4px 0 14px 2px; font-size: 13px; color: #9ca3af;
+        padding: 10px 14px; margin-top: 6px; font-size: 13px; color:#374151;
     }
     div[class*="st-key-docs_reviewed_box_pending"] {
         background-color: rgba(239,68,68,0.12);
@@ -1580,28 +1530,6 @@ st.markdown(
         border-radius: 10px;
         padding: 10px 14px 12px;
         margin: 6px 0 10px;
-    }
-    div[class*="st-key-card_doc_cat_"],
-    div[class*="st-key-card_doc_edit_"] {
-        padding: 10px 12px 10px !important;
-        margin: 4px 0 6px !important;
-    }
-    div[class*="st-key-card_doc_cat_"] [data-testid="stCheckbox"],
-    div[class*="st-key-card_doc_edit_"] [data-testid="stCheckbox"] {
-        margin-bottom: 2px !important;
-    }
-    div[class*="st-key-card_doc_cat_"] [data-testid="stMarkdownContainer"] p,
-    div[class*="st-key-card_doc_edit_"] [data-testid="stMarkdownContainer"] p {
-        margin-bottom: 4px !important;
-    }
-    div[class*="st-key-card_debt_totals"] {
-        padding: 8px 12px 10px !important;
-    }
-    div[class*="st-key-card_debt_totals"] [data-testid="stCaptionContainer"] {
-        margin-bottom: 1px !important;
-    }
-    div[class*="st-key-card_debt_totals"] hr {
-        margin: 6px 0 !important;
     }
     div[class*="st-key-card_"] hr,
     div[class*="st-key-notes_font_scope_"] hr {
@@ -2551,13 +2479,12 @@ def render_down_payment():
                     docs_html = ""
                     for d in source["documents"]:
                         docs_html += "<li>" + d + "</li>"
+                    notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
                     st.markdown(
                         "<div class='doc-list'><b>Required Documentation</b>"
-                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
+                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
                         unsafe_allow_html=True,
                     )
-                    if source["notes"]:
-                        st.markdown("<div class='doc-list-note'>" + source["notes"] + "</div>", unsafe_allow_html=True)
 
         st.session_state.selected_sources = selected
 
@@ -2744,16 +2671,6 @@ def render_property_details():
     else:
         st.write("Tell us about the property you're purchasing — this feeds directly into your GDS/TDS calculation.")
     render_calculator_popover("property")
-
-    with st.container(key="card_property_address"):
-        st.session_state.subject_address = st.text_area(
-            "Property Address", value=st.session_state.subject_address,
-            placeholder="Enter the full address of the property you're purchasing", height=70,
-        )
-        if not st.session_state.subject_address.strip():
-            st.caption(":red[Please enter the property address.]")
-
-    st.divider()
 
     if is_refinance():
         loan_amount = get_loan_amount()
@@ -2987,6 +2904,16 @@ def render_property_details():
                 reqs = builder_document_requirements()
                 for d in reqs["documents"]:
                     st.markdown("- " + d)
+
+    st.divider()
+
+    with st.container(key="card_property_address"):
+        st.session_state.subject_address = st.text_area(
+            "Property Address", value=st.session_state.subject_address,
+            placeholder="Enter the full address of the property you're purchasing", height=70,
+        )
+        if not st.session_state.subject_address.strip():
+            st.caption(":red[Please enter the property address.]")
 
     st.divider()
 
@@ -3590,24 +3517,9 @@ def render_income_category_card(bidx, skey, source, amounts):
             )
 
     elif skey == "rental":
-        rental_disposition_hints = (
-            "Converting to Rental Property", "Currently Rented — Lease Continuing",
-            "Currently Rented — Lease Ending", "Keeping as Secondary/Vacation Home",
-        )
-        borrower_idx_int = int(bidx) if bidx.isdigit() else -1
-        suggested_address = ""
-        if 0 <= borrower_idx_int < len(st.session_state.borrowers):
-            b = st.session_state.borrowers[borrower_idx_int]
-            if b.get("residence_disposition") in rental_disposition_hints:
-                suggested_address = b.get("address", "").strip()
         c1, c2 = st.columns(2)
         with c1:
-            amounts["property_address"] = st.text_input(
-                "Property Address", value=amounts.get("property_address", "") or suggested_address,
-                key=prefix + "property_address",
-            )
-            if suggested_address and not amounts.get("property_address", "").strip():
-                st.caption("Suggested from this borrower's current address on Client Details, based on their stated disposition — edit if this is a different property.")
+            amounts["property_address"] = st.text_input("Property Address", value=amounts.get("property_address", ""), key=prefix + "property_address")
             cur_prop_type = amounts.get("prop_type", "")
             amounts["prop_type"] = st.selectbox(
                 "Property Type", PROPERTY_TYPES,
@@ -3703,13 +3615,12 @@ def render_income_category_card(bidx, skey, source, amounts):
 
     # --- Required documentation (unchanged from before) ---
     docs_html = "".join("<li>" + d + "</li>" for d in source["documents"])
+    notes_html = "<div style='margin-top:6px;'>" + source["notes"] + "</div>" if source["notes"] else ""
     st.markdown(
         "<div class='doc-list'><b>Required Documentation</b>"
-        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
+        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
         unsafe_allow_html=True,
     )
-    if source["notes"]:
-        st.markdown("<div class='doc-list-note'>" + source["notes"] + "</div>", unsafe_allow_html=True)
 
 
 def render_income():
@@ -4247,41 +4158,29 @@ def render_debts():
                         st.markdown("**" + debt_instance_label(debt_type, instance_key) + "**")
 
                     if debt_type["calc"] == "percent_of_balance":
-                        lender_col, bal_col, calc_col = st.columns([1.6, 1.6, 1.6])
-                        with lender_col:
-                            amounts["lender"] = st.text_input(
-                                "Lender / Issuer", value=amounts.get("lender", ""),
-                                placeholder="e.g. RBC, Chase, TD", key="debt_lender_" + instance_key,
-                            )
-                        with bal_col:
-                            amounts["balance"] = money_text_input("Total Outstanding Balance ($)", amounts.get("balance", ""),
-                                placeholder="Enter total balance", key="debt_bal_" + instance_key,
-                            )
+                        amounts["balance"] = money_text_input("Total Outstanding Balance ($)", amounts.get("balance", ""),
+                            placeholder="Enter total balance", key="debt_bal_" + instance_key,
+                        )
                         if amounts.get("balance", "").strip() == "":
                             other_debt_errors_any = True
-                        _, debt_explanation = explain_debt_payment(debt_type, amounts)
-                        with calc_col:
-                            st.markdown("<div style='margin-top:1.9rem;'></div>", unsafe_allow_html=True)
-                            st.caption(debt_explanation)
                     else:
-                        lender_col, pay_col, bal_col = st.columns([1.6, 1.6, 1.6])
-                        with lender_col:
-                            amounts["lender"] = st.text_input(
-                                "Lender / Issuer", value=amounts.get("lender", ""),
-                                placeholder="e.g. RBC, Chase, TD", key="debt_lender_" + instance_key,
-                            )
-                        with pay_col:
-                            amounts["payment"] = money_text_input("Monthly Payment Amount ($)", amounts.get("payment", ""),
-                                placeholder="Enter monthly payment amount", key="debt_pay_" + instance_key,
-                            )
-                            if amounts.get("payment", "").strip() == "":
-                                other_debt_errors_any = True
-                        with bal_col:
-                            amounts["total_balance"] = money_text_input("Total Balance Owing ($)", amounts.get("total_balance", ""),
-                                placeholder="Enter total balance owing", key="debt_totalbal_" + instance_key,
-                            )
-                        _, debt_explanation = explain_debt_payment(debt_type, amounts)
-                        st.caption(debt_explanation)
+                        amounts["payment"] = money_text_input("Monthly Payment Amount ($)", amounts.get("payment", ""),
+                            placeholder="Enter monthly payment amount", key="debt_pay_" + instance_key,
+                        )
+                        if amounts.get("payment", "").strip() == "":
+                            other_debt_errors_any = True
+                        amounts["total_balance"] = money_text_input("Total Balance Owing ($)", amounts.get("total_balance", ""),
+                            placeholder="Enter total balance owing", key="debt_totalbal_" + instance_key,
+                        )
+
+                    _, debt_explanation = explain_debt_payment(debt_type, amounts)
+                    st.caption(debt_explanation)
+
+                    if dkey == "other":
+                        st.session_state.debt_other_desc = st.text_input(
+                            "Describe the other obligation", value=st.session_state.debt_other_desc,
+                            key="debt_other_desc_input_" + instance_key,
+                        )
 
                     payment_value = compute_debt_payment(debt_type, amounts)
 
@@ -4326,13 +4225,12 @@ def render_debts():
                     docs_html = ""
                     for d in debt_type["documents"]:
                         docs_html += "<li>" + d + "</li>"
+                    notes_html = "<div style='margin-top:6px;'>" + debt_type["notes"] + "</div>" if debt_type["notes"] else ""
                     st.markdown(
                         "<div class='doc-list'><b>Required Documentation</b>"
-                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
+                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul>" + notes_html + "</div>",
                         unsafe_allow_html=True,
                     )
-                    if debt_type["notes"]:
-                        st.markdown("<div class='doc-list-note'>" + debt_type["notes"] + "</div>", unsafe_allow_html=True)
 
                 st.session_state.debt_amounts[instance_key] = amounts
 
@@ -4341,40 +4239,22 @@ def render_debts():
     st.divider()
 
     with st.container(key="card_debt_totals"):
-        any_property_shown = False
-        for prop in st.session_state.properties:
-            if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
-                continue
-            p_total, _, _, _, _ = compute_property_total(prop)
-            if not any_property_shown:
-                st.write("**1. Other Property Obligations**")
-                any_property_shown = True
-            addr = prop.get("address", "").strip() or "Unnamed property"
-            st.caption(addr + ": **" + fmt_money(p_total) + "**/mo")
-        if any_property_shown:
-            st.markdown("Subtotal — Properties: **" + fmt_money(total_property_debt) + "**/mo")
-            st.divider()
-
         if selected:
-            st.write("**" + ("2" if any_property_shown else "1") + ". Other Debt Obligations**")
+            st.write("**Other Debt Breakdown**")
             for instance_key in selected:
                 dt = get_debt_type(instance_key)
                 amounts = st.session_state.debt_amounts.get(instance_key, {})
                 _, exp = explain_debt_payment(dt, amounts)
                 label_prefix = debt_instance_label(dt, instance_key) + ": " if "#" in instance_key else ""
-                lender_note = " (" + amounts["lender"].strip() + ")" if amounts.get("lender", "").strip() else ""
                 excluded_note = ""
                 if st.session_state.debt_payout_selected.get(instance_key, False):
                     excluded_note = " — excluded from GDS/TDS (paid out from mortgage proceeds)"
                 elif st.session_state.debt_paid_from_own_funds.get(instance_key, False):
                     excluded_note = " — excluded from GDS/TDS (paid from own/gifted funds)"
-                st.caption(label_prefix + exp + lender_note + excluded_note)
-            st.markdown("Subtotal — Other Debts: **" + fmt_money(total_other_debt) + "**/mo")
-            st.divider()
+                st.caption(label_prefix + exp + excluded_note)
 
         total_monthly_debt = total_property_debt + total_other_debt
-        st.write("**" + ("3" if any_property_shown and selected else "2" if any_property_shown or selected else "1") + ". Combined Total**")
-        st.markdown("#### Total Monthly Debt Obligations: " + fmt_money(total_monthly_debt))
+        st.markdown("#### Total Monthly Debt Obligations (Other Properties + Debts): " + fmt_money(total_monthly_debt))
         st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
         st.caption("Full GDS/TDS qualification is calculated on the Analysis step, after financing terms are set.")
 
@@ -4722,52 +4602,6 @@ def render_analysis():
     with gds_help_col:
         with st.container(key="helpbtn_help_gds_tds"):
             with st.popover("?", key="help_gds_tds"):
-                def mo_yr(monthly_val):
-                    return "**" + fmt_money(monthly_val) + "**/mo  ·  **" + fmt_money(monthly_val * 12) + "**/yr"
-
-                st.markdown("**Housing costs (GDS numerator)**")
-                st.markdown("- Principal & Interest (contract, " + "{:.2f}%".format(st.session_state.contract_rate) + "): " + mo_yr(pi_payment))
-                st.markdown("- Principal & Interest (stressed, " + "{:.2f}%".format(qualifying_rate) + "): " + mo_yr(stressed_pi))
-                st.markdown("- Property Taxes: " + mo_yr(taxes))
-                st.markdown("- Heat: " + mo_yr(heat))
-                st.markdown("- Condo Fees (50% counted): " + mo_yr(condo * 0.5) + "  (full fee: " + mo_yr(condo) + ")")
-                st.divider()
-                st.markdown("**Other debts (added for TDS only)**")
-                any_debt_line = False
-                for instance_key in st.session_state.debt_selected:
-                    dt = get_debt_type(instance_key)
-                    if not dt:
-                        continue
-                    amounts = st.session_state.debt_amounts.get(instance_key, {})
-                    excluded = (
-                        st.session_state.debt_payout_selected.get(instance_key, False)
-                        or st.session_state.debt_paid_from_own_funds.get(instance_key, False)
-                    )
-                    if excluded:
-                        continue
-                    pay_val = compute_debt_payment(dt, amounts)
-                    label = debt_instance_label(dt, instance_key)
-                    lender = amounts.get("lender", "").strip()
-                    st.markdown("- " + label + (" (" + lender + ")" if lender else "") + ": " + mo_yr(pay_val))
-                    any_debt_line = True
-                for prop in st.session_state.properties:
-                    if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
-                        continue
-                    p_total, m, t, c, h = compute_property_total(prop)
-                    prop_label = "Other Property (" + (prop.get("address", "").strip() or "unnamed") + ")"
-                    st.markdown("- " + prop_label + " — total: " + mo_yr(p_total))
-                    st.markdown("&nbsp;&nbsp;&nbsp;mortgage " + mo_yr(m) + "  ·  taxes " + mo_yr(t) + "  ·  condo " + mo_yr(c) + "  ·  heat " + mo_yr(h))
-                    any_debt_line = True
-                if not any_debt_line:
-                    st.caption("No other debts counted toward TDS.")
-                st.divider()
-                st.markdown("**Totals**")
-                st.markdown("- Total Housing Costs (GDS, contract): " + mo_yr(annual_housing / 12))
-                st.markdown("- Total Housing Costs (GDS, stressed): " + mo_yr(stressed_annual_housing / 12))
-                st.markdown("- Total Debt Obligations (TDS, contract): " + mo_yr((annual_housing + annual_other_debt) / 12))
-                st.markdown("- Total Debt Obligations (TDS, stressed): " + mo_yr((stressed_annual_housing + stressed_annual_other_debt) / 12))
-                st.markdown("- Combined Gross Annual Income: **" + fmt_money(total_income) + "**/yr  ·  **" + fmt_money(total_income / 12) + "**/mo")
-                st.divider()
                 st.caption(help_gds_text(total_income, annual_housing, gds))
                 st.divider()
                 st.caption(help_tds_text(total_income, annual_housing, annual_other_debt, tds))
@@ -5323,7 +5157,7 @@ def render_document_checklist(data):
         total_count += len(items)
         with st.container(key="card_doc_cat_" + str(cat_idx)):
             st.markdown(
-                "<div style='font-size:15px; font-weight:700; margin-top:0; margin-bottom:4px;'>"
+                "<div style='font-size:18px; font-weight:700; margin-top:0; margin-bottom:6px;'>"
                 + cat_name + " (" + str(len(items)) + ")</div>",
                 unsafe_allow_html=True,
             )
@@ -5339,7 +5173,7 @@ def render_document_checklist(data):
                     if subcategory:
                         heading_parts.append(subcategory)
                     st.markdown(
-                        "<div style='margin-left:20px; font-weight:600; margin-top:4px; margin-bottom:1px; font-size:14px;'>"
+                        "<div style='margin-left:20px; font-weight:600; margin-top:8px; margin-bottom:2px;'>"
                         + " — ".join(heading_parts) + "</div>",
                         unsafe_allow_html=True,
                     )
@@ -5349,7 +5183,7 @@ def render_document_checklist(data):
 
                 for item in group_items:
                     st.markdown(
-                        "<div style='margin-left:" + str(item_indent) + "px; margin-bottom:1px; font-size:13px;'>"
+                        "<div style='margin-left:" + str(item_indent) + "px; margin-bottom:2px;'>"
                         "☐ " + item["text"] + "</div>",
                         unsafe_allow_html=True,
                     )
@@ -5416,7 +5250,7 @@ def render_document_checklist_editable(data):
         items = category.get("items", [])
         with st.container(key="card_doc_edit_" + str(cat_idx)):
             st.markdown(
-                "<div style='font-size:15px; font-weight:700; margin-top:0; margin-bottom:4px;'>"
+                "<div style='font-size:18px; font-weight:700; margin-top:0; margin-bottom:6px;'>"
                 + cat_name + " (" + str(len(items)) + ")</div>",
                 unsafe_allow_html=True,
             )
@@ -5432,7 +5266,7 @@ def render_document_checklist_editable(data):
                     if subcategory:
                         heading_parts.append(subcategory)
                     st.markdown(
-                        "<div style='margin-left:20px; font-weight:600; margin-top:4px; margin-bottom:1px; font-size:14px;'>"
+                        "<div style='margin-left:20px; font-weight:600; margin-top:8px; margin-bottom:2px;'>"
                         + " — ".join(heading_parts) + "</div>",
                         unsafe_allow_html=True,
                     )
@@ -6094,11 +5928,11 @@ def render_notes():
     # --- 2. Intake Notes ---
     st.markdown("#### Client Intake Notes")
     st.caption("What the client told you in the initial conversation, captured on the Deal step.")
-    with st.container(key="card_intake_notes_readonly"):
-        if st.session_state.client_intake_notes.strip():
+    if st.session_state.client_intake_notes.strip():
+        with st.container(key="notes_font_scope_intake"):
             st.markdown(st.session_state.client_intake_notes.replace("\n", "  \n"))
-        else:
-            st.caption("No client intake notes were captured on the Deal step.")
+    else:
+        st.caption("No client intake notes were captured on the Deal step.")
 
     st.divider()
 
