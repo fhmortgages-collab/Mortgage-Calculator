@@ -1146,7 +1146,12 @@ st.markdown(
     div[class*="st-key-helpbtn_"] {
         display: flex;
         justify-content: center;
+        align-items: center;
+        height: 100%;
         margin-bottom: 2px;
+    }
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"] div[class*="st-key-helpbtn_"]) {
+        align-items: center !important;
     }
     div[class*="st-key-helpbtn_"] button {
         min-height: 1.4em !important;
@@ -2640,11 +2645,11 @@ def render_property_details():
             else:
                 mls_field_note("subject_prop_type")
             st.session_state.subject_prop_age = st.text_input(
-                "Age of Property (years, or year built)", value=st.session_state.subject_prop_age,
+                "Property Age (yrs or year built)", value=st.session_state.subject_prop_age,
                 placeholder="e.g. 15 years or Built 2011",
             )
             st.session_state.subject_rural_urban = st.selectbox(
-                "Rural / Urban / Agricultural",
+                "Rural / Urban / Ag.",
                 RURAL_URBAN_OPTIONS,
                 index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
                 if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
