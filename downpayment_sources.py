@@ -63,6 +63,18 @@ DOWN_PAYMENT_SOURCES = [
         "notes": "If the new purchase closes before the existing sale closes, bridge financing or another verified source may be required instead.",
     },
     {
+        "key": "refinance_existing_property",
+        "label": "Refinance of Existing Property",
+        "eligible": True,
+        "documents": [
+            "Current mortgage statement for the property being refinanced",
+            "New mortgage commitment/approval showing the increased loan amount and equity being taken out",
+            "Lawyer's/notary's trust ledger or statement of funds confirming the net proceeds available for this down payment",
+            "Current property valuation or appraisal supporting the refinanced loan-to-value",
+        ],
+        "notes": "The property being refinanced is retained by the client, not sold — equity is pulled out via a new/increased mortgage. Confirm the resulting debt service on the refinanced property is included in the client's other liabilities.",
+    },
+    {
         "key": "equity_land",
         "label": "Equity in Land Already Owned",
         "eligible": True,
