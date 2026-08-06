@@ -393,6 +393,8 @@ def init_state():
         st.session_state.doc_removed_items = []
     if "doc_edit_mode" not in st.session_state:
         st.session_state.doc_edit_mode = False
+    if "docs_reviewed" not in st.session_state:
+        st.session_state.docs_reviewed = False
     if "doc_text_overrides" not in st.session_state:
         st.session_state.doc_text_overrides = {}
     if "doc_custom_items" not in st.session_state:
@@ -666,7 +668,7 @@ SAVE_STATE_KEYS = [
     "subject_title_type_other", "subject_prop_type_other", "subject_heating_type_other",
     "subject_sewer_other", "subject_water_other",
     "contract_rate", "amortization_years", "benchmark_rate", "doc_removed_items",
-    "doc_text_overrides", "doc_custom_items",
+    "doc_text_overrides", "doc_custom_items", "docs_reviewed",
     "broker_notes", "combined_notes", "mortgage_term", "rate_type",
     "client_intake_notes", "discrepancies_notes",
     "switch_ofi_name", "switch_ofi_is_frfi", "switch_reg_type", "switch_mortgage_type",
@@ -749,6 +751,7 @@ def refresh_all():
     st.session_state.transaction_type_error = ""
     st.session_state.doc_removed_items = []
     st.session_state.doc_edit_mode = False
+    st.session_state.docs_reviewed = False
     st.session_state.doc_text_overrides = {}
     st.session_state.doc_custom_items = {}
     st.session_state.broker_notes = ""
@@ -1096,6 +1099,8 @@ def get_step_missing_fields(step_index):
     if step_index == 0:
         if not st.session_state.transaction_type:
             missing.append("Select a transaction type")
+        if not st.session_state.client_intake_notes.strip():
+            missing.append("Client Intake Notes must be filled in")
 
     elif step_index == 1:
         if not st.session_state.consent:
@@ -1126,6 +1131,19 @@ def get_step_missing_fields(step_index):
                 missing.append("Down payment amount is required")
             if not st.session_state.selected_sources:
                 missing.append("Select at least one down payment source")
+            else:
+                total_sources = 0.0
+                for key in st.session_state.selected_sources:
+                    src = next((s for s in DOWN_PAYMENT_SOURCES if s["key"] == key), None)
+                    if not src:
+                        continue
+                    amt_raw = st.session_state.source_amounts.get(key, "")
+                    if src["eligible"] and not amt_raw.strip():
+                        missing.append(src["label"] + ": amount is required")
+                    total_sources += parse_money(amt_raw) or 0.0
+                down_payment_val = parse_money(st.session_state.down_payment_raw)
+                if down_payment_val is not None and round(total_sources, 2) != round(down_payment_val, 2):
+                    missing.append("Down payment source amounts (" + fmt_money(total_sources) + ") must sum to the down payment total (" + fmt_money(down_payment_val) + ")")
 
     elif step_index == 3:
         if not st.session_state.subject_address.strip():
@@ -1141,8 +1159,22 @@ def get_step_missing_fields(step_index):
     elif step_index == 4:
         if compute_total_income() <= 0:
             missing.append("Enter at least one income source with an amount")
+        for idx in range(st.session_state.borrower_count):
+            bidx = str(idx)
+            name = borrower_display_name(idx)
+            for skey in st.session_state.income_selected.get(bidx, []):
+                src = get_income_source(skey)
+                amounts = st.session_state.income_amounts.get(bidx, {}).get(skey, {})
+                has_value = any(str(v).strip() for v in amounts.values()) if amounts else False
+                if src and not has_value:
+                    missing.append(name + " — " + src["label"] + ": amount is required")
 
     elif step_index == 5:
+        if len(st.session_state.properties) == 0 and len(st.session_state.debt_selected) == 0:
+            missing.append("At least one property or debt type must be added")
+        for pidx, prop in enumerate(st.session_state.properties):
+            if not prop.get("address", "").strip():
+                missing.append("Other Property #" + str(pidx + 1) + ": address is required")
         for dkey in st.session_state.debt_selected:
             dt = get_debt_type(dkey)
             amounts = st.session_state.debt_amounts.get(dkey, {})
@@ -1155,10 +1187,8 @@ def get_step_missing_fields(step_index):
                         missing.append(debt_instance_label(dt, dkey) + ": monthly payment is required")
 
     elif step_index == 7:
-        checklist_data = build_document_checklist_data()
-        total_items = sum(len(cat.get("items", [])) for cat in checklist_data.get("categories", []))
-        if total_items == 0:
-            missing.append("No documents generated yet — complete the earlier steps first")
+        if not st.session_state.docs_reviewed:
+            missing.append("Check \"I've reviewed this checklist\" at the bottom of the Docs page")
 
     elif step_index == 8:
         if not st.session_state.broker_notes.strip():
@@ -5076,6 +5106,13 @@ def render_documents():
             data=serialize_checklist_text(checklist_data),
             file_name="required_documents_checklist.txt",
             mime="text/plain",
+        )
+
+        st.divider()
+        reviewed_checked = st.session_state.get("docs_reviewed_input", st.session_state.docs_reviewed)
+        reviewed_label = ":blue[**I've reviewed this checklist**]" if reviewed_checked else "I've reviewed this checklist"
+        st.session_state.docs_reviewed = st.checkbox(
+            reviewed_label, value=reviewed_checked, key="docs_reviewed_input",
         )
     else:
         st.warning(
