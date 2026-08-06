@@ -361,7 +361,10 @@ def render_calculator_popover(key_prefix):
     visible on screen at all times regardless of scroll position.
     """
     with st.sidebar:
-        st.caption("Calculator")
+        st.markdown(
+            "<div style='text-align:center; font-size:14px; color:#a3a8b4; margin-top:4px;'>Calculator</div>",
+            unsafe_allow_html=True,
+        )
         expr = st.text_input(
             "Expression", key=key_prefix + "_calc_expr", placeholder="1200 + 350*12",
             label_visibility="collapsed",
@@ -369,9 +372,15 @@ def render_calculator_popover(key_prefix):
         if expr.strip():
             try:
                 result = safe_calculate(expr)
-                st.markdown("**= " + "{:,.2f}".format(result) + "**")
+                st.markdown(
+                    "<div style='text-align:center; font-weight:700;'>= " + "{:,.2f}".format(result) + "</div>",
+                    unsafe_allow_html=True,
+                )
             except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
-                st.caption(":red[Invalid expression]")
+                st.markdown(
+                    "<div style='text-align:center; color:#ef4444;'>Invalid expression</div>",
+                    unsafe_allow_html=True,
+                )
 
 
 def empty_borrower():
@@ -1455,6 +1464,9 @@ st.markdown(
         width: 100% !important;
         min-height: 3.4em !important;
         border-radius: 8px !important;
+    }
+    section[data-testid="stSidebar"] input {
+        text-align: center !important;
     }
     section[data-testid="stSidebar"] button {
         min-height: 3.4em !important;
