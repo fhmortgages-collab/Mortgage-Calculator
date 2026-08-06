@@ -1446,6 +1446,9 @@ st.markdown(
         padding: 0 !important;
         min-height: 0 !important;
     }
+    [data-testid="stFileUploaderDropzone"] svg {
+        display: none !important;
+    }
     [data-testid="stFileUploaderDropzone"] button {
         width: 100% !important;
         min-height: 3.4em !important;
