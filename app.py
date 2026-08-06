@@ -379,6 +379,8 @@ def empty_property():
 def init_state():
     if "step" not in st.session_state:
         st.session_state.step = 0
+    if "visited_steps" not in st.session_state:
+        st.session_state.visited_steps = set()
     if "transaction_type" not in st.session_state:
         st.session_state.transaction_type = ""
     if "transaction_type_error" not in st.session_state:
@@ -742,6 +744,7 @@ def load_application(json_text):
 
 def refresh_all():
     st.session_state.step = 0
+    st.session_state.visited_steps = set()
     st.session_state.transaction_type = ""
     st.session_state.transaction_type_error = ""
     st.session_state.doc_removed_items = []
@@ -1176,9 +1179,20 @@ def render_stepper(active_index):
             display_label = label
             if i == 2 and is_refinance():
                 display_label = "Lender"
+
             step_missing = get_step_missing_fields(i)
             is_step_complete = is_step_fully_complete(i)
-            container_key = "stepbtn_" + str(i) + ("_complete" if is_step_complete else "")
+            was_visited = i in st.session_state.visited_steps
+            is_currently_active = i == active_index
+
+            if is_step_complete:
+                state_suffix = "_complete"
+            elif was_visited and not is_currently_active and step_missing:
+                state_suffix = "_flagged"
+            else:
+                state_suffix = ""
+
+            container_key = "stepbtn_" + str(i) + state_suffix
             with cols[i]:
                 with st.container(key=container_key):
                     if st.button(display_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
@@ -1189,8 +1203,11 @@ def render_stepper(active_index):
         help_cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
             step_missing = get_step_missing_fields(i)
+            was_visited = i in st.session_state.visited_steps
+            is_currently_active = i == active_index
+            show_help = was_visited and not is_currently_active and step_missing and not is_step_fully_complete(i)
             with help_cols[i]:
-                if step_missing:
+                if show_help:
                     with st.container(key="helpbtn_step_" + str(i)):
                         with st.popover("?", key="step_help_" + str(i)):
                             st.markdown("**Still needed on this page:**")
@@ -1250,6 +1267,12 @@ st.markdown(
         background-color: #16a34a !important;
         border: 1px solid #16a34a !important;
         color: white !important;
+        font-weight: 700 !important;
+    }
+    div[class*="st-key-stepbtn_"][class*="_flagged"] button {
+        background-color: #eab308 !important;
+        border: 1px solid #eab308 !important;
+        color: #1a1a1a !important;
         font-weight: 700 !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
@@ -5687,6 +5710,8 @@ def render_notes():
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
+
+st.session_state.visited_steps.add(st.session_state.step)
 
 with stepper_placeholder.container():
     render_stepper(st.session_state.step)
