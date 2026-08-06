@@ -1151,11 +1151,7 @@ st.markdown(
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 100%;
-        margin-bottom: 2px;
-    }
-    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"] div[class*="st-key-helpbtn_"]) {
-        align-items: center !important;
+        margin-top: 22px;
     }
     div[class*="st-key-helpbtn_"] button {
         min-height: 1.4em !important;
@@ -1940,10 +1936,11 @@ def render_client_details():
         """,
         unsafe_allow_html=True,
     )
+    consent_checked = st.session_state.get("consent_input", st.session_state.consent)
     st.session_state.consent = st.checkbox(
-        ":blue[**I acknowledge and consent to the above terms**]" if st.session_state.consent
+        ":blue[**I acknowledge and consent to the above terms**]" if consent_checked
         else "I acknowledge and consent to the above terms",
-        value=st.session_state.consent,
+        value=consent_checked, key="consent_input",
     )
     consent_error_slot = st.empty()
 
@@ -2079,9 +2076,10 @@ def render_down_payment():
 
         selected = st.session_state.selected_sources
         for source in DOWN_PAYMENT_SOURCES:
-            checked = source["key"] in selected
+            widget_key = "src_" + source["key"]
+            checked = st.session_state.get(widget_key, source["key"] in selected)
             label_text = ":blue[**" + source["label"] + "**]" if checked else source["label"]
-            new_checked = st.checkbox(label_text, value=checked, key="src_" + source["key"])
+            new_checked = st.checkbox(label_text, value=checked, key=widget_key)
 
             if new_checked and source["key"] not in selected:
                 selected.append(source["key"])
@@ -2573,19 +2571,22 @@ def render_property_details():
             with st.container(key="sub_checkbox_rental"):
                 rc1, rc2, rc3 = st.columns(3)
                 with rc1:
+                    kitchen_checked = st.session_state.get("subject_rental_kitchen_input", st.session_state.subject_rental_kitchen)
                     st.session_state.subject_rental_kitchen = st.checkbox(
-                        ":blue[Has its own kitchen]" if st.session_state.subject_rental_kitchen else "Has its own kitchen",
-                        value=st.session_state.subject_rental_kitchen, key="subject_rental_kitchen_input",
+                        ":blue[Has its own kitchen]" if kitchen_checked else "Has its own kitchen",
+                        value=kitchen_checked, key="subject_rental_kitchen_input",
                     )
                 with rc2:
+                    bathroom_checked = st.session_state.get("subject_rental_bathroom_input", st.session_state.subject_rental_bathroom)
                     st.session_state.subject_rental_bathroom = st.checkbox(
-                        ":blue[Has its own bathroom]" if st.session_state.subject_rental_bathroom else "Has its own bathroom",
-                        value=st.session_state.subject_rental_bathroom, key="subject_rental_bathroom_input",
+                        ":blue[Has its own bathroom]" if bathroom_checked else "Has its own bathroom",
+                        value=bathroom_checked, key="subject_rental_bathroom_input",
                     )
                 with rc3:
+                    entrance_checked = st.session_state.get("subject_rental_entrance_input", st.session_state.subject_rental_entrance)
                     st.session_state.subject_rental_entrance = st.checkbox(
-                        ":blue[Has a separate entrance]" if st.session_state.subject_rental_entrance else "Has a separate entrance",
-                        value=st.session_state.subject_rental_entrance, key="subject_rental_entrance_input",
+                        ":blue[Has a separate entrance]" if entrance_checked else "Has a separate entrance",
+                        value=entrance_checked, key="subject_rental_entrance_input",
                     )
             is_self_contained = (
                 st.session_state.subject_rental_kitchen and st.session_state.subject_rental_bathroom
@@ -3294,10 +3295,11 @@ def render_income():
             # --- Phase 1: plain checkbox list only (unchanged layout) ---
             for source in INCOME_SOURCES_ALPHA:
                 skey = source["key"]
-                checked = skey in selected
+                widget_key = "inc_src_" + bidx + "_" + skey
+                checked = st.session_state.get(widget_key, skey in selected)
                 label_text = ":blue[**" + source["label"] + "**]" if checked else source["label"]
                 new_checked = st.checkbox(
-                    label_text, value=checked, key="inc_src_" + bidx + "_" + skey
+                    label_text, value=checked, key=widget_key
                 )
 
                 if new_checked and skey not in selected:
@@ -3703,9 +3705,10 @@ def render_debts():
 
         for debt_type in DEBT_TYPES:
             dkey = debt_type["key"]
-            was_checked = st.session_state.debt_type_checked.get(dkey, dkey in selected)
+            widget_key = "debt_" + dkey
+            was_checked = st.session_state.get(widget_key, st.session_state.debt_type_checked.get(dkey, dkey in selected))
             debt_label_text = ":blue[**" + debt_type["label"] + "**]" if was_checked else debt_type["label"]
-            new_checked = st.checkbox(debt_label_text, value=was_checked, key="debt_" + dkey)
+            new_checked = st.checkbox(debt_label_text, value=was_checked, key=widget_key)
             st.session_state.debt_type_checked[dkey] = new_checked
 
             if new_checked:
@@ -3782,12 +3785,13 @@ def render_debts():
 
                     payout_checked = False
                     with st.container(key="sub_checkbox_debt_" + instance_key):
-                        prior_payout = st.session_state.debt_payout_selected.get(instance_key, False)
+                        payout_widget_key = "debt_payout_" + instance_key
+                        prior_payout = st.session_state.get(payout_widget_key, st.session_state.debt_payout_selected.get(instance_key, False))
                         if is_refinance():
                             payout_checked = st.checkbox(
                                 ":blue[Include in payout from mortgage proceeds]" if prior_payout else "Include in payout from mortgage proceeds",
                                 value=prior_payout,
-                                key="debt_payout_" + instance_key,
+                                key=payout_widget_key,
                             )
                             st.session_state.debt_payout_selected[instance_key] = payout_checked
                             if payout_checked:
@@ -3797,12 +3801,13 @@ def render_debts():
                                     + (fmt_money(payout_bal) if payout_bal is not None else "enter a balance above")
                                 )
 
-                        prior_own_funds = st.session_state.debt_paid_from_own_funds.get(instance_key, False)
+                        own_funds_widget_key = "debt_own_funds_" + instance_key
+                        prior_own_funds = st.session_state.get(own_funds_widget_key, st.session_state.debt_paid_from_own_funds.get(instance_key, False))
                         own_funds_checked = st.checkbox(
                             ":blue[Being paid off from the client's own funds / gifted funds prior to closing]" if prior_own_funds
                             else "Being paid off from the client's own funds / gifted funds prior to closing",
                             value=prior_own_funds,
-                            key="debt_own_funds_" + instance_key,
+                            key=own_funds_widget_key,
                         )
                         st.session_state.debt_paid_from_own_funds[instance_key] = own_funds_checked
                         if own_funds_checked:
@@ -4138,7 +4143,7 @@ def render_analysis():
     with ltv_card_col:
         st.markdown(
             "<div class='metric-row'>"
-            "<div class='metric-card'><div class='metric-label'>Combined LTV (Subject + Other Properties)</div>"
+            "<div class='metric-card'><div class='metric-label'>Combined LTV</div>"
             "<div class='metric-value'>" + combined_ltv_display + "</div></div>"
             "</div>",
             unsafe_allow_html=True,
