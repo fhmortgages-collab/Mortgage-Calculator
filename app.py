@@ -1151,7 +1151,7 @@ st.markdown(
         display: flex;
         justify-content: center;
         align-items: center;
-        margin-top: 22px;
+        margin-top: 6px;
     }
     div[class*="st-key-helpbtn_"] button {
         min-height: 1.4em !important;
@@ -2696,11 +2696,6 @@ def render_property_details():
                 )
 
         with c3:
-            st.session_state.subject_cooling = st.selectbox(
-                "Cooling", COOLING_OPTIONS,
-                index=COOLING_OPTIONS.index(st.session_state.subject_cooling)
-                if st.session_state.subject_cooling in COOLING_OPTIONS else 0,
-            )
             st.session_state.subject_heating_type = st.selectbox(
                 "Heating Type", HEATING_TYPE_OPTIONS,
                 index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
@@ -4138,20 +4133,21 @@ def render_analysis():
             "property value and mortgage balance for each property under Debts & Liabilities to populate this."
         )
 
-    st.markdown("**Combined LTV (Subject + Other Properties)**")
-    ltv_card_col, ltv_help_col = st.columns([12, 1])
-    with ltv_card_col:
-        st.markdown(
-            "<div class='metric-row'>"
-            "<div class='metric-card'><div class='metric-label'>Combined LTV</div>"
-            "<div class='metric-value'>" + combined_ltv_display + "</div></div>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
+    ltv_header_col, ltv_help_col = st.columns([12, 1])
+    with ltv_header_col:
+        st.markdown("**Combined LTV (Subject + Other Properties)**")
     with ltv_help_col:
         with st.container(key="helpbtn_help_combined_ltv"):
             with st.popover("?", key="help_combined_ltv"):
                 st.caption(help_combined_ltv_text())
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card' style='max-width:calc(50% - 6px);'>"
+        "<div class='metric-label'>Combined LTV</div>"
+        "<div class='metric-value'>" + combined_ltv_display + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     if is_refinance():
         st.markdown("**Refinance Payout Summary**")
@@ -4193,24 +4189,9 @@ def render_analysis():
         stressed_pi, taxes, heat, condo, other_debt_monthly, total_income
     )
 
-    st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
-
-    gds_display = "{:.2f}%".format(gds) if gds is not None else "—"
-    tds_display = "{:.2f}%".format(tds) if tds is not None else "—"
-    stressed_gds_display = "{:.2f}%".format(stressed_gds) if stressed_gds is not None else "—"
-    stressed_tds_display = "{:.2f}%".format(stressed_tds) if stressed_tds is not None else "—"
-
-    gds_card_col, gds_help_col = st.columns([12, 1])
-    with gds_card_col:
-        st.markdown(
-            "<div class='metric-row'>"
-            "<div class='metric-card'><div class='metric-label'>GDS — Contract Rate</div>"
-            "<div class='metric-value'>" + gds_display + "</div></div>"
-            "<div class='metric-card'><div class='metric-label'>GDS — Stressed</div>"
-            "<div class='metric-value'>" + stressed_gds_display + "</div></div>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
+    gds_header_col, gds_help_col = st.columns([12, 1])
+    with gds_header_col:
+        st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
     with gds_help_col:
         with st.container(key="helpbtn_help_gds_tds"):
             with st.popover("?", key="help_gds_tds"):
@@ -4218,6 +4199,20 @@ def render_analysis():
                 st.divider()
                 st.caption(help_tds_text(total_income, annual_housing, annual_other_debt, tds))
 
+    gds_display = "{:.2f}%".format(gds) if gds is not None else "—"
+    tds_display = "{:.2f}%".format(tds) if tds is not None else "—"
+    stressed_gds_display = "{:.2f}%".format(stressed_gds) if stressed_gds is not None else "—"
+    stressed_tds_display = "{:.2f}%".format(stressed_tds) if stressed_tds is not None else "—"
+
+    st.markdown(
+        "<div class='metric-row'>"
+        "<div class='metric-card'><div class='metric-label'>GDS — Contract Rate</div>"
+        "<div class='metric-value'>" + gds_display + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>GDS — Stressed</div>"
+        "<div class='metric-value'>" + stressed_gds_display + "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
     st.markdown(
         "<div class='metric-row'>"
         "<div class='metric-card'><div class='metric-label'>TDS — Contract Rate</div>"
