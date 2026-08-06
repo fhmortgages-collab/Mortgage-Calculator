@@ -51,7 +51,8 @@ GENDER_OPTIONS = ["", "Male", "Female", "Other", "Prefer not to say"]
 MARITAL_OPTIONS = ["", "Single", "Married", "Divorced", "Widowed", "Common-Law"]
 RESIDENCE_STATUS_OPTIONS = ["", "Owned", "Rented", "Living with Parents/Family", "Other"]
 RESIDENCE_DISPOSITION_OPTIONS = [
-    "", "Sold — Firm Sale", "Sold — Conditional Sale", "To Be Sold / Listed",
+    "", "Sold — Firm Sale", "Sold — Conditional Sale", "Currently Listed for Sale", "To Be Listed / Sold",
+    "Keeping as Primary Residence", "Keeping as Primary Residence (with Rental Unit/Suite)",
     "Converting to Rental Property", "Keeping as Secondary/Vacation Home",
     "Currently Rented — Lease Continuing", "Currently Rented — Lease Ending",
     "Rent-to-Own Arrangement", "Gifted / Transferred to Family",
@@ -1959,7 +1960,7 @@ def render_switch_in_step():
     c1, c2 = st.columns(2)
     with c1:
         st.session_state.switch_mortgages_good_standing = st.selectbox(
-            "Are all mortgages/LOCs on the property in good standing?", YES_NO_OPTIONS,
+            "Mortgages/LOCs in good standing?", YES_NO_OPTIONS,
             index=YES_NO_OPTIONS.index(st.session_state.switch_mortgages_good_standing),
             key="switch_mortgages_good_standing_input",
         )
@@ -2704,7 +2705,7 @@ def render_property_details():
 
     # --- Appraisal, Property Value & Purchase Channel (compacted into one section) ---
     with st.container(key="card_appraisal_channel"):
-        st.markdown("#### Appraisal & Purchase Channel")
+        st.markdown("#### Appraisal" + (" & Purchase Channel" if not is_refinance() else ""))
         oa_c1, oa_c2 = st.columns(2)
         with oa_c1:
             st.session_state.property_appraisal_type = st.selectbox(
@@ -2747,57 +2748,58 @@ def render_property_details():
                     unsafe_allow_html=True,
                 )
 
-        pc_c1, pc_c2 = st.columns(2)
-        with pc_c1:
-            st.session_state.property_purchase_channel = st.selectbox(
-                "Purchase Channel", ["", "Private Sale - No MLS", "MLS Listed"],
-                index=["", "Private Sale - No MLS", "MLS Listed"].index(st.session_state.property_purchase_channel)
-                if st.session_state.property_purchase_channel in ["", "Private Sale - No MLS", "MLS Listed"] else 0,
-                key="property_purchase_channel_input",
-            )
-        with pc_c2:
-            if st.session_state.property_purchase_channel == "MLS Listed":
-                st.session_state.property_details_method = st.selectbox(
-                    "Property Characteristics", ["", "Auto-fill from MLS Link", "Enter Manually"],
-                    index=["", "Auto-fill from MLS Link", "Enter Manually"].index(st.session_state.property_details_method)
-                    if st.session_state.property_details_method in ["", "Auto-fill from MLS Link", "Enter Manually"] else 0,
-                    key="property_details_method_input",
+        if not is_refinance():
+            pc_c1, pc_c2 = st.columns(2)
+            with pc_c1:
+                st.session_state.property_purchase_channel = st.selectbox(
+                    "Purchase Channel", ["", "Private Sale - No MLS", "MLS Listed"],
+                    index=["", "Private Sale - No MLS", "MLS Listed"].index(st.session_state.property_purchase_channel)
+                    if st.session_state.property_purchase_channel in ["", "Private Sale - No MLS", "MLS Listed"] else 0,
+                    key="property_purchase_channel_input",
                 )
-
-        if st.session_state.property_purchase_channel == "MLS Listed":
-            if st.session_state.property_details_method == "Auto-fill from MLS Link":
-                mls_c1, mls_c2 = st.columns(2)
-                with mls_c1:
-                    st.session_state.property_mls_link = st.text_input(
-                        "MLS Listing Link", value=st.session_state.property_mls_link, placeholder="https://...",
+            with pc_c2:
+                if st.session_state.property_purchase_channel == "MLS Listed":
+                    st.session_state.property_details_method = st.selectbox(
+                        "Property Characteristics", ["", "Auto-fill from MLS Link", "Enter Manually"],
+                        index=["", "Auto-fill from MLS Link", "Enter Manually"].index(st.session_state.property_details_method)
+                        if st.session_state.property_details_method in ["", "Auto-fill from MLS Link", "Enter Manually"] else 0,
+                        key="property_details_method_input",
                     )
-                with mls_c2:
-                    with st.container(key="mls_autofill_btn_wrap"):
-                        autofill_clicked = st.button(
-                            "🔎 Auto-Fill", key="mls_autofill_btn",
-                            disabled=not st.session_state.property_mls_link.strip(), use_container_width=True,
+
+            if st.session_state.property_purchase_channel == "MLS Listed":
+                if st.session_state.property_details_method == "Auto-fill from MLS Link":
+                    mls_c1, mls_c2 = st.columns(2)
+                    with mls_c1:
+                        st.session_state.property_mls_link = st.text_input(
+                            "MLS Listing Link", value=st.session_state.property_mls_link, placeholder="https://...",
                         )
-                if autofill_clicked:
-                    with st.spinner("Attempting to read the MLS listing..."):
-                        found, error = attempt_mls_autofill(st.session_state.property_mls_link)
-                    if error:
-                        st.session_state.mls_autofill_status = "failed"
-                        st.session_state.mls_autofilled_fields = []
-                        st.warning("⚠ " + error + " Please complete the highlighted fields below manually.")
-                    else:
-                        for k, v in found.items():
-                            st.session_state[k] = v
-                        st.session_state.mls_autofilled_fields = list(found.keys())
-                        st.session_state.mls_autofill_status = "success"
-                        st.success("✓ Auto-filled " + str(len(found)) + " field(s) — please verify below, and complete any highlighted fields manually.")
-                        st.rerun()
-                if st.session_state.mls_autofill_status == "failed":
-                    st.caption(":orange[Could not auto-fill from that link — the fields below need to be entered manually.]")
-            elif st.session_state.property_details_method == "Enter Manually":
-                st.session_state.property_mls_link = st.text_input(
-                    "MLS Listing Link (for reference)", value=st.session_state.property_mls_link, placeholder="https://...",
-                )
-                st.caption("Property characteristics below will be entered manually.")
+                    with mls_c2:
+                        with st.container(key="mls_autofill_btn_wrap"):
+                            autofill_clicked = st.button(
+                                "🔎 Auto-Fill", key="mls_autofill_btn",
+                                disabled=not st.session_state.property_mls_link.strip(), use_container_width=True,
+                            )
+                    if autofill_clicked:
+                        with st.spinner("Attempting to read the MLS listing..."):
+                            found, error = attempt_mls_autofill(st.session_state.property_mls_link)
+                        if error:
+                            st.session_state.mls_autofill_status = "failed"
+                            st.session_state.mls_autofilled_fields = []
+                            st.warning("⚠ " + error + " Please complete the highlighted fields below manually.")
+                        else:
+                            for k, v in found.items():
+                                st.session_state[k] = v
+                            st.session_state.mls_autofilled_fields = list(found.keys())
+                            st.session_state.mls_autofill_status = "success"
+                            st.success("✓ Auto-filled " + str(len(found)) + " field(s) — please verify below, and complete any highlighted fields manually.")
+                            st.rerun()
+                    if st.session_state.mls_autofill_status == "failed":
+                        st.caption(":orange[Could not auto-fill from that link — the fields below need to be entered manually.]")
+                elif st.session_state.property_details_method == "Enter Manually":
+                    st.session_state.property_mls_link = st.text_input(
+                        "MLS Listing Link (for reference)", value=st.session_state.property_mls_link, placeholder="https://...",
+                    )
+                    st.caption("Property characteristics below will be entered manually.")
 
     if st.session_state.transaction_type == "builder_purchase":
         st.divider()
@@ -4897,6 +4899,13 @@ def build_document_checklist_data():
         name = borrower_display_name(idx)
         for doc in PER_BORROWER_ID_DOCS:
             id_items.append({"applicant": name, "text": doc})
+        borrower = st.session_state.borrowers[idx] if idx < len(st.session_state.borrowers) else {}
+        if borrower.get("marital_status") == "Divorced":
+            id_items.append({
+                "applicant": name,
+                "text": "Divorce judgment/final order or separation agreement — confirms whether spousal/child "
+                        "support is owed or received, since this affects TDS",
+            })
     if id_items:
         categories.append({"name": "Identification", "items": id_items})
 
@@ -5476,7 +5485,7 @@ def detect_intake_discrepancies():
     flags = []
 
     # --- Residence disposition vs rental income (structured — no intake notes needed) ---
-    sold_dispositions = ("Sold — Firm Sale", "Sold — Conditional Sale", "To Be Sold / Listed")
+    sold_dispositions = ("Sold — Firm Sale", "Sold — Conditional Sale", "Currently Listed for Sale", "To Be Listed / Sold")
     for idx, b in enumerate(st.session_state.borrowers[:st.session_state.borrower_count]):
         if b.get("residence_disposition") in sold_dispositions:
             bidx = str(idx)
@@ -5535,8 +5544,10 @@ def detect_intake_discrepancies():
     # "current/existing/selling" language, since that's describing a different property.
     property_type_keywords = {
         "detached": "Detached", "semi-detached": "Semi-Detached", "semi detached": "Semi-Detached",
-        "townhouse": "Townhouse", "condo": "Condominium", "duplex": "Duplex", "triplex": "Triplex",
-        "bungalow": "Detached",
+        "townhouse": "Townhouse", "townhome": "Townhouse", "town home": "Townhouse",
+        "condo": "Condominium", "condominium": "Condominium", "apartment": "Condominium",
+        "duplex": "Duplex", "triplex": "Triplex", "fourplex": "Fourplex",
+        "bungalow": "Detached", "single family": "Detached", "single-family": "Detached",
     }
     purchase_context_words = ["buying", "purchasing", "purchase of", "new home", "new property", "new place"]
     current_context_words = ["current", "existing", "currently liv", "selling my", "sell their", "sell his", "sell her", "my current", "their current"]
@@ -5565,13 +5576,30 @@ def detect_intake_discrepancies():
 
     # --- Rental unit / secondary suite ---
     rental_keywords = ["rental unit", "secondary suite", "basement suite", "basement apartment", "rented out", "in-law suite"]
+    no_rental_phrases = ["no rental income", "no rental unit", "not rented", "no rental", "doesn't have a rental", "does not have a rental"]
     mentioned_rental = any(k in lower_text for k in rental_keywords)
-    if mentioned_rental and st.session_state.subject_has_rental_component != "Yes":
+    no_rental_stated = any(p in lower_text for p in no_rental_phrases)
+
+    has_rental_income_entered = False
+    for idx in range(st.session_state.borrower_count):
+        for skey in st.session_state.income_selected.get(str(idx), []):
+            if "rental" in skey:
+                has_rental_income_entered = True
+
+    if no_rental_stated and (st.session_state.subject_has_rental_component == "Yes" or has_rental_income_entered):
+        flags.append(
+            "Intake notes explicitly say there's no rental income, but the application has "
+            + ("Property Details' Rental Component marked \"Yes\"" if st.session_state.subject_has_rental_component == "Yes" else "")
+            + (" and " if st.session_state.subject_has_rental_component == "Yes" and has_rental_income_entered else "")
+            + ("a rental income source entered on the Income step" if has_rental_income_entered else "")
+            + " — this is a direct contradiction and should be confirmed with the client before proceeding."
+        )
+    elif mentioned_rental and st.session_state.subject_has_rental_component != "Yes":
         flags.append(
             "Intake notes mention a rental unit/secondary suite, but Property Details' Rental Component "
             "question isn't marked \"Yes\"."
         )
-    if not mentioned_rental and st.session_state.subject_has_rental_component == "Yes" and "no rental" not in lower_text:
+    elif not mentioned_rental and not no_rental_stated and st.session_state.subject_has_rental_component == "Yes":
         flags.append(
             "Property Details indicates a rental unit/secondary suite, but the intake notes don't mention one — confirm the client disclosed this."
         )
