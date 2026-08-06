@@ -76,7 +76,7 @@ PROPERTY_STATUS_OPTIONS = [
     "Being Sold — Firm (Unconditional) Sale Agreement", "Being Sold — Not Yet Firm / Listed Only",
 ]
 
-STEPS = ["Deal", "Client", "Payment", "Property", "Income", "Debts", "Analysis", "Docs", "Notes"]
+STEPS = ["Deal", "Client", "Down Payment", "Property", "Income", "Debts", "Analysis", "Docs", "Notes"]
 
 TRANSACTION_TYPE_OPTIONS = [
     {
@@ -1080,6 +1080,80 @@ def get_switch_payout_breakdown():
     return items
 
 
+def get_step_missing_fields(step_index):
+    """
+    Returns a list of short descriptions of what's still needed to consider
+    this step complete. Empty list means the step is complete. Best-effort —
+    covers the fields each step's own on-page validation already treats as
+    required; steps with no hard requirements (Analysis, Docs, Notes) always
+    return an empty list.
+    """
+    missing = []
+
+    if step_index == 0:
+        if not st.session_state.transaction_type:
+            missing.append("Select a transaction type")
+
+    elif step_index == 1:
+        if not st.session_state.consent:
+            missing.append("Consent must be acknowledged")
+        for idx, b in enumerate(st.session_state.borrowers):
+            errs = validate_borrower(b)
+            name = b.get("full_name", "").strip() or ("Borrower " + str(idx + 1))
+            for msg in errs.values():
+                missing.append(name + ": " + msg)
+
+    elif step_index == 2:
+        if is_refinance():
+            if st.session_state.transaction_type == "refinance_new_lender":
+                if compute_switch_in_analysis() is None:
+                    missing.append("Complete all Lender Details questions")
+            else:
+                required = [
+                    st.session_state.switch_mortgage_type, st.session_state.switch_ofi_is_frfi,
+                    st.session_state.switch_amortization_unchanged, st.session_state.switch_additional_funds,
+                    st.session_state.switch_amortization_changed, st.session_state.switch_borrowers_changed,
+                ]
+                if any(v == "" for v in required):
+                    missing.append("Complete all Lender Details questions")
+        else:
+            if not st.session_state.purchase_price_raw.strip():
+                missing.append("Purchase price is required")
+            if not st.session_state.down_payment_raw.strip():
+                missing.append("Down payment amount is required")
+            if not st.session_state.selected_sources:
+                missing.append("Select at least one down payment source")
+
+    elif step_index == 3:
+        if not st.session_state.subject_address.strip():
+            missing.append("Property address is required")
+        for label, raw in [
+            ("Monthly property taxes", st.session_state.subject_taxes_raw),
+            ("Monthly condo/strata fees", st.session_state.subject_condo_raw),
+            ("Monthly heating costs", st.session_state.subject_heat_raw),
+        ]:
+            if raw.strip() == "":
+                missing.append(label + " must be entered (0 if none)")
+
+    elif step_index == 4:
+        if compute_total_income() <= 0:
+            missing.append("Enter at least one income source with an amount")
+
+    elif step_index == 5:
+        for dkey in st.session_state.debt_selected:
+            dt = get_debt_type(dkey)
+            amounts = st.session_state.debt_amounts.get(dkey, {})
+            if dt:
+                if dt["calc"] == "percent_of_balance":
+                    if not amounts.get("balance", "").strip():
+                        missing.append(debt_instance_label(dt, dkey) + ": balance is required")
+                else:
+                    if not amounts.get("payment", "").strip():
+                        missing.append(debt_instance_label(dt, dkey) + ": monthly payment is required")
+
+    return missing
+
+
 def render_stepper(active_index):
     with st.container(key="stepper_row"):
         cols = st.columns(len(STEPS), gap="small")
@@ -1088,11 +1162,28 @@ def render_stepper(active_index):
             display_label = label
             if i == 2 and is_refinance():
                 display_label = "Lender"
+            step_missing = get_step_missing_fields(i)
+            is_step_complete = not step_missing
+            container_key = "stepbtn_" + str(i) + ("_complete" if is_step_complete else "")
             with cols[i]:
-                with st.container(key="stepbtn_" + str(i)):
+                with st.container(key=container_key):
                     if st.button(display_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
                         st.session_state.step = i
                         st.rerun()
+
+    with st.container(key="stepper_help_row"):
+        help_cols = st.columns(len(STEPS), gap="small")
+        for i, label in enumerate(STEPS):
+            step_missing = get_step_missing_fields(i)
+            with help_cols[i]:
+                with st.container(key="helpbtn_step_" + str(i)):
+                    with st.popover("?", key="step_help_" + str(i)):
+                        if step_missing:
+                            st.markdown("**Still needed on this page:**")
+                            for m in step_missing:
+                                st.markdown("- " + m)
+                        else:
+                            st.markdown(":green[✓ All required fields complete.]")
 
 
 st.set_page_config(page_title="FH.Mortgages Calculator", page_icon="🏠", layout="centered")
@@ -1127,10 +1218,10 @@ st.markdown(
         flex: 1 1 0 !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 13px !important;
+        font-size: 10.5px !important;
         white-space: nowrap !important;
-        padding: 8px 4px !important;
-        letter-spacing: -0.1px !important;
+        padding: 8px 2px !important;
+        letter-spacing: -0.3px !important;
         width: 100% !important;
         box-sizing: border-box !important;
         min-height: 3.4em !important;
@@ -1139,6 +1230,44 @@ st.markdown(
         align-items: center !important;
         justify-content: center !important;
         line-height: 1.2 !important;
+        overflow: hidden !important;
+    }
+    div[class*="st-key-stepbtn_"][class*="_complete"] button {
+        background-color: rgba(34,197,94,0.18) !important;
+        border: 1px solid #16a34a !important;
+        color: #22c55e !important;
+    }
+    div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
+        min-width: 0 !important;
+        flex: 1 1 0 !important;
+    }
+    div[class*="st-key-stepper_help_row"] {
+        margin-top: -4px;
+        margin-bottom: 6px;
+    }
+    div[class*="st-key-helpbtn_step_"] {
+        display: flex;
+        justify-content: center;
+    }
+    div[class*="st-key-helpbtn_step_"] button {
+        min-height: 1.2em !important;
+        height: 1.2em !important;
+        width: 1.2em !important;
+        min-width: 1.2em !important;
+        padding: 0 !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        line-height: 1 !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        color: #6b7280 !important;
+    }
+    div[class*="st-key-helpbtn_step_"] svg,
+    div[class*="st-key-helpbtn_step_"] [data-testid="stIconMaterial"],
+    div[class*="st-key-helpbtn_step_"] [data-testid*="Icon"] {
+        display: none !important;
     }
     div[class*="st-key-fieldrow_"] div[data-testid="stHorizontalBlock"] {
         align-items: flex-end !important;
@@ -1853,13 +1982,15 @@ def render_client_details():
     st.write("Enter information for each borrower on this application.")
     render_calculator_popover("client")
 
-    st.write("**Number of Borrowers**")
-    cols = st.columns(4)
-    for i, n in enumerate([1, 2, 3, 4]):
-        btn_type = "primary" if st.session_state.borrower_count == n else "secondary"
-        if cols[i].button(str(n), key="count_" + str(n), type=btn_type, use_container_width=True):
-            sync_borrower_count(n)
-            st.rerun()
+    new_borrower_count = st.selectbox(
+        "Number of Borrowers", [1, 2, 3, 4],
+        index=[1, 2, 3, 4].index(st.session_state.borrower_count)
+        if st.session_state.borrower_count in [1, 2, 3, 4] else 0,
+        key="borrower_count_select",
+    )
+    if new_borrower_count != st.session_state.borrower_count:
+        sync_borrower_count(new_borrower_count)
+        st.rerun()
 
     st.divider()
 
@@ -5423,17 +5554,23 @@ def render_notes():
     st.divider()
 
     # --- 3. Discrepancies ---
-    st.markdown("#### ⚠️ Discrepancies")
-    st.caption(
-        "Compare the application data above against the Client Intake Notes. List anything that doesn't "
-        "match — these are flagged as a risk for underwriting to review."
-    )
+    disc_header_col, disc_help_col = st.columns([12, 1])
+    with disc_header_col:
+        st.markdown("#### ⚠️ Discrepancies")
+    with disc_help_col:
+        with st.container(key="helpbtn_help_discrepancies"):
+            with st.popover("?", key="help_discrepancies"):
+                st.caption(
+                    "Compare the application data above against the Client Intake Notes. List anything that "
+                    "doesn't match — these are flagged as a risk for underwriting to review."
+                )
+                st.divider()
+                st.caption(
+                    "Auto-flagged below by matching dollar figures and keywords in the intake notes against "
+                    "the application data — this is pattern-matching, not AI (no live model is connected), "
+                    "so it only catches the phrasing it recognizes. Always review manually."
+                )
     auto_flags = detect_intake_discrepancies()
-    st.caption(
-        "Auto-flagged below by matching dollar figures and keywords in the intake notes against the "
-        "application data — this is pattern-matching, not AI (no live model is connected), so it only "
-        "catches the phrasing it recognizes. Always review manually."
-    )
     if auto_flags:
         for flag in auto_flags:
             st.markdown("- :orange[" + flag + "]")
@@ -5457,11 +5594,16 @@ def render_notes():
     st.divider()
 
     # --- 4. Broker Notes ---
-    st.markdown("#### Broker Notes")
-    st.caption(
-        "Add any context the system can't infer — client's story, how any discrepancies above were addressed, "
-        "special circumstances, verbal explanations, etc."
-    )
+    broker_header_col, broker_help_col = st.columns([12, 1])
+    with broker_header_col:
+        st.markdown("#### Broker Notes")
+    with broker_help_col:
+        with st.container(key="helpbtn_help_broker_notes"):
+            with st.popover("?", key="help_broker_notes"):
+                st.caption(
+                    "Add any context the system can't infer — client's story, how any discrepancies above "
+                    "were addressed, special circumstances, verbal explanations, etc."
+                )
     with st.container(key="notes_font_scope_broker"):
         st.session_state.broker_notes = st.text_area(
             "Broker Notes to Underwriter",
