@@ -1703,6 +1703,10 @@ st.markdown(
     div[class*="st-key-card_debt_totals"] {
         padding: 8px 12px !important;
     }
+    div[class*="st-key-card_debt_totals"] [data-testid="stExpanderDetails"] {
+        padding-top: 10px !important;
+        padding-bottom: 10px !important;
+    }
     div[class*="st-key-card_debt_totals"] [data-testid="stCaptionContainer"] {
         margin-bottom: 0px !important;
         line-height: 1.3 !important;
@@ -4581,7 +4585,10 @@ def render_debts():
                     continue
                 p_total, m, t, c, h = compute_property_total(prop)
                 if not any_property_shown:
-                    st.write("**1. Other Property Obligations**")
+                    st.markdown(
+                        "<div style='font-weight:700; margin-top:4px; margin-bottom:8px;'>1. Other Property Obligations</div>",
+                        unsafe_allow_html=True,
+                    )
                     any_property_shown = True
                 addr = prop.get("address", "").strip() or "Unnamed property"
                 st.caption("**" + addr + "**")
@@ -4601,12 +4608,18 @@ def render_debts():
 
             other_debt_terms = []
             if selected:
-                st.write("**" + ("2" if any_property_shown else "1") + ". Other Debt Obligations**")
+                st.markdown(
+                    "<div style='font-weight:700; margin-top:14px; margin-bottom:8px;'>"
+                    + ("2" if any_property_shown else "1") + ". Other Debt Obligations</div>",
+                    unsafe_allow_html=True,
+                )
                 for instance_key in selected:
                     dt = get_debt_type(instance_key)
                     amounts = st.session_state.debt_amounts.get(instance_key, {})
                     pay_val, exp = explain_debt_payment(dt, amounts)
-                    label_prefix = debt_instance_label(dt, instance_key) + ": " if "#" in instance_key else ""
+                    if "#" in instance_key:
+                        num_suffix = " #" + instance_key.split("#")[1]
+                        exp = exp.replace(dt["label"] + ":", dt["label"] + num_suffix + ":", 1)
                     lender_note = " (" + amounts["lender"].strip() + ")" if amounts.get("lender", "").strip() else ""
                     excluded_note = ""
                     excluded = (
@@ -4617,7 +4630,7 @@ def render_debts():
                         excluded_note = " — excluded from GDS/TDS (paid out from mortgage proceeds)"
                     elif st.session_state.debt_paid_from_own_funds.get(instance_key, False):
                         excluded_note = " — excluded from GDS/TDS (paid from own/gifted funds)"
-                    st.caption(label_prefix + exp + lender_note + excluded_note)
+                    st.caption(exp + lender_note + excluded_note)
                     if not excluded:
                         other_debt_terms.append(pay_val)
                 subtotal_math = " + ".join(fmt_money_md(v) for v in other_debt_terms)
@@ -4625,7 +4638,12 @@ def render_debts():
                 st.divider()
 
             total_monthly_debt = total_property_debt + total_other_debt
-            st.write("**" + ("3" if any_property_shown and selected else "2" if any_property_shown or selected else "1") + ". Combined Total**")
+            st.markdown(
+                "<div style='font-weight:700; margin-top:14px; margin-bottom:8px;'>"
+                + ("3" if any_property_shown and selected else "2" if any_property_shown or selected else "1")
+                + ". Combined Total</div>",
+                unsafe_allow_html=True,
+            )
             combined_math_parts = []
             if any_property_shown:
                 combined_math_parts.append(fmt_money_md(total_property_debt))
@@ -5095,7 +5113,7 @@ def render_analysis():
         ]
         cell = "padding:4px 8px; border-bottom:1px solid #94a3b8 !important; color:#0f172a !important; background:#f1f5f9 !important;"
         head = "padding:4px 8px; color:#0f172a !important; background:#cbd5e1 !important; font-weight:700 !important;"
-        total_cell = "padding:4px 8px; color:#78350f !important; background:#fde047 !important; font-weight:700 !important;"
+        total_cell = "padding:10px 8px; color:#78350f !important; background:#fde047 !important; font-weight:700 !important;"
 
         # --- Row 1: both tables side by side ---
         gds_col, tds_col = st.columns(2)
@@ -5103,12 +5121,13 @@ def render_analysis():
         with gds_col:
             table_rows_html = "".join(
                 "<tr><td style='" + cell + "'>" + name + "</td>"
-                "<td style='" + cell + " text-align:right;'>" + fmt_money_md(monthly) + "</td>"
-                "<td style='" + cell + " text-align:right;'>" + fmt_money_md(annual) + "</td></tr>"
+                "<td style='" + cell + " text-align:right;'>" + fmt_money(monthly) + "</td>"
+                "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
                 for name, monthly, annual in rows
             )
             st.markdown(
-                "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;'>"
+                "<div style='border:1px solid #334155; border-radius:6px; overflow:hidden;'>"
+                "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:0;'>"
                 "<tr>"
                 "<th style='" + head + " text-align:left;'>Housing Cost Component</th>"
                 "<th style='" + head + " text-align:right;'>Monthly</th>"
@@ -5117,8 +5136,8 @@ def render_analysis():
                 "<tr>"
                 "<td style='" + total_cell + "'>Total Annual Housing Costs (PITH)</td>"
                 "<td style='" + total_cell + "'></td>"
-                "<td style='" + total_cell + " text-align:right;'>" + fmt_money_md(annual_housing_amount) + "</td></tr>"
-                "</table>",
+                "<td style='" + total_cell + " text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
+                "</table></div>",
                 unsafe_allow_html=True,
             )
 
@@ -5127,37 +5146,38 @@ def render_analysis():
             tds_component_rows = list(rows)  # carry over the same PITH components shown on the GDS side
             tds_rows_html = "".join(
                 "<tr><td style='" + cell + "'>" + name + "</td>"
-                "<td style='" + cell + " text-align:right;'>" + fmt_money_md(monthly) + "</td>"
-                "<td style='" + cell + " text-align:right;'>" + fmt_money_md(annual) + "</td></tr>"
+                "<td style='" + cell + " text-align:right;'>" + fmt_money(monthly) + "</td>"
+                "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
                 for name, monthly, annual in tds_component_rows
             )
             pith_subtotal_cell = "padding:4px 8px; color:#0f172a !important; background:#e2e8f0 !important; font-weight:700 !important;"
             tds_rows_html += (
                 "<tr><td style='" + pith_subtotal_cell + "'>Housing Costs Subtotal (PITH, from GDS)</td>"
-                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money_md(annual_housing_amount / 12) + "</td>"
-                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money_md(annual_housing_amount) + "</td></tr>"
+                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money(annual_housing_amount / 12) + "</td>"
+                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
             )
             if other_debt_rows:
                 for name, monthly, annual in other_debt_rows:
                     tds_rows_html += (
                         "<tr><td style='" + cell + "'>" + name + "</td>"
-                        "<td style='" + cell + " text-align:right;'>" + fmt_money_md(monthly) + "</td>"
-                        "<td style='" + cell + " text-align:right;'>" + fmt_money_md(annual) + "</td></tr>"
+                        "<td style='" + cell + " text-align:right;'>" + fmt_money(monthly) + "</td>"
+                        "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
                     )
             else:
                 tds_rows_html += (
                     "<tr><td style='" + cell + "'>Other Monthly Debt Payments</td>"
-                    "<td style='" + cell + " text-align:right;'>" + fmt_money_md(annual_other_debt_amount / 12) + "</td>"
-                    "<td style='" + cell + " text-align:right;'>" + fmt_money_md(annual_other_debt_amount) + "</td></tr>"
+                    "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount / 12) + "</td>"
+                    "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
                 )
             tds_rows_html += (
                 "<tr><td style='" + pith_subtotal_cell + "'>Other Debts Subtotal</td>"
-                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money_md(annual_other_debt_amount / 12) + "</td>"
-                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money_md(annual_other_debt_amount) + "</td></tr>"
+                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount / 12) + "</td>"
+                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
             )
             grand_total_annual = annual_housing_amount + annual_other_debt_amount
             st.markdown(
-                "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;'>"
+                "<div style='border:1px solid #334155; border-radius:6px; overflow:hidden;'>"
+                "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:0;'>"
                 "<tr>"
                 "<th style='" + head + " text-align:left;'>Debt Obligation Component</th>"
                 "<th style='" + head + " text-align:right;'>Monthly</th>"
@@ -5165,9 +5185,9 @@ def render_analysis():
                 + tds_rows_html +
                 "<tr>"
                 "<td style='" + total_cell + "'>Total Annual Debt Obligations</td>"
-                "<td style='" + total_cell + "' colspan='2'>" + fmt_money_md(annual_housing_amount) + " + " + fmt_money_md(annual_other_debt_amount)
-                + " = " + fmt_money_md(grand_total_annual) + "</td></tr>"
-                "</table>",
+                "<td style='" + total_cell + "' colspan='2'>" + fmt_money(annual_housing_amount) + " + " + fmt_money(annual_other_debt_amount)
+                + " = " + fmt_money(grand_total_annual) + "</td></tr>"
+                "</table></div>",
                 unsafe_allow_html=True,
             )
 
@@ -5356,7 +5376,7 @@ def get_relevant_checklist_categories():
 def borrower_display_name(idx):
     borrowers = st.session_state.borrowers
     if idx < len(borrowers) and borrowers[idx]["full_name"].strip():
-        return borrowers[idx]["full_name"].strip()
+        return borrowers[idx]["full_name"].strip().title()
     return "Borrower " + str(idx + 1)
 
 
@@ -5655,7 +5675,7 @@ def render_document_checklist(data):
                     if subcategory:
                         heading_parts.append(subcategory)
                     st.markdown(
-                        "<div style='margin-left:20px; font-weight:600; margin-top:4px; margin-bottom:1px; font-size:14px;'>"
+                        "<div style='margin-left:20px; font-weight:600; margin-top:12px; margin-bottom:4px; font-size:14px;'>"
                         + " — ".join(heading_parts) + "</div>",
                         unsafe_allow_html=True,
                     )
@@ -5749,7 +5769,7 @@ def render_document_checklist_editable(data):
                     if subcategory:
                         heading_parts.append(subcategory)
                     st.markdown(
-                        "<div style='margin-left:20px; font-weight:600; margin-top:4px; margin-bottom:1px; font-size:14px;'>"
+                        "<div style='margin-left:20px; font-weight:600; margin-top:12px; margin-bottom:4px; font-size:14px;'>"
                         + " — ".join(heading_parts) + "</div>",
                         unsafe_allow_html=True,
                     )
