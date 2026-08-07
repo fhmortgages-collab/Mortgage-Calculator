@@ -1961,13 +1961,13 @@ def render_switch_in_step():
     is_new_lender = st.session_state.transaction_type == "refinance_new_lender"
 
     if is_new_lender:
-        st.markdown("### Switch-In Details (Existing Lender Being Replaced)")
+        st.markdown("### Refinance Details (Switch-In — Existing Lender Being Replaced)")
         st.write(
             "This new lender is replacing the client's current lender. Answer the questions below to "
             "determine whether this qualifies as a straight switch and which qualifying rate applies."
         )
     else:
-        st.markdown("### Lender Details (Refinancing with the Existing Lender)")
+        st.markdown("### Refinance Details (Staying with the Existing Lender)")
         st.write(
             "This refinance stays with the client's current lender. Answer the questions below to capture "
             "the mortgage(s) on the property and the refinance requirements."
@@ -3003,6 +3003,7 @@ def render_property_details():
                     st.session_state.property_mls_link = st.text_input(
                         "MLS Listing Link (for reference)", value=st.session_state.property_mls_link, placeholder="https://...",
                     )
+                    st.caption("No MLS link? Enter N/A and continue.")
                     st.caption("Property characteristics below will be entered manually.")
 
     if st.session_state.transaction_type == "builder_purchase":
