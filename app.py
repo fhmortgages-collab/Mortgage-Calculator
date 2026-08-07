@@ -4263,15 +4263,28 @@ def render_debts():
         total_other_debt = 0.0
         other_debt_errors_any = False
 
+        debt_types_by_label = {dt["label"]: dt for dt in DEBT_TYPES}
+        debt_sorted_labels = sorted(debt_types_by_label.keys())
+        current_debt_labels = [
+            dt["label"] for dt in DEBT_TYPES if st.session_state.debt_type_checked.get(dt["key"], dt["key"] in selected)
+        ]
+        chosen_debt_labels = st.multiselect(
+            "Other Debt Types", debt_sorted_labels, default=current_debt_labels,
+            key="debt_types_multiselect", label_visibility="collapsed",
+        )
+        chosen_debt_keys = {debt_types_by_label[lbl]["key"] for lbl in chosen_debt_labels}
+
         for debt_type in DEBT_TYPES:
             dkey = debt_type["key"]
-            widget_key = "debt_" + dkey
-            was_checked = st.session_state.get(widget_key, st.session_state.debt_type_checked.get(dkey, dkey in selected))
-            debt_label_text = ":blue[**" + debt_type["label"] + "**]" if was_checked else debt_type["label"]
-            new_checked = st.checkbox(debt_label_text, value=was_checked, key=widget_key)
+            new_checked = dkey in chosen_debt_keys
             st.session_state.debt_type_checked[dkey] = new_checked
 
             if new_checked:
+                st.markdown(
+                    "<div style='color:#2563eb; font-weight:700; font-size:15px; margin-top:8px;'>"
+                    + debt_type["label"] + "</div>",
+                    unsafe_allow_html=True,
+                )
                 indent_spacer, indent_content = st.columns([0.4, 9.6])
                 with indent_content:
                     count = st.selectbox(
