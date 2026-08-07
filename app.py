@@ -1379,11 +1379,12 @@ st.markdown(
         flex: 1 1 0 !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 11.5px !important;
+        font-size: 10.5px !important;
         white-space: normal !important;
         word-break: keep-all !important;
-        padding: 6px 3px !important;
-        letter-spacing: -0.2px !important;
+        overflow-wrap: normal !important;
+        padding: 6px 2px !important;
+        letter-spacing: -0.3px !important;
         width: 100% !important;
         box-sizing: border-box !important;
         min-height: 4.4em !important;
@@ -3457,8 +3458,8 @@ def explain_income_source(key, source, amounts):
         rate = rental_inclusion_rate_value(rate_label)
         qualifying = gross_rental * rate
         return (
-            source["label"] + ": " + fmt_money(gross_rental) + " gross annual rental × " + rate_label
-            + " inclusion rate = " + fmt_money(qualifying)
+            source["label"] + ": :green[" + fmt_money(gross_rental) + "] gross annual rental × :green[" + rate_label + "]"
+            + " inclusion rate = :green[" + fmt_money(qualifying) + "]"
         )
 
     if key in VARIABLE_INCOME_KEYS:
@@ -3467,19 +3468,19 @@ def explain_income_source(key, source, amounts):
         qualifying = compute_qualifying_variable_income(amounts)
         if recent_v < prior_v:
             return (
-                source["label"] + ": most recent year (" + fmt_money(recent_v) + ") is lower than the "
-                "prior year (" + fmt_money(prior_v) + "), so the lower, most recent year is used = "
-                + fmt_money(qualifying)
+                source["label"] + ": most recent year (:green[" + fmt_money(recent_v) + "]) is lower than the "
+                "prior year (:green[" + fmt_money(prior_v) + "]), so the lower, most recent year is used = "
+                + ":green[" + fmt_money(qualifying) + "]"
             )
         else:
             return (
-                source["label"] + ": " + fmt_money(recent_v) + " (recent year) + " + fmt_money(prior_v)
-                + " (prior year), 2-year average = (" + fmt_money(recent_v) + " + " + fmt_money(prior_v)
-                + ") ÷ 2 = " + fmt_money(qualifying)
+                source["label"] + ": :green[" + fmt_money(recent_v) + "] (recent year) + :green[" + fmt_money(prior_v)
+                + "] (prior year), 2-year average = (:green[" + fmt_money(recent_v) + "] + :green[" + fmt_money(prior_v)
+                + "]) ÷ 2 = :green[" + fmt_money(qualifying) + "]"
             )
 
     amount = parse_money(amounts.get("amount", "")) or 0.0
-    return source["label"] + ": stated annual amount = " + fmt_money(amount)
+    return source["label"] + ": stated annual amount = :green[" + fmt_money(amount) + "]"
 
 
 def compute_borrower_income(borrower_idx):
@@ -3764,8 +3765,8 @@ def render_income_category_card(bidx, skey, source, amounts):
             gross_v = parse_money(amounts.get("gross_rental", "")) or 0.0
             rate_v = rental_inclusion_rate_value(amounts["inclusion_rate"])
             st.caption(
-                "Qualifying Rental Income (" + amounts["inclusion_rate"] + " of gross rent): "
-                + fmt_money(gross_v * rate_v)
+                "Qualifying Rental Income (:green[" + amounts["inclusion_rate"] + "] of gross rent): "
+                + ":green[" + fmt_money(gross_v * rate_v) + "]"
             )
         st.caption(
             "This property's mortgage payment, taxes, condo fees, and heating should be entered "
@@ -4066,12 +4067,12 @@ def explain_debt_payment(debt_type, amounts):
         payment = balance * pct
         explanation = (
             debt_type["label"] + ": " + "{:.0f}%".format(pct * 100) + " of "
-            + "`" + fmt_money(balance) + "`" + " balance = " + "`" + fmt_money(payment) + "`" + "/month"
+            + ":green[" + fmt_money(balance) + "]" + " balance = " + ":green[" + fmt_money(payment) + "]" + "/month"
         )
         return payment, explanation
     else:
         payment = parse_money(amounts.get("payment", "")) or 0.0
-        explanation = debt_type["label"] + ": stated monthly payment = " + "`" + fmt_money(payment) + "`" + "/month"
+        explanation = debt_type["label"] + ": stated monthly payment = " + ":green[" + fmt_money(payment) + "]" + "/month"
         return payment, explanation
 
 
