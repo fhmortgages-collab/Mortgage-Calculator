@@ -3979,11 +3979,14 @@ def base_debt_key(instance_key):
     return instance_key.split("#")[0]
 
 
-def debt_instance_label(debt_type, instance_key):
-    """'Credit Cards' for the first instance, 'Credit Cards #2' for the second, etc."""
+def debt_instance_label(debt_type, instance_key, total_instances=1):
+    """'Credit Cards' when there's only one; 'Credit Cards #1', 'Credit Cards #2', etc.
+    when there's more than one — so every instance is labeled consistently, including the first."""
+    if total_instances <= 1:
+        return debt_type["label"]
     if "#" in instance_key:
         return debt_type["label"] + " #" + instance_key.split("#")[1]
-    return debt_type["label"]
+    return debt_type["label"] + " #1"
 
 
 def get_debt_type(key):
@@ -4301,7 +4304,7 @@ def render_debts():
 
             if new_checked:
                 st.markdown(
-                    "<div style='color:#2563eb; font-weight:700; font-size:15px; margin-top:8px;'>"
+                    "<div style='font-weight:700; font-size:15px; margin-top:8px; color:#e5e7eb;'>"
                     + debt_type["label"] + "</div>",
                     unsafe_allow_html=True,
                 )
@@ -4343,15 +4346,11 @@ def render_debts():
 
                 indent_spacer, indent_content = st.columns([0.4, 9.6])
                 with indent_content:
-                    if len(instance_keys_for_type) > 1:
-                        if "#" in instance_key:
-                            st.markdown(
-                                "<div style='color:#2563eb; font-weight:400;'>"
-                                + debt_instance_label(debt_type, instance_key) + "</div>",
-                                unsafe_allow_html=True,
-                            )
-                        else:
-                            st.markdown("**" + debt_instance_label(debt_type, instance_key) + "**")
+                    st.markdown(
+                        "<div style='color:#2563eb; font-weight:400;'>"
+                        + debt_instance_label(debt_type, instance_key, len(instance_keys_for_type)) + "</div>",
+                        unsafe_allow_html=True,
+                    )
 
                     if debt_type["calc"] == "percent_of_balance":
                         lender_col, bal_col, calc_col = st.columns([1.6, 1.6, 1.6])
