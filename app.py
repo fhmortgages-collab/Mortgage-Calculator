@@ -4304,7 +4304,7 @@ def render_debts():
 
             if new_checked:
                 st.markdown(
-                    "<div style='font-weight:700; font-size:15px; margin-top:8px; color:#e5e7eb;'>"
+                    "<div style='color:#2563eb; font-weight:700; font-size:15px; margin-top:8px;'>"
                     + debt_type["label"] + "</div>",
                     unsafe_allow_html=True,
                 )
