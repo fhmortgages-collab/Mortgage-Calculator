@@ -1379,12 +1379,12 @@ st.markdown(
         flex: 1 1 0 !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 10.5px !important;
+        font-size: 9.5px !important;
         white-space: normal !important;
         word-break: keep-all !important;
         overflow-wrap: normal !important;
-        padding: 6px 2px !important;
-        letter-spacing: -0.3px !important;
+        padding: 6px 1px !important;
+        letter-spacing: -0.4px !important;
         width: 100% !important;
         box-sizing: border-box !important;
         min-height: 4.4em !important;
@@ -1454,7 +1454,7 @@ st.markdown(
     }
     div[class*="st-key-order_appraisal_btn_wrap"],
     div[class*="st-key-mls_autofill_btn_wrap"] {
-        margin-top: 1.8rem;
+        margin-top: 2.1rem;
     }
     div[class*="st-key-helpbtn_"] {
         display: flex;
@@ -1975,23 +1975,18 @@ def render_switch_in_step():
         )
     render_calculator_popover("switchin")
 
-    # --- Deal at a Glance: always visible at the top so the key numbers are a moment's glance away ---
-    st.markdown("#### Deal at a Glance")
-    glance_cols = "<div class='metric-row'>"
-    glance_cols += (
-        "<div class='metric-card'><div class='metric-label'>Combined Existing Mortgages</div>"
-        "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
-        "<div class='metric-card'><div class='metric-label'>Loan Amount Requested</div>"
-        "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
+    # --- Amount Requested: first field in this section, per spec ---
+    st.markdown("#### Loan Amount Requested")
+    st.session_state.switch_requested_loan_amount_raw = money_text_input("Loan Amount Being Requested ($)", st.session_state.switch_requested_loan_amount_raw,
+        placeholder="Defaults to Lender 1's balance above if left blank", key="switch_requested_loan_amount_input",
     )
-    if st.session_state.switch_amortization_changed == "Yes":
-        years_amt = st.session_state.switch_amortization_change_years_raw or "—"
-        glance_cols += (
-            "<div class='metric-card'><div class='metric-label'>Amortization Requested</div>"
-            "<div class='metric-value'>" + years_amt + " yrs</div></div>"
-        )
-    glance_cols += "</div>"
-    st.markdown(glance_cols, unsafe_allow_html=True)
+    st.markdown(
+        "<span style='color:#22c55e; font-weight:700;'>Existing Mortgages Total: "
+        + fmt_money(get_switch_total_mortgage_balance()).replace("$", "\\$") + "</span><br>"
+        "<span style='color:#22c55e; font-weight:700;'>New Amount Requested: "
+        + fmt_money(get_loan_amount()).replace("$", "\\$") + "</span>",
+        unsafe_allow_html=True,
+    )
 
     st.divider()
 
@@ -2163,18 +2158,23 @@ def render_switch_in_step():
 
     st.divider()
 
-    # --- Section 5: Loan amount being requested ---
-    st.markdown("#### Loan Amount Requested")
-    st.session_state.switch_requested_loan_amount_raw = money_text_input("Loan Amount Being Requested ($)", st.session_state.switch_requested_loan_amount_raw,
-        placeholder="Defaults to Lender 1's balance above if left blank", key="switch_requested_loan_amount_input",
+    # --- Deal at a Glance: moved to the bottom of the section, per spec ---
+    st.markdown("#### Deal at a Glance")
+    glance_cols = "<div class='metric-row'>"
+    glance_cols += (
+        "<div class='metric-card'><div class='metric-label'>Combined Existing Mortgages</div>"
+        "<div class='metric-value'>" + fmt_money(get_switch_total_mortgage_balance()) + "</div></div>"
+        "<div class='metric-card'><div class='metric-label'>Loan Amount Requested</div>"
+        "<div class='metric-value'>" + fmt_money(get_loan_amount()) + "</div></div>"
     )
-    st.markdown(
-        "<span style='color:#22c55e; font-weight:700;'>Existing Mortgages Total: "
-        + fmt_money(get_switch_total_mortgage_balance()).replace("$", "\\$") + "</span><br>"
-        "<span style='color:#22c55e; font-weight:700;'>New Amount Requested: "
-        + fmt_money(get_loan_amount()).replace("$", "\\$") + "</span>",
-        unsafe_allow_html=True,
-    )
+    if st.session_state.switch_amortization_changed == "Yes":
+        years_amt = st.session_state.switch_amortization_change_years_raw or "—"
+        glance_cols += (
+            "<div class='metric-card'><div class='metric-label'>Amortization Requested</div>"
+            "<div class='metric-value'>" + years_amt + " yrs</div></div>"
+        )
+    glance_cols += "</div>"
+    st.markdown(glance_cols, unsafe_allow_html=True)
 
     st.divider()
 
@@ -2384,15 +2384,6 @@ def render_client_details():
 
                 borrower["phone"] = st.text_input(
                     "Phone Number", value=borrower["phone"], key="phone_" + str(idx)
-                )
-                components.html(
-                    "<script>"
-                    "(function() {"
-                    "  var inputs = window.parent.document.querySelectorAll('input[aria-label=\"Phone Number\"]');"
-                    "  inputs.forEach(function(el) { el.setAttribute('autocomplete', 'off'); });"
-                    "})();"
-                    "</script>",
-                    height=0,
                 )
                 if errors.get("phone"):
                     st.caption(":red[" + errors["phone"] + "]")
@@ -3439,6 +3430,11 @@ def compute_income_source_value(key, amounts):
         rate_label = amounts.get("inclusion_rate", "50%")
         rate = rental_inclusion_rate_value(rate_label)
         return gross_rental * rate
+    elif key == "rental_component_primary":
+        gross_amount = parse_money(amounts.get("amount", "")) or 0.0
+        rate_label = amounts.get("inclusion_rate", "100%")
+        rate = rental_inclusion_rate_value(rate_label)
+        return gross_amount * rate
     elif key in VARIABLE_INCOME_KEYS:
         return compute_qualifying_variable_income(amounts)
     else:
@@ -3459,6 +3455,16 @@ def explain_income_source(key, source, amounts):
         qualifying = gross_rental * rate
         return (
             source["label"] + ": :green[" + fmt_money(gross_rental) + "] gross annual rental × :green[" + rate_label + "]"
+            + " inclusion rate = :green[" + fmt_money(qualifying) + "]"
+        )
+
+    if key == "rental_component_primary":
+        gross_amount = parse_money(amounts.get("amount", "")) or 0.0
+        rate_label = amounts.get("inclusion_rate", "100%")
+        rate = rental_inclusion_rate_value(rate_label)
+        qualifying = gross_amount * rate
+        return (
+            source["label"] + ": :green[" + fmt_money(gross_amount) + "] gross annual rental × :green[" + rate_label + "]"
             + " inclusion rate = :green[" + fmt_money(qualifying) + "]"
         )
 
@@ -3704,6 +3710,13 @@ def render_income_category_card(bidx, skey, source, amounts):
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""),
                 placeholder="Enter annual amount", key=prefix + "amount",
+            )
+            cur_rate = amounts.get("inclusion_rate", "100%")
+            amounts["inclusion_rate"] = st.selectbox(
+                "Rental Income Inclusion Rate",
+                RENTAL_INCLUSION_RATE_OPTIONS,
+                index=RENTAL_INCLUSION_RATE_OPTIONS.index(cur_rate) if cur_rate in RENTAL_INCLUSION_RATE_OPTIONS else 2,
+                key=prefix + "inclusion_rate",
             )
         is_self_contained = (
             st.session_state.subject_has_rental_component == "Yes"
@@ -5280,7 +5293,8 @@ def build_document_checklist_data():
     for key in st.session_state.debt_selected:
         dt = get_debt_type(key)
         if dt and not st.session_state.debt_paid_from_own_funds.get(key, False):
-            label = debt_instance_label(dt, key)
+            lender_name = st.session_state.debt_amounts.get(key, {}).get("lender", "").strip()
+            label = (dt["label"] + " — " + lender_name) if lender_name else debt_instance_label(dt, key)
             for doc in dt["documents"]:
                 debt_items.append({"subcategory": label, "text": doc})
     if debt_items:
@@ -5307,8 +5321,9 @@ def build_document_checklist_data():
     if st.session_state.transaction_type == "refinance_new_lender":
         switch_items = []
         reqs = switch_in_document_requirements()
+        ofi_label = st.session_state.switch_ofi_name.strip() if st.session_state.switch_ofi_name.strip() else "OFI Mortgage Verification"
         for doc in reqs["documents"]:
-            switch_items.append({"subcategory": "OFI Mortgage Verification", "text": doc})
+            switch_items.append({"subcategory": ofi_label, "text": doc})
         for lender in get_switch_additional_lenders():
             label = lender["name"].strip() if lender["name"] and lender["name"].strip() else "Additional Lender"
             switch_items.append({
