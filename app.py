@@ -1466,27 +1466,18 @@ st.markdown(
     div[class*="st-key-helpbtn_"] [data-testid*="Icon"] {
         display: none !important;
     }
+    /* File uploader: the widget's own outer label was leaking through as a
+       separate floating "Upload" text above the box even with label_visibility
+       collapsed — hide it outright, it's redundant with the box itself. */
+    [data-testid="stFileUploader"] > label,
+    [data-testid="stFileUploader"] [data-testid="stWidgetLabel"] {
+        display: none !important;
+    }
     [data-testid="stFileUploaderDropzoneInstructions"] {
         display: none !important;
     }
     [data-testid="stFileUploaderDropzone"] small {
         display: none !important;
-    }
-    [data-testid="stFileUploaderDropzone"] {
-        background-color: transparent !important;
-        border: none !important;
-        border-radius: 8px !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        min-height: 3.4em !important;
-        width: 100% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-sizing: border-box !important;
-        writing-mode: horizontal-tb !important;
-        word-break: keep-all !important;
-        overflow-wrap: normal !important;
     }
     [data-testid="stFileUploader"] {
         margin: 0 !important;
@@ -1498,23 +1489,47 @@ st.markdown(
     [data-testid="stFileUploader"] [data-testid*="Icon"] {
         display: none !important;
     }
-    [data-testid="stFileUploaderDropzone"] * {
-        width: auto !important;
-        min-width: 0 !important;
-        writing-mode: horizontal-tb !important;
-        white-space: normal !important;
-        word-break: keep-all !important;
-        overflow-wrap: normal !important;
-        hyphens: none !important;
-        text-align: center !important;
-        text-orientation: mixed !important;
+    [data-testid="stFileUploaderDropzone"] {
+        background-color: transparent !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        min-height: 3.4em !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        position: relative !important;
+        color: transparent !important;
+        font-size: 0 !important;
     }
+    [data-testid="stFileUploaderDropzone"] * {
+        color: transparent !important;
+        font-size: 0 !important;
+    }
+    [data-testid="stFileUploaderDropzone"]::after {
+        content: "Upload File";
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fafafa;
+        font-size: 13px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        pointer-events: none;
+        z-index: 1;
+    }
+    /* Make every native text node inside the dropzone invisible (but keep it
+       clickable/functional) and overlay our own guaranteed-correct label via
+       CSS content instead — this doesn't depend on knowing Streamlit's exact
+       internal element names, which is what kept breaking here before. */
     [data-testid="stFileUploaderDropzone"] button {
+        color: transparent !important;
+        font-size: 0 !important;
         min-height: 3.4em !important;
         width: 100% !important;
         border-radius: 8px !important;
-        font-size: 13px !important;
-        line-height: 1.2 !important;
+        position: relative !important;
     }
     section[data-testid="stSidebar"] input {
         text-align: center !important;
@@ -1566,7 +1581,22 @@ st.markdown(
     }
     .doc-list {
         background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
-        padding: 10px 14px; margin-top: 6px; margin-bottom: 10px; font-size: 13px; color:#374151;
+        padding: 16px; margin-top: 8px; margin-bottom: 16px; font-size: 13px; color:#374151;
+    }
+    /* Checkbox lists (Down Payment Sources, Debt Types, Income Sources, etc.) —
+       even, generous vertical spacing so they read as a clean scannable column
+       instead of clustering unevenly. */
+    .stApp input::placeholder, .stApp textarea::placeholder {
+        font-size: 14px !important;
+        color: #6b7280 !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stCheckbox"] {
+        margin-bottom: 10px !important;
+    }
+    [data-testid="stCheckbox"] label {
+        line-height: 2.0 !important;
+        align-items: center !important;
     }
     .doc-list-note {
         margin: 4px 0 14px 2px; font-size: 13px; color: #9ca3af;
@@ -1588,8 +1618,8 @@ st.markdown(
         background: rgba(255,255,255,0.035);
         border: 1px solid rgba(255,255,255,0.09);
         border-radius: 10px;
-        padding: 10px 14px 12px;
-        margin: 6px 0 10px;
+        padding: 16px !important;
+        margin: 8px 0 20px !important;
     }
     div[class*="st-key-card_doc_cat_"],
     div[class*="st-key-card_doc_edit_"] {
