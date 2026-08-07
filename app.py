@@ -1600,6 +1600,12 @@ st.markdown(
         line-height: 2.0 !important;
         align-items: center !important;
     }
+    /* Force the exact brand blue (#2563eb) for checked checkbox labels, rather
+       than Streamlit's default built-in blue shade from :blue[] markdown. */
+    [data-testid="stCheckbox"] label p [style*="color"],
+    [data-testid="stCheckbox"] label [data-testid="stMarkdownContainer"] span[style*="color"] {
+        color: #2563eb !important;
+    }
     .doc-list-note {
         margin: 4px 0 14px 2px; font-size: 13px; color: #9ca3af;
     }
@@ -2580,7 +2586,11 @@ def render_down_payment():
 
         for source_key in selected:
             source = DOWN_PAYMENT_SOURCES_BY_KEY[source_key]
-            st.markdown("**" + source["label"] + "**")
+            st.markdown(
+                "<div style='color:#2563eb; font-weight:700; font-size:15px; margin-top:8px;'>"
+                + source["label"] + "</div>",
+                unsafe_allow_html=True,
+            )
             if not source["eligible"]:
                 st.markdown(
                     "<div class='doc-list'>⚠️ " + source["notes"] + "</div>",
@@ -3444,7 +3454,11 @@ def render_income_category_card(bidx, skey, source, amounts):
     session_state). Also handles the 24-month previous-employer rule for
     salaried/commission/self-employed, and the alimony disclaimer.
     """
-    st.markdown("**" + source["label"] + "**")
+    st.markdown(
+        "<div style='color:#2563eb; font-weight:700; font-size:15px; margin-top:8px;'>"
+        + source["label"] + "</div>",
+        unsafe_allow_html=True,
+    )
     prefix = "inc_" + bidx + "_" + skey + "_"
 
     needs_24mo_check = False
