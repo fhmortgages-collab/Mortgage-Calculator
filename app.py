@@ -1704,6 +1704,12 @@ st.markdown(
     div[class*="st-key-card_debt_totals"] hr {
         margin: 4px 0 !important;
     }
+    div[class*="st-key-card_debt_totals"] [data-testid="stVerticalBlock"] {
+        gap: 0.1rem !important;
+    }
+    div[class*="st-key-card_debt_totals"] [data-testid="stElementContainer"] {
+        margin-bottom: 0 !important;
+    }
     div[class*="st-key-card_"] hr,
     div[class*="st-key-notes_font_scope_"] hr {
         margin: 8px 0 !important;
@@ -4559,6 +4565,7 @@ def render_debts():
 
     with st.container(key="card_debt_totals"):
         any_property_shown = False
+        property_subtotal_terms = []
         for prop in st.session_state.properties:
             if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
                 continue
@@ -4567,34 +4574,58 @@ def render_debts():
                 st.write("**1. Other Property Obligations**")
                 any_property_shown = True
             addr = prop.get("address", "").strip() or "Unnamed property"
+            st.caption("**" + addr + "**")
+            st.caption("Mortgage payment: " + fmt_money(m))
+            st.caption("Condo fee: " + fmt_money(c))
+            st.caption("Property tax: " + fmt_money(t))
+            st.caption("Heat: " + fmt_money(h))
             st.caption(
-                addr + ": mortgage " + fmt_money(m) + " + taxes " + fmt_money(t) + " + condo " + fmt_money(c)
-                + " + heat " + fmt_money(h) + " = **" + fmt_money(p_total) + "**/mo"
+                "Total: " + fmt_money(m) + " + " + fmt_money(c) + " + " + fmt_money(t) + " + " + fmt_money(h)
+                + " = **" + fmt_money(p_total) + "**/mo"
             )
+            property_subtotal_terms.append(p_total)
         if any_property_shown:
-            st.markdown("Subtotal — Properties: **" + fmt_money(total_property_debt) + "**/mo")
+            subtotal_math = " + ".join(fmt_money(v) for v in property_subtotal_terms)
+            st.markdown("Subtotal — Properties: " + subtotal_math + " = **" + fmt_money(total_property_debt) + "**/mo")
             st.divider()
 
+        other_debt_terms = []
         if selected:
             st.write("**" + ("2" if any_property_shown else "1") + ". Other Debt Obligations**")
             for instance_key in selected:
                 dt = get_debt_type(instance_key)
                 amounts = st.session_state.debt_amounts.get(instance_key, {})
-                _, exp = explain_debt_payment(dt, amounts)
+                pay_val, exp = explain_debt_payment(dt, amounts)
                 label_prefix = debt_instance_label(dt, instance_key) + ": " if "#" in instance_key else ""
                 lender_note = " (" + amounts["lender"].strip() + ")" if amounts.get("lender", "").strip() else ""
                 excluded_note = ""
+                excluded = (
+                    st.session_state.debt_payout_selected.get(instance_key, False)
+                    or st.session_state.debt_paid_from_own_funds.get(instance_key, False)
+                )
                 if st.session_state.debt_payout_selected.get(instance_key, False):
                     excluded_note = " — excluded from GDS/TDS (paid out from mortgage proceeds)"
                 elif st.session_state.debt_paid_from_own_funds.get(instance_key, False):
                     excluded_note = " — excluded from GDS/TDS (paid from own/gifted funds)"
                 st.caption(label_prefix + exp + lender_note + excluded_note)
-            st.markdown("Subtotal — Other Debts: **" + fmt_money(total_other_debt) + "**/mo")
+                if not excluded:
+                    other_debt_terms.append(pay_val)
+            subtotal_math = " + ".join(fmt_money(v) for v in other_debt_terms)
+            st.markdown("Subtotal — Other Debts: " + subtotal_math + " = **" + fmt_money(total_other_debt) + "**/mo")
             st.divider()
 
         total_monthly_debt = total_property_debt + total_other_debt
         st.write("**" + ("3" if any_property_shown and selected else "2" if any_property_shown or selected else "1") + ". Combined Total**")
-        st.markdown("#### Total Monthly Debt Obligations: " + fmt_money(total_monthly_debt))
+        combined_math_parts = []
+        if any_property_shown:
+            combined_math_parts.append(fmt_money(total_property_debt))
+        if selected:
+            combined_math_parts.append(fmt_money(total_other_debt))
+        combined_math = " + ".join(combined_math_parts) if len(combined_math_parts) > 1 else ""
+        st.markdown(
+            "#### Total Monthly Debt Obligations: " + (combined_math + " = " if combined_math else "")
+            + fmt_money(total_monthly_debt)
+        )
         st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
         st.caption("Full GDS/TDS qualification is calculated on the Analysis step, after financing terms are set.")
 
@@ -5086,29 +5117,46 @@ def render_analysis():
             tds_component_rows = list(rows)  # carry over the same PITH components shown on the GDS side
             tds_rows_html = "".join(
                 "<tr><td style='" + cell + "'>" + name + "</td>"
+                "<td style='" + cell + " text-align:right;'>" + fmt_money(monthly) + "</td>"
                 "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
-                for name, _monthly, annual in tds_component_rows
+                for name, monthly, annual in tds_component_rows
+            )
+            pith_subtotal_cell = "padding:4px 8px; color:#0f172a !important; background:#e2e8f0 !important; font-weight:700 !important;"
+            tds_rows_html += (
+                "<tr><td style='" + pith_subtotal_cell + "'>Housing Costs Subtotal (PITH, from GDS)</td>"
+                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money(annual_housing_amount / 12) + "</td>"
+                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
             )
             if other_debt_rows:
-                for name, _monthly, annual in other_debt_rows:
+                for name, monthly, annual in other_debt_rows:
                     tds_rows_html += (
                         "<tr><td style='" + cell + "'>" + name + "</td>"
+                        "<td style='" + cell + " text-align:right;'>" + fmt_money(monthly) + "</td>"
                         "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
                     )
             else:
                 tds_rows_html += (
                     "<tr><td style='" + cell + "'>Other Monthly Debt Payments</td>"
+                    "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount / 12) + "</td>"
                     "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
                 )
+            tds_rows_html += (
+                "<tr><td style='" + pith_subtotal_cell + "'>Other Debts Subtotal</td>"
+                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount / 12) + "</td>"
+                "<td style='" + pith_subtotal_cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
+            )
+            grand_total_annual = annual_housing_amount + annual_other_debt_amount
             st.markdown(
                 "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;'>"
                 "<tr>"
                 "<th style='" + head + " text-align:left;'>Debt Obligation Component</th>"
+                "<th style='" + head + " text-align:right;'>Monthly</th>"
                 "<th style='" + head + " text-align:right;'>Annual</th></tr>"
                 + tds_rows_html +
                 "<tr>"
                 "<td style='" + total_cell + "'>Total Annual Debt Obligations</td>"
-                "<td style='" + total_cell + " text-align:right;'>" + fmt_money(annual_housing_amount + annual_other_debt_amount) + "</td></tr>"
+                "<td style='" + total_cell + "' colspan='2'>" + fmt_money(annual_housing_amount) + " + " + fmt_money(annual_other_debt_amount)
+                + " = " + fmt_money(grand_total_annual) + "</td></tr>"
                 "</table>",
                 unsafe_allow_html=True,
             )
