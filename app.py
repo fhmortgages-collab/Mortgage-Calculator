@@ -423,7 +423,7 @@ def init_state():
     if "visited_steps" not in st.session_state:
         st.session_state.visited_steps = set()
     if "app_start_time" not in st.session_state:
-        st.session_state.app_start_time = None
+        st.session_state.app_start_time = time.time()
     if "app_completed_seconds" not in st.session_state:
         st.session_state.app_completed_seconds = None
     if "app_is_paused" not in st.session_state:
@@ -488,6 +488,8 @@ def init_state():
         st.session_state.dp_errors = {}
     if "income_selected" not in st.session_state:
         st.session_state.income_selected = {}
+    if "income_counts" not in st.session_state:
+        st.session_state.income_counts = {}
     if "income_amounts" not in st.session_state:
         st.session_state.income_amounts = {}
     if "income_special" not in st.session_state:
@@ -705,7 +707,7 @@ SAVE_STATE_KEYS = [
     "step", "transaction_type", "borrower_count", "borrowers", "consent", "borrower_errors",
     "purchase_price_raw", "down_payment_raw", "selected_sources", "source_amounts", "source_details",
     "other_source_desc", "dp_errors",
-    "income_selected", "income_amounts", "income_special", "income_other_desc", "income_errors",
+    "income_selected", "income_counts", "income_amounts", "income_special", "income_other_desc", "income_errors",
     "properties", "debt_selected", "debt_amounts", "debt_other_desc", "debt_errors",
     "subject_address", "subject_taxes_raw", "subject_condo_raw", "subject_heat_raw",
     "subject_has_rental_component", "subject_rental_kitchen", "subject_rental_bathroom", "subject_rental_entrance",
@@ -800,7 +802,7 @@ def load_application(json_text):
 def refresh_all():
     st.session_state.step = 0
     st.session_state.visited_steps = set()
-    st.session_state.app_start_time = None
+    st.session_state.app_start_time = time.time()
     st.session_state.app_completed_seconds = None
     st.session_state.app_is_paused = False
     st.session_state.app_paused_elapsed = 0.0
@@ -833,6 +835,7 @@ def refresh_all():
     st.session_state.other_source_desc = ""
     st.session_state.dp_errors = {}
     st.session_state.income_selected = {}
+    st.session_state.income_counts = {}
     st.session_state.income_amounts = {}
     st.session_state.income_special = {}
     st.session_state.income_other_desc = {}
@@ -3371,15 +3374,31 @@ def render_property_details():
 
 def refresh_page3():
     st.session_state.income_selected = {}
+    st.session_state.income_counts = {}
     st.session_state.income_amounts = {}
     st.session_state.income_special = {}
     st.session_state.income_other_desc = {}
     st.session_state.income_errors = {}
 
 
+def base_income_key(instance_key):
+    """Strips a '#N' instance suffix (e.g. 'salaried#2' -> 'salaried'), mirroring base_debt_key."""
+    return instance_key.split("#")[0]
+
+
+def income_instance_label(source, instance_key, total_instances=1):
+    """'Employed (Salaried)' when there's only one; 'Employed (Salaried) #1', '#2', etc. when there's more than one."""
+    if total_instances <= 1:
+        return source["label"]
+    if "#" in instance_key:
+        return source["label"] + " #" + instance_key.split("#")[1]
+    return source["label"] + " #1"
+
+
 def get_income_source(key):
+    base = base_income_key(key)
     for src in INCOME_SOURCES:
-        if src["key"] == key:
+        if src["key"] == base:
             return src
     return None
 
@@ -3421,21 +3440,22 @@ def compute_qualifying_variable_income(amounts):
 
 def compute_income_source_value(key, amounts):
     """Qualifying value for one income source's amounts dict, per its calc rule."""
-    if key in EXCLUDED_INCOME_KEYS:
+    base_key = base_income_key(key)
+    if base_key in EXCLUDED_INCOME_KEYS:
         return 0.0
-    elif key == "rental":
+    elif base_key == "rental":
         if amounts.get("status", "").startswith("Being Sold"):
             return 0.0
         gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "50%")
         rate = rental_inclusion_rate_value(rate_label)
         return gross_rental * rate
-    elif key == "rental_component_primary":
+    elif base_key == "rental_component_primary":
         gross_amount = parse_money(amounts.get("amount", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "100%")
         rate = rental_inclusion_rate_value(rate_label)
         return gross_amount * rate
-    elif key in VARIABLE_INCOME_KEYS:
+    elif base_key in VARIABLE_INCOME_KEYS:
         return compute_qualifying_variable_income(amounts)
     else:
         return parse_money(amounts.get("amount", "")) or 0.0
@@ -3443,10 +3463,11 @@ def compute_income_source_value(key, amounts):
 
 def explain_income_source(key, source, amounts):
     """Returns a human-readable string showing the full math behind one income source's qualifying value."""
-    if key in EXCLUDED_INCOME_KEYS:
+    base_key = base_income_key(key)
+    if base_key in EXCLUDED_INCOME_KEYS:
         return source["label"] + ": excluded from qualifying income (not treated as stable, recurring income)."
 
-    if key == "rental":
+    if base_key == "rental":
         if amounts.get("status", "").startswith("Being Sold"):
             return source["label"] + ": $0 — property is marked \"" + amounts.get("status", "") + "\", so this income is not used."
         gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
@@ -3458,7 +3479,7 @@ def explain_income_source(key, source, amounts):
             + " inclusion rate = :green[" + fmt_money(qualifying) + "]"
         )
 
-    if key == "rental_component_primary":
+    if base_key == "rental_component_primary":
         gross_amount = parse_money(amounts.get("amount", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "100%")
         rate = rental_inclusion_rate_value(rate_label)
@@ -3468,7 +3489,7 @@ def explain_income_source(key, source, amounts):
             + " inclusion rate = :green[" + fmt_money(qualifying) + "]"
         )
 
-    if key in VARIABLE_INCOME_KEYS:
+    if base_key in VARIABLE_INCOME_KEYS:
         recent_v = parse_money(amounts.get("recent_year", "")) or 0.0
         prior_v = parse_money(amounts.get("prior_year", "")) or 0.0
         qualifying = compute_qualifying_variable_income(amounts)
@@ -3525,6 +3546,7 @@ def render_income_category_card(bidx, skey, source, amounts):
         unsafe_allow_html=True,
     )
     prefix = "inc_" + bidx + "_" + skey + "_"
+    skey = base_income_key(skey)
 
     needs_24mo_check = False
 
@@ -3881,40 +3903,69 @@ def render_income():
 
         with st.expander(header, expanded=True):
             st.write("**Select Income Sources**")
-            selected = st.session_state.income_selected[bidx]
+            selected_types = sorted({base_income_key(k) for k in st.session_state.income_selected[bidx]})
 
             income_sources_by_label = {s["label"]: s for s in INCOME_SOURCES_ALPHA}
             income_sorted_labels = [s["label"] for s in INCOME_SOURCES_ALPHA]
             current_income_labels = [
-                get_income_source(skey)["label"] for skey in selected if get_income_source(skey)
+                get_income_source(k)["label"] for k in selected_types if get_income_source(k)
             ]
             chosen_income_labels = st.multiselect(
                 "Income Sources", income_sorted_labels, default=current_income_labels,
                 key="inc_src_multiselect_" + bidx, label_visibility="collapsed",
             )
-            new_selected = [income_sources_by_label[lbl]["key"] for lbl in chosen_income_labels]
+            chosen_type_keys = [income_sources_by_label[lbl]["key"] for lbl in chosen_income_labels]
 
-            for removed_key in set(selected) - set(new_selected):
-                st.session_state.income_amounts[bidx].pop(removed_key, None)
-            selected = new_selected
+            selected = []
+            for type_key in chosen_type_keys:
+                source = get_income_source(type_key)
+                count_key = "inc_count_" + bidx + "_" + type_key
+                count = st.session_state.income_counts.get(bidx, {}).get(type_key, 1)
+                if len(chosen_type_keys) >= 1:
+                    count = st.selectbox(
+                        "How many " + source["label"] + " income sources does this borrower have?",
+                        [1, 2, 3, 4, 5],
+                        index=min(count, 5) - 1,
+                        key=count_key,
+                    )
+                if bidx not in st.session_state.income_counts:
+                    st.session_state.income_counts[bidx] = {}
+                st.session_state.income_counts[bidx][type_key] = count
+                for i in range(1, count + 1):
+                    instance_key = type_key if i == 1 else type_key + "#" + str(i)
+                    selected.append(instance_key)
+
+            # Drop amounts for any instance that's no longer selected (type removed or count reduced).
+            for stale_key in list(st.session_state.income_amounts[bidx].keys()):
+                if stale_key not in selected:
+                    st.session_state.income_amounts[bidx].pop(stale_key, None)
+            for stale_type in list(st.session_state.income_counts.get(bidx, {}).keys()):
+                if stale_type not in chosen_type_keys:
+                    st.session_state.income_counts[bidx].pop(stale_type, None)
 
             st.session_state.income_selected[bidx] = selected
 
-            # --- Phase 2: detail card for every selected source, injected here, sequentially ---
-            for source in INCOME_SOURCES_ALPHA:
-                skey = source["key"]
-                if skey not in selected:
-                    continue
-                if skey not in st.session_state.income_amounts[bidx]:
-                    st.session_state.income_amounts[bidx][skey] = {}
-                amounts = st.session_state.income_amounts[bidx][skey]
+            # --- Phase 2: detail card for every selected instance, injected here, sequentially ---
+            for instance_key in selected:
+                type_key = base_income_key(instance_key)
+                source = get_income_source(type_key)
+                if instance_key not in st.session_state.income_amounts[bidx]:
+                    st.session_state.income_amounts[bidx][instance_key] = {}
+                amounts = st.session_state.income_amounts[bidx][instance_key]
                 st.markdown("---")
-                render_income_category_card(bidx, skey, source, amounts)
-                if skey not in VARIABLE_INCOME_KEYS:
+                total_instances_for_type = st.session_state.income_counts.get(bidx, {}).get(type_key, 1)
+                if total_instances_for_type > 1:
+                    st.markdown(
+                        "<div style='color:#2563eb; font-weight:400;'>"
+                        + income_instance_label(source, instance_key, total_instances_for_type) + "</div>",
+                        unsafe_allow_html=True,
+                    )
+                render_income_category_card(bidx, instance_key, source, amounts)
+                if type_key not in VARIABLE_INCOME_KEYS:
                     # Variable-income sources already show their own full-calculation
                     # caption inline within the card (2-year rule breakdown).
-                    st.caption(explain_income_source(skey, source, amounts))
-                st.session_state.income_amounts[bidx][skey] = amounts
+                    st.caption(explain_income_source(instance_key, source, amounts))
+                st.session_state.income_amounts[bidx][instance_key] = amounts
 
             borrower_total, breakdown = compute_borrower_income(idx)
             grand_total += borrower_total
@@ -5822,7 +5873,8 @@ def detect_intake_discrepancies():
         if b.get("residence_disposition") in sold_dispositions:
             bidx = str(idx)
             name = b.get("full_name", "").strip() or ("Borrower " + str(idx + 1))
-            if "rental" in st.session_state.income_selected.get(bidx, []):
+            selected_base_keys = {base_income_key(k) for k in st.session_state.income_selected.get(bidx, [])}
+            if "rental" in selected_base_keys:
                 flags.append(
                     name + " indicated their current property is being sold/listed (\""
                     + b["residence_disposition"] + "\"), but Rental Property Income is included in their "
@@ -6472,12 +6524,6 @@ with timer_placeholder.container():
             "</div>",
             unsafe_allow_html=True,
         )
-    elif st.session_state.app_start_time is None:
-        if st.button("Start Timer", key="start_timer_btn", use_container_width=True):
-            st.session_state.app_start_time = time.time()
-            st.session_state.app_paused_elapsed = 0.0
-            st.session_state.app_is_paused = False
-            st.rerun()
     elif st.session_state.app_is_paused:
         _mins, _secs = divmod(int(st.session_state.app_paused_elapsed), 60)
         st.markdown(
