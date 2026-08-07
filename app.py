@@ -1692,13 +1692,17 @@ st.markdown(
         overflow-wrap: break-word !important;
     }
     div[class*="st-key-card_debt_totals"] {
-        padding: 8px 12px 10px !important;
+        padding: 8px 12px !important;
     }
     div[class*="st-key-card_debt_totals"] [data-testid="stCaptionContainer"] {
-        margin-bottom: 1px !important;
+        margin-bottom: 0px !important;
+        line-height: 1.3 !important;
+    }
+    div[class*="st-key-card_debt_totals"] [data-testid="stMarkdownContainer"] p {
+        margin-bottom: 2px !important;
     }
     div[class*="st-key-card_debt_totals"] hr {
-        margin: 6px 0 !important;
+        margin: 4px 0 !important;
     }
     div[class*="st-key-card_"] hr,
     div[class*="st-key-notes_font_scope_"] hr {
@@ -4558,12 +4562,15 @@ def render_debts():
         for prop in st.session_state.properties:
             if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
                 continue
-            p_total, _, _, _, _ = compute_property_total(prop)
+            p_total, m, t, c, h = compute_property_total(prop)
             if not any_property_shown:
                 st.write("**1. Other Property Obligations**")
                 any_property_shown = True
             addr = prop.get("address", "").strip() or "Unnamed property"
-            st.caption(addr + ": **" + fmt_money(p_total) + "**/mo")
+            st.caption(
+                addr + ": mortgage " + fmt_money(m) + " + taxes " + fmt_money(t) + " + condo " + fmt_money(c)
+                + " + heat " + fmt_money(h) + " = **" + fmt_money(p_total) + "**/mo"
+            )
         if any_property_shown:
             st.markdown("Subtotal — Properties: **" + fmt_money(total_property_debt) + "**/mo")
             st.divider()
@@ -5009,6 +5016,35 @@ def render_analysis():
         unsafe_allow_html=True,
     )
 
+    def build_other_debt_rows():
+        """Itemized (label, monthly, annual) rows for every debt/property counted toward TDS —
+        rate-independent, so identical for both the contract-rate and stressed panels."""
+        rows = []
+        for instance_key in st.session_state.debt_selected:
+            dt = get_debt_type(instance_key)
+            if not dt:
+                continue
+            amounts = st.session_state.debt_amounts.get(instance_key, {})
+            excluded = (
+                st.session_state.debt_payout_selected.get(instance_key, False)
+                or st.session_state.debt_paid_from_own_funds.get(instance_key, False)
+            )
+            if excluded:
+                continue
+            pay_val = compute_debt_payment(dt, amounts)
+            label = debt_instance_label(dt, instance_key)
+            lender = amounts.get("lender", "").strip()
+            if lender:
+                label += " (" + lender + ")"
+            rows.append((label, pay_val, pay_val * 12))
+        for prop in st.session_state.properties:
+            if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+                continue
+            p_total, _, _, _, _ = compute_property_total(prop)
+            addr = prop.get("address", "").strip() or "Unnamed property"
+            rows.append((addr + " (other property)", p_total, p_total * 12))
+        return rows
+
     def render_ratio_breakdown(pi_amount, annual_housing_amount, annual_other_debt_amount, gds_disp, tds_disp, is_stressed):
         rows = [
             ("Principal + Interest (P + I)", pi_amount, pi_amount * 12),
@@ -5046,12 +5082,24 @@ def render_analysis():
             )
 
         with tds_col:
-            tds_rows_html = (
-                "<tr><td style='" + cell + "'>Annual Housing Costs (PITH, from left)</td>"
-                "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_housing_amount) + "</td></tr>"
-                "<tr><td style='" + cell + "'>All Other Monthly Debt Payments × 12</td>"
-                "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
+            other_debt_rows = build_other_debt_rows()
+            tds_component_rows = list(rows)  # carry over the same PITH components shown on the GDS side
+            tds_rows_html = "".join(
+                "<tr><td style='" + cell + "'>" + name + "</td>"
+                "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
+                for name, _monthly, annual in tds_component_rows
             )
+            if other_debt_rows:
+                for name, _monthly, annual in other_debt_rows:
+                    tds_rows_html += (
+                        "<tr><td style='" + cell + "'>" + name + "</td>"
+                        "<td style='" + cell + " text-align:right;'>" + fmt_money(annual) + "</td></tr>"
+                    )
+            else:
+                tds_rows_html += (
+                    "<tr><td style='" + cell + "'>Other Monthly Debt Payments</td>"
+                    "<td style='" + cell + " text-align:right;'>" + fmt_money(annual_other_debt_amount) + "</td></tr>"
+                )
             st.markdown(
                 "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:6px;'>"
                 "<tr>"
@@ -5132,7 +5180,7 @@ def render_analysis():
     st.divider()
 
     # --- Navigation ---
-    back_col, refresh_col, submit_col, docs_col = st.columns(4)
+    back_col, refresh_col, docs_col = st.columns(3)
     with back_col:
         if st.button("← Back", use_container_width=True, key="p5_back"):
             st.session_state.step = 5
@@ -5153,11 +5201,6 @@ def render_analysis():
             if st.button("Cancel", use_container_width=True, key="p5_cancel_refresh"):
                 st.session_state["p5_show_refresh_confirm"] = False
                 st.rerun()
-
-    with submit_col:
-        submit_disabled = total_income <= 0
-        if st.button("Submit Application", type="primary", use_container_width=True, key="p5_submit", disabled=submit_disabled):
-            st.success("Application submitted. (Connect this button to your backend to persist the data.)")
 
     with docs_col:
         if st.button("Required Documents →", use_container_width=True, key="p5_to_docs"):
@@ -6478,6 +6521,12 @@ def render_notes():
             if st.button("Cancel", use_container_width=True, key="p7_cancel_refresh"):
                 st.session_state["p7_show_refresh_confirm"] = False
                 st.rerun()
+
+    st.divider()
+
+    submit_disabled = compute_total_income() <= 0
+    if st.button("Submit Application", type="primary", use_container_width=True, key="p7_submit", disabled=submit_disabled):
+        st.success("Application submitted. (Connect this button to your backend to persist the data.)")
 
 
 # ---------------------------------------------------------------------------
