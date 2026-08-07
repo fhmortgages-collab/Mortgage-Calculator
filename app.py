@@ -426,6 +426,10 @@ def init_state():
         st.session_state.app_start_time = None
     if "app_completed_seconds" not in st.session_state:
         st.session_state.app_completed_seconds = None
+    if "app_is_paused" not in st.session_state:
+        st.session_state.app_is_paused = False
+    if "app_paused_elapsed" not in st.session_state:
+        st.session_state.app_paused_elapsed = 0.0
     if "transaction_type" not in st.session_state:
         st.session_state.transaction_type = ""
     if "transaction_type_error" not in st.session_state:
@@ -476,6 +480,8 @@ def init_state():
         st.session_state.selected_sources = []
     if "source_amounts" not in st.session_state:
         st.session_state.source_amounts = {}
+    if "source_details" not in st.session_state:
+        st.session_state.source_details = {}
     if "other_source_desc" not in st.session_state:
         st.session_state.other_source_desc = ""
     if "dp_errors" not in st.session_state:
@@ -697,7 +703,7 @@ def init_state():
 
 SAVE_STATE_KEYS = [
     "step", "transaction_type", "borrower_count", "borrowers", "consent", "borrower_errors",
-    "purchase_price_raw", "down_payment_raw", "selected_sources", "source_amounts",
+    "purchase_price_raw", "down_payment_raw", "selected_sources", "source_amounts", "source_details",
     "other_source_desc", "dp_errors",
     "income_selected", "income_amounts", "income_special", "income_other_desc", "income_errors",
     "properties", "debt_selected", "debt_amounts", "debt_other_desc", "debt_errors",
@@ -796,6 +802,8 @@ def refresh_all():
     st.session_state.visited_steps = set()
     st.session_state.app_start_time = None
     st.session_state.app_completed_seconds = None
+    st.session_state.app_is_paused = False
+    st.session_state.app_paused_elapsed = 0.0
     st.session_state.transaction_type = ""
     st.session_state.transaction_type_error = ""
     st.session_state.doc_removed_items = []
@@ -1272,7 +1280,7 @@ def render_stepper(active_index):
             btn_type = "primary" if i == active_index else "secondary"
             display_label = label
             if i == 2 and is_refinance():
-                display_label = "Lender"
+                display_label = "Refinance"
 
             step_missing = get_step_missing_fields(i)
             is_step_complete = is_step_fully_complete(i)
@@ -1322,6 +1330,15 @@ st.markdown(
     }
     .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stCaptionContainer"] p {
         font-size: 13px !important;
+    }
+    /* Calculated values shown inline via markdown backticks (e.g. debt/income math
+       explanations) render as <code> spans, which Streamlit sizes/fonts differently
+       from surrounding text by default. Match the font-size to body text so the
+       highlighted values read at the same size as the rest of the line — keep the
+       theme's own color, just fix the size. */
+    .stApp p code, .stApp [data-testid="stCaptionContainer"] code, .stApp li code {
+        font-size: 1em !important;
+        padding: 0.1em 0.3em !important;
     }
     /* App-wide fix: when two fields sit side by side in columns and one label wraps to
        2 lines while the other doesn't, the input boxes end up at different heights.
@@ -1889,6 +1906,7 @@ def clear_transaction_type_specific_fields():
     st.session_state.down_payment_raw = ""
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
+    st.session_state.source_details = {}
     st.session_state.subject_property_value_raw = ""
 
 
@@ -2366,6 +2384,15 @@ def render_client_details():
                 borrower["phone"] = st.text_input(
                     "Phone Number", value=borrower["phone"], key="phone_" + str(idx)
                 )
+                components.html(
+                    "<script>"
+                    "(function() {"
+                    "  var inputs = window.parent.document.querySelectorAll('input[aria-label=\"Phone Number\"]');"
+                    "  inputs.forEach(function(el) { el.setAttribute('autocomplete', 'off'); });"
+                    "})();"
+                    "</script>",
+                    height=0,
+                )
                 if errors.get("phone"):
                     st.caption(":red[" + errors["phone"] + "]")
 
@@ -2522,6 +2549,7 @@ def refresh_page2():
     st.session_state.refinance_balance_raw = ""
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
+    st.session_state.source_details = {}
     st.session_state.other_source_desc = ""
     st.session_state.dp_errors = {}
 
@@ -2624,6 +2652,13 @@ def render_down_payment():
                     placeholder="Enter amount",
                 )
                 st.session_state.source_amounts[source["key"]] = amount_raw
+
+                st.session_state.source_details[source["key"]] = st.text_input(
+                    "Detail (optional)",
+                    value=st.session_state.source_details.get(source["key"], ""),
+                    key="detail_" + source["key"],
+                    placeholder="e.g. who, or which account/institution",
+                )
 
                 if source["key"] == "other":
                     st.session_state.other_source_desc = st.text_input(
@@ -2891,6 +2926,7 @@ def render_property_details():
         ref_value = get_reference_property_value()
         pv_c1, pv_c2 = st.columns(2)
         with pv_c1:
+            st.markdown("<div style='min-height:2.4em;'></div>", unsafe_allow_html=True)
             st.markdown(
                 "<span style='font-family: \"Source Code Pro\", monospace; font-size: 14px; color:#22c55e;'>"
                 "Property Value: `" + fmt_money(ref_value) + "`</span>",
@@ -2940,6 +2976,7 @@ def render_property_details():
                         st.session_state.property_mls_link = st.text_input(
                             "MLS Listing Link", value=st.session_state.property_mls_link, placeholder="https://...",
                         )
+                        st.caption("No MLS link? Enter N/A and continue.")
                     with mls_c2:
                         with st.container(key="mls_autofill_btn_wrap"):
                             autofill_clicked = st.button(
@@ -5797,6 +5834,22 @@ def detect_intake_discrepancies():
                 + ", but the Income step totals " + fmt_money(app_income) + "."
             )
 
+    # --- Marital status ---
+    marital_keywords = {
+        "married": "Married", "single": "Single", "divorced": "Divorced",
+        "widowed": "Widowed", "common-law": "Common-Law", "common law": "Common-Law",
+    }
+    for idx, b in enumerate(st.session_state.borrowers[:st.session_state.borrower_count]):
+        name = b.get("full_name", "").strip() or ("Borrower " + str(idx + 1))
+        app_marital = b.get("marital_status", "")
+        for keyword, implied_status in marital_keywords.items():
+            if keyword in lower_text and app_marital and implied_status != app_marital:
+                flags.append(
+                    "Intake notes mention \"" + keyword + "\", but " + name
+                    + "'s Marital Status on Client Details is set to \"" + app_marital + "\"."
+                )
+                break
+
     # --- Down payment (purchase/builder purchase only) ---
     if not is_refinance():
         dp_mentions = extract_dollar_mentions(text, ["down payment", "downpayment"])
@@ -6382,7 +6435,12 @@ if st.session_state.get("last_rendered_step") != st.session_state.step:
         height=0,
     )
 
-if st.session_state.app_start_time is not None and st.session_state.app_completed_seconds is None and is_step_fully_complete(8):
+if (
+    st.session_state.app_start_time is not None
+    and st.session_state.app_completed_seconds is None
+    and not st.session_state.app_is_paused
+    and is_step_fully_complete(8)
+):
     st.session_state.app_completed_seconds = time.time() - st.session_state.app_start_time
 
 with timer_placeholder.container():
@@ -6400,8 +6458,26 @@ with timer_placeholder.container():
     elif st.session_state.app_start_time is None:
         if st.button("Start Timer", key="start_timer_btn", use_container_width=True):
             st.session_state.app_start_time = time.time()
+            st.session_state.app_paused_elapsed = 0.0
+            st.session_state.app_is_paused = False
+            st.rerun()
+    elif st.session_state.app_is_paused:
+        _mins, _secs = divmod(int(st.session_state.app_paused_elapsed), 60)
+        st.markdown(
+            "<div style='text-align:center; margin-top:6px; padding:6px 10px; border-radius:8px; "
+            "background-color:rgba(234,179,8,0.12); border:1px solid #eab308;'>"
+            "<div style='font-size:10px; color:#fde68a;'>Paused</div>"
+            "<div style='font-size:17px; font-weight:700; font-family:monospace; color:#fde68a;'>"
+            + "{:02d}:{:02d}".format(_mins, _secs) + "</div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("Restart Timer", key="restart_timer_btn", use_container_width=True):
+            st.session_state.app_start_time = time.time() - st.session_state.app_paused_elapsed
+            st.session_state.app_is_paused = False
             st.rerun()
     else:
+        _elapsed_now = time.time() - st.session_state.app_start_time
         _start_ms = int(st.session_state.app_start_time * 1000)
         components.html(
             """
@@ -6438,6 +6514,10 @@ with timer_placeholder.container():
             """,
             height=58,
         )
+        if st.button("Stop Timer", key="stop_timer_btn", use_container_width=True):
+            st.session_state.app_paused_elapsed = _elapsed_now
+            st.session_state.app_is_paused = True
+            st.rerun()
 
 with stepper_placeholder.container():
     render_stepper(st.session_state.step)
