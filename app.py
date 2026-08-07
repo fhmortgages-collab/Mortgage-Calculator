@@ -8,6 +8,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from downpayment_sources import DOWN_PAYMENT_SOURCES
+DOWN_PAYMENT_SOURCES_BY_KEY = {s["key"]: s for s in DOWN_PAYMENT_SOURCES}
 from income_sources import INCOME_SOURCES
 
 INCOME_SOURCES_ALPHA = sorted(INCOME_SOURCES, key=lambda s: s["label"])
@@ -1554,12 +1555,13 @@ st.markdown(
         width: 100% !important;
         margin: 0 !important;
     }
-    .stButton > button {
+    .stButton > button, .stDownloadButton > button {
         min-height: 3.4em;
         white-space: normal;
         line-height: 1.2;
         font-size: 13px;
         padding: 4px 8px;
+        box-sizing: border-box;
     }
     .stepper-wrap {display:flex; justify-content:space-between; margin-bottom: 1.5rem;}
     .step {text-align:center; flex:1; font-size:13px; color:#9ca3af;}
@@ -2562,50 +2564,54 @@ def render_down_payment():
         st.write("**Select Down Payment Sources**")
 
         selected = st.session_state.selected_sources
-        for source in DOWN_PAYMENT_SOURCES:
-            widget_key = "src_" + source["key"]
-            checked = st.session_state.get(widget_key, source["key"] in selected)
-            label_text = ":blue[**" + source["label"] + "**]" if checked else source["label"]
-            new_checked = st.checkbox(label_text, value=checked, key=widget_key)
+        sources_by_label = {s["label"]: s for s in DOWN_PAYMENT_SOURCES}
+        sorted_labels = sorted(sources_by_label.keys())
+        current_labels = [DOWN_PAYMENT_SOURCES_BY_KEY[k]["label"] for k in selected if k in DOWN_PAYMENT_SOURCES_BY_KEY]
 
-            if new_checked and source["key"] not in selected:
-                selected.append(source["key"])
-            elif not new_checked and source["key"] in selected:
-                selected.remove(source["key"])
-                st.session_state.source_amounts.pop(source["key"], None)
+        chosen_labels = st.multiselect(
+            "Down Payment Sources", sorted_labels, default=current_labels, key="dp_sources_multiselect",
+            label_visibility="collapsed",
+        )
+        new_selected_keys = [sources_by_label[lbl]["key"] for lbl in chosen_labels]
 
-            if new_checked:
-                if not source["eligible"]:
-                    st.markdown(
-                        "<div class='doc-list'>⚠️ " + source["notes"] + "</div>",
-                        unsafe_allow_html=True,
+        for removed_key in set(selected) - set(new_selected_keys):
+            st.session_state.source_amounts.pop(removed_key, None)
+        selected = new_selected_keys
+
+        for source_key in selected:
+            source = DOWN_PAYMENT_SOURCES_BY_KEY[source_key]
+            st.markdown("**" + source["label"] + "**")
+            if not source["eligible"]:
+                st.markdown(
+                    "<div class='doc-list'>⚠️ " + source["notes"] + "</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                amount_raw = money_text_input(
+                    source["label"] + " Amount ($)",
+                    st.session_state.source_amounts.get(source["key"], ""),
+                    key="amt_" + source["key"],
+                    placeholder="Enter amount",
+                )
+                st.session_state.source_amounts[source["key"]] = amount_raw
+
+                if source["key"] == "other":
+                    st.session_state.other_source_desc = st.text_input(
+                        "Describe the other source",
+                        value=st.session_state.other_source_desc,
+                        key="other_source_desc_input",
                     )
-                else:
-                    amount_raw = money_text_input(
-                        source["label"] + " Amount ($)",
-                        st.session_state.source_amounts.get(source["key"], ""),
-                        key="amt_" + source["key"],
-                        placeholder="Enter amount",
-                    )
-                    st.session_state.source_amounts[source["key"]] = amount_raw
 
-                    if source["key"] == "other":
-                        st.session_state.other_source_desc = st.text_input(
-                            "Describe the other source",
-                            value=st.session_state.other_source_desc,
-                            key="other_source_desc_input",
-                        )
-
-                    docs_html = ""
-                    for d in source["documents"]:
-                        docs_html += "<li>" + d + "</li>"
-                    st.markdown(
-                        "<div class='doc-list'><b>Required Documentation</b>"
-                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
-                        unsafe_allow_html=True,
-                    )
-                    if source["notes"]:
-                        st.markdown("<div class='doc-list-note'>" + source["notes"] + "</div>", unsafe_allow_html=True)
+                docs_html = ""
+                for d in source["documents"]:
+                    docs_html += "<li>" + d + "</li>"
+                st.markdown(
+                    "<div class='doc-list'><b>Required Documentation</b>"
+                    "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
+                    unsafe_allow_html=True,
+                )
+                if source["notes"]:
+                    st.markdown("<div class='doc-list-note'>" + source["notes"] + "</div>", unsafe_allow_html=True)
 
         st.session_state.selected_sources = selected
 
@@ -3791,21 +3797,20 @@ def render_income():
             st.write("**Select Income Sources**")
             selected = st.session_state.income_selected[bidx]
 
-            # --- Phase 1: plain checkbox list only (unchanged layout) ---
-            for source in INCOME_SOURCES_ALPHA:
-                skey = source["key"]
-                widget_key = "inc_src_" + bidx + "_" + skey
-                checked = st.session_state.get(widget_key, skey in selected)
-                label_text = ":blue[**" + source["label"] + "**]" if checked else source["label"]
-                new_checked = st.checkbox(
-                    label_text, value=checked, key=widget_key
-                )
+            income_sources_by_label = {s["label"]: s for s in INCOME_SOURCES_ALPHA}
+            income_sorted_labels = [s["label"] for s in INCOME_SOURCES_ALPHA]
+            current_income_labels = [
+                get_income_source(skey)["label"] for skey in selected if get_income_source(skey)
+            ]
+            chosen_income_labels = st.multiselect(
+                "Income Sources", income_sorted_labels, default=current_income_labels,
+                key="inc_src_multiselect_" + bidx, label_visibility="collapsed",
+            )
+            new_selected = [income_sources_by_label[lbl]["key"] for lbl in chosen_income_labels]
 
-                if new_checked and skey not in selected:
-                    selected.append(skey)
-                elif not new_checked and skey in selected:
-                    selected.remove(skey)
-                    st.session_state.income_amounts[bidx].pop(skey, None)
+            for removed_key in set(selected) - set(new_selected):
+                st.session_state.income_amounts[bidx].pop(removed_key, None)
+            selected = new_selected
 
             st.session_state.income_selected[bidx] = selected
 
@@ -5564,6 +5569,7 @@ def render_documents():
             data=serialize_checklist_text(checklist_data),
             file_name="required_documents_checklist.txt",
             mime="text/plain",
+            use_container_width=True,
         )
 
         st.divider()
@@ -6267,7 +6273,7 @@ def render_notes():
                 label_visibility="collapsed",
             )
         st.download_button(
-            "⬇️ Download / Save File Note (.txt)",
+            "Download / Save File Note (.txt)",
             data=st.session_state.combined_notes,
             file_name="underwriter_file_note.txt",
             mime="text/plain",
