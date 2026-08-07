@@ -4564,70 +4564,71 @@ def render_debts():
     st.divider()
 
     with st.container(key="card_debt_totals"):
-        any_property_shown = False
-        property_subtotal_terms = []
-        for prop in st.session_state.properties:
-            if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
-                continue
-            p_total, m, t, c, h = compute_property_total(prop)
-            if not any_property_shown:
-                st.write("**1. Other Property Obligations**")
-                any_property_shown = True
-            addr = prop.get("address", "").strip() or "Unnamed property"
-            st.caption("**" + addr + "**")
-            st.caption("Mortgage payment: " + fmt_money(m))
-            st.caption("Condo fee: " + fmt_money(c))
-            st.caption("Property tax: " + fmt_money(t))
-            st.caption("Heat: " + fmt_money(h))
-            st.caption(
-                "Total: " + fmt_money(m) + " + " + fmt_money(c) + " + " + fmt_money(t) + " + " + fmt_money(h)
-                + " = **" + fmt_money(p_total) + "**/mo"
-            )
-            property_subtotal_terms.append(p_total)
-        if any_property_shown:
-            subtotal_math = " + ".join(fmt_money(v) for v in property_subtotal_terms)
-            st.markdown("Subtotal — Properties: " + subtotal_math + " = **" + fmt_money(total_property_debt) + "**/mo")
-            st.divider()
-
-        other_debt_terms = []
-        if selected:
-            st.write("**" + ("2" if any_property_shown else "1") + ". Other Debt Obligations**")
-            for instance_key in selected:
-                dt = get_debt_type(instance_key)
-                amounts = st.session_state.debt_amounts.get(instance_key, {})
-                pay_val, exp = explain_debt_payment(dt, amounts)
-                label_prefix = debt_instance_label(dt, instance_key) + ": " if "#" in instance_key else ""
-                lender_note = " (" + amounts["lender"].strip() + ")" if amounts.get("lender", "").strip() else ""
-                excluded_note = ""
-                excluded = (
-                    st.session_state.debt_payout_selected.get(instance_key, False)
-                    or st.session_state.debt_paid_from_own_funds.get(instance_key, False)
+        with st.expander("Show breakdown", expanded=False):
+            any_property_shown = False
+            property_subtotal_terms = []
+            for prop in st.session_state.properties:
+                if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+                    continue
+                p_total, m, t, c, h = compute_property_total(prop)
+                if not any_property_shown:
+                    st.write("**1. Other Property Obligations**")
+                    any_property_shown = True
+                addr = prop.get("address", "").strip() or "Unnamed property"
+                st.caption("**" + addr + "**")
+                st.caption("Mortgage payment: " + fmt_money(m))
+                st.caption("Condo fee: " + fmt_money(c))
+                st.caption("Property tax: " + fmt_money(t))
+                st.caption("Heat: " + fmt_money(h))
+                st.caption(
+                    "Total: " + fmt_money(m) + " + " + fmt_money(c) + " + " + fmt_money(t) + " + " + fmt_money(h)
+                    + " = **" + fmt_money(p_total) + "**/mo"
                 )
-                if st.session_state.debt_payout_selected.get(instance_key, False):
-                    excluded_note = " — excluded from GDS/TDS (paid out from mortgage proceeds)"
-                elif st.session_state.debt_paid_from_own_funds.get(instance_key, False):
-                    excluded_note = " — excluded from GDS/TDS (paid from own/gifted funds)"
-                st.caption(label_prefix + exp + lender_note + excluded_note)
-                if not excluded:
-                    other_debt_terms.append(pay_val)
-            subtotal_math = " + ".join(fmt_money(v) for v in other_debt_terms)
-            st.markdown("Subtotal — Other Debts: " + subtotal_math + " = **" + fmt_money(total_other_debt) + "**/mo")
-            st.divider()
+                property_subtotal_terms.append(p_total)
+            if any_property_shown:
+                subtotal_math = " + ".join(fmt_money(v) for v in property_subtotal_terms)
+                st.markdown("Subtotal — Properties: " + subtotal_math + " = **" + fmt_money(total_property_debt) + "**/mo")
+                st.divider()
 
-        total_monthly_debt = total_property_debt + total_other_debt
-        st.write("**" + ("3" if any_property_shown and selected else "2" if any_property_shown or selected else "1") + ". Combined Total**")
-        combined_math_parts = []
-        if any_property_shown:
-            combined_math_parts.append(fmt_money(total_property_debt))
-        if selected:
-            combined_math_parts.append(fmt_money(total_other_debt))
-        combined_math = " + ".join(combined_math_parts) if len(combined_math_parts) > 1 else ""
-        st.markdown(
-            "#### Total Monthly Debt Obligations: " + (combined_math + " = " if combined_math else "")
-            + fmt_money(total_monthly_debt)
-        )
-        st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
-        st.caption("Full GDS/TDS qualification is calculated on the Analysis step, after financing terms are set.")
+            other_debt_terms = []
+            if selected:
+                st.write("**" + ("2" if any_property_shown else "1") + ". Other Debt Obligations**")
+                for instance_key in selected:
+                    dt = get_debt_type(instance_key)
+                    amounts = st.session_state.debt_amounts.get(instance_key, {})
+                    pay_val, exp = explain_debt_payment(dt, amounts)
+                    label_prefix = debt_instance_label(dt, instance_key) + ": " if "#" in instance_key else ""
+                    lender_note = " (" + amounts["lender"].strip() + ")" if amounts.get("lender", "").strip() else ""
+                    excluded_note = ""
+                    excluded = (
+                        st.session_state.debt_payout_selected.get(instance_key, False)
+                        or st.session_state.debt_paid_from_own_funds.get(instance_key, False)
+                    )
+                    if st.session_state.debt_payout_selected.get(instance_key, False):
+                        excluded_note = " — excluded from GDS/TDS (paid out from mortgage proceeds)"
+                    elif st.session_state.debt_paid_from_own_funds.get(instance_key, False):
+                        excluded_note = " — excluded from GDS/TDS (paid from own/gifted funds)"
+                    st.caption(label_prefix + exp + lender_note + excluded_note)
+                    if not excluded:
+                        other_debt_terms.append(pay_val)
+                subtotal_math = " + ".join(fmt_money(v) for v in other_debt_terms)
+                st.markdown("Subtotal — Other Debts: " + subtotal_math + " = **" + fmt_money(total_other_debt) + "**/mo")
+                st.divider()
+
+            total_monthly_debt = total_property_debt + total_other_debt
+            st.write("**" + ("3" if any_property_shown and selected else "2" if any_property_shown or selected else "1") + ". Combined Total**")
+            combined_math_parts = []
+            if any_property_shown:
+                combined_math_parts.append(fmt_money(total_property_debt))
+            if selected:
+                combined_math_parts.append(fmt_money(total_other_debt))
+            combined_math = " + ".join(combined_math_parts) if len(combined_math_parts) > 1 else ""
+            st.markdown(
+                "#### Total Monthly Debt Obligations: " + (combined_math + " = " if combined_math else "")
+                + fmt_money(total_monthly_debt)
+            )
+            st.caption("Note: the property you're purchasing is entered in the Property Details step, not here — this page is for your other existing debts.")
+            st.caption("Full GDS/TDS qualification is calculated on the Analysis step, after financing terms are set.")
 
     if is_refinance():
         st.divider()
