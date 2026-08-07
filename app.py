@@ -1631,12 +1631,32 @@ st.markdown(
     }
     div[class*="st-key-card_doc_cat_"],
     div[class*="st-key-card_doc_edit_"] {
-        padding: 12px 18px !important;
+        padding: 12px 16px !important;
         margin: 10px 0 !important;
     }
     div[class*="st-key-card_doc_cat_"] [data-testid="stCheckbox"],
     div[class*="st-key-card_doc_edit_"] [data-testid="stCheckbox"] {
         margin-bottom: 4px !important;
+    }
+    div[class*="st-key-card_doc_cat_"] [data-testid="stCheckbox"]:last-of-type,
+    div[class*="st-key-card_doc_edit_"] [data-testid="stCheckbox"]:last-of-type {
+        margin-bottom: 0 !important;
+    }
+    div[class*="st-key-card_doc_cat_"] [data-testid="stVerticalBlock"] > div:last-child,
+    div[class*="st-key-card_doc_edit_"] [data-testid="stVerticalBlock"] > div:last-child {
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    div[class*="st-key-card_doc_cat_"] [data-testid="stVerticalBlockBorderWrapper"],
+    div[class*="st-key-card_doc_edit_"] [data-testid="stVerticalBlockBorderWrapper"],
+    div[class*="st-key-card_doc_cat_"] [data-testid="stElementContainer"],
+    div[class*="st-key-card_doc_edit_"] [data-testid="stElementContainer"] {
+        margin-bottom: 0 !important;
+        gap: 0 !important;
+    }
+    div[class*="st-key-card_doc_cat_"] [data-testid="stVerticalBlock"],
+    div[class*="st-key-card_doc_edit_"] [data-testid="stVerticalBlock"] {
+        gap: 0.15rem !important;
     }
     div[class*="st-key-card_doc_cat_"] [data-testid="stCheckbox"] label,
     div[class*="st-key-card_doc_edit_"] [data-testid="stCheckbox"] label {
@@ -4324,7 +4344,14 @@ def render_debts():
                 indent_spacer, indent_content = st.columns([0.4, 9.6])
                 with indent_content:
                     if len(instance_keys_for_type) > 1:
-                        st.markdown("**" + debt_instance_label(debt_type, instance_key) + "**")
+                        if "#" in instance_key:
+                            st.markdown(
+                                "<div style='color:#2563eb; font-weight:400;'>"
+                                + debt_instance_label(debt_type, instance_key) + "</div>",
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            st.markdown("**" + debt_instance_label(debt_type, instance_key) + "**")
 
                     if debt_type["calc"] == "percent_of_balance":
                         lender_col, bal_col, calc_col = st.columns([1.6, 1.6, 1.6])
