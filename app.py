@@ -108,7 +108,7 @@ TRANSACTION_TYPE_OPTIONS = [
     },
     {
         "key": "refinance_new_lender",
-        "label": "Refinance — New Lender",
+        "label": "Switch",
         "description": "Refinancing (switching) the mortgage to a different lender than the one currently on title.",
     },
 ]
@@ -982,6 +982,22 @@ def get_reference_property_value():
     return parse_money(st.session_state.purchase_price_raw)
 
 
+def get_ltv_denominator():
+    """
+    The value used as the LTV denominator, per policy:
+    - Refinance: strictly the Appraised Value.
+    - Purchase: the lower of Appraised Value or Purchase Price — but only when an
+      appraisal has actually been entered and it comes in lower; otherwise Purchase Price.
+    """
+    appraised = parse_money(st.session_state.property_appraisal_value_raw)
+    if is_refinance():
+        return appraised
+    purchase_price = parse_money(st.session_state.purchase_price_raw)
+    if appraised is not None and purchase_price is not None and appraised < purchase_price:
+        return appraised
+    return purchase_price
+
+
 # Maps the field this app can attempt to auto-fill to a friendly label, used for highlighting.
 MLS_AUTOFILL_TARGET_FIELDS = {
     "subject_prop_type": "Property Type",
@@ -1249,7 +1265,7 @@ def get_step_missing_fields(step_index):
             dt = get_debt_type(dkey)
             amounts = st.session_state.debt_amounts.get(dkey, {})
             if dt:
-                if not amounts.get("lender", "").strip():
+                if base_debt_key(dkey) != "alimony" and not amounts.get("lender", "").strip():
                     missing.append(debt_instance_label(dt, dkey) + ": Creditor/Bank Name is required")
                 if dt["calc"] == "percent_of_balance":
                     if not amounts.get("balance", "").strip():
@@ -2108,17 +2124,13 @@ def render_switch_in_step():
             index=YES_NO_OPTIONS.index(st.session_state.switch_amortization_unchanged),
             key="switch_amortization_unchanged_input",
         )
-        st.session_state.switch_amortization_changed = st.selectbox(
-            "Is the client requesting an extended or reduced amortization?", YES_NO_OPTIONS,
-            index=YES_NO_OPTIONS.index(st.session_state.switch_amortization_changed),
-            key="switch_amortization_changed_input",
+        st.session_state.switch_amortization_change_years_raw = st.text_input(
+            "What amortization does the client require (years)? (leave blank if unchanged)",
+            value=st.session_state.switch_amortization_change_years_raw,
+            placeholder="e.g. 30", key="switch_amortization_change_years_input",
         )
+        st.session_state.switch_amortization_changed = "Yes" if st.session_state.switch_amortization_change_years_raw.strip() else "No"
         if st.session_state.switch_amortization_changed == "Yes":
-            st.session_state.switch_amortization_change_years_raw = st.text_input(
-                "What amortization does the client require (years)?",
-                value=st.session_state.switch_amortization_change_years_raw,
-                placeholder="e.g. 30", key="switch_amortization_change_years_input",
-            )
             if not is_new_lender:
                 max_years, credit_app_required, amort_note = determine_amortization_increase(
                     st.session_state.switch_mortgage_type, None, True,
@@ -2942,6 +2954,18 @@ def render_property_details():
                 st.caption(":green[✓ Ordered (to be set up later).]")
 
         ref_value = get_reference_property_value()
+        pv_header_col, pv_help_col = st.columns([12, 1])
+        with pv_header_col:
+            st.write("**Property Value & Appraisal**")
+        with pv_help_col:
+            with st.container(key="helpbtn_help_ltv_calc"):
+                with st.popover("?", key="help_ltv_calc"):
+                    st.caption(
+                        "For Refinance transactions, LTV is calculated using the Appraised Value. "
+                        "For Purchase transactions, LTV is calculated using the lower of the Purchase "
+                        "Price or Appraised Value."
+                    )
+
         pv_c1, pv_c2 = st.columns(2)
         with pv_c1:
             st.markdown("<div style='min-height:2.4em;'></div>", unsafe_allow_html=True)
@@ -3143,10 +3167,20 @@ def render_property_details():
             )
         with rc_b:
             if st.session_state.subject_has_rental_component == "Yes":
-                st.session_state.subject_num_units = st.text_input(
-                    "How many units does the property have?", value=st.session_state.subject_num_units,
-                    placeholder="e.g. 2", key="subject_num_units_input",
-                )
+                units_input_col, units_help_col = st.columns([5, 1])
+                with units_input_col:
+                    st.session_state.subject_num_units = st.text_input(
+                        "How many units does the property have?", value=st.session_state.subject_num_units,
+                        placeholder="e.g. 2", key="subject_num_units_input",
+                    )
+                with units_help_col:
+                    with st.container(key="helpbtn_help_num_units"):
+                        with st.popover("?", key="help_num_units"):
+                            st.caption(
+                                "Enter the number of rental units in addition to the primary residence "
+                                "(e.g., if the property has 1 rental unit, enter 1; if it has 2 rental "
+                                "units, enter 2)."
+                            )
         if st.session_state.subject_has_rental_component == "Yes":
             st.caption("For the rental income to be usable for qualification, the unit must be self-contained:")
             with st.container(key="sub_checkbox_rental"):
@@ -3446,7 +3480,10 @@ def compute_qualifying_variable_income(amounts):
     """
     Applies the standard 2-year variable-income rule: if the most recent
     year is lower than the prior year, use the (lower) most recent year;
-    otherwise use the 2-year average.
+    otherwise use the 2-year average. For self-employed income sources that
+    carry an Ownership Percentage, that percentage is applied to each year's
+    declared figure first (e.g. 50% ownership on $100,000 declared income
+    means $50,000 is used), before the 2-year rule is applied.
     """
     recent_v = parse_money(amounts.get("recent_year", ""))
     prior_v = parse_money(amounts.get("prior_year", ""))
@@ -3456,6 +3493,11 @@ def compute_qualifying_variable_income(amounts):
         recent_v = 0.0
     if prior_v is None:
         prior_v = 0.0
+    if "ownership_pct" in amounts:
+        ownership_v = parse_money(amounts.get("ownership_pct", ""))
+        ownership_fraction = (ownership_v / 100.0) if ownership_v is not None else 1.0
+        recent_v *= ownership_fraction
+        prior_v *= ownership_fraction
     if recent_v < prior_v:
         return recent_v
     return (recent_v + prior_v) / 2.0
@@ -3515,16 +3557,24 @@ def explain_income_source(key, source, amounts):
     if base_key in VARIABLE_INCOME_KEYS:
         recent_v = parse_money(amounts.get("recent_year", "")) or 0.0
         prior_v = parse_money(amounts.get("prior_year", "")) or 0.0
+        ownership_note = ""
+        if "ownership_pct" in amounts:
+            ownership_v = parse_money(amounts.get("ownership_pct", ""))
+            ownership_fraction = (ownership_v / 100.0) if ownership_v is not None else 1.0
+            if ownership_v is not None and ownership_v != 100:
+                ownership_note = " (at :green[" + "{:.0f}%".format(ownership_v) + "] ownership)"
+            recent_v *= ownership_fraction
+            prior_v *= ownership_fraction
         qualifying = compute_qualifying_variable_income(amounts)
         if recent_v < prior_v:
             return (
-                source["label"] + ": most recent year (:green[" + fmt_money(recent_v) + "]) is lower than the "
+                source["label"] + ownership_note + ": most recent year (:green[" + fmt_money(recent_v) + "]) is lower than the "
                 "prior year (:green[" + fmt_money(prior_v) + "]), so the lower, most recent year is used = "
                 + ":green[" + fmt_money(qualifying) + "]"
             )
         else:
             return (
-                source["label"] + ": :green[" + fmt_money(recent_v) + "] (recent year) + :green[" + fmt_money(prior_v)
+                source["label"] + ownership_note + ": :green[" + fmt_money(recent_v) + "] (recent year) + :green[" + fmt_money(prior_v)
                 + "] (prior year), 2-year average = (:green[" + fmt_money(recent_v) + "] + :green[" + fmt_money(prior_v)
                 + "]) ÷ 2 = :green[" + fmt_money(qualifying) + "]"
             )
@@ -4497,6 +4547,14 @@ def render_debts():
                         with calc_col:
                             st.markdown("<div style='margin-top:1.9rem;'></div>", unsafe_allow_html=True)
                             st.caption(debt_explanation)
+                    elif base_debt_key(instance_key) == "alimony":
+                        amounts["payment"] = money_text_input("Monthly Payment Amount ($)", amounts.get("payment", ""),
+                            placeholder="Enter monthly payment amount", key="debt_pay_" + instance_key,
+                        )
+                        if amounts.get("payment", "").strip() == "":
+                            other_debt_errors_any = True
+                        _, debt_explanation = explain_debt_payment(debt_type, amounts)
+                        st.caption(debt_explanation)
                     else:
                         lender_col, pay_col, bal_col = st.columns([1.6, 1.6, 1.6])
                         with lender_col:
@@ -4873,7 +4931,8 @@ def render_analysis():
         purchase_price = parse_money(st.session_state.subject_property_value_raw) or 0.0
     else:
         purchase_price = parse_money(st.session_state.purchase_price_raw) or 0.0
-    ltv = (loan_amount / purchase_price * 100) if purchase_price else None
+    ltv_denominator = get_ltv_denominator()
+    ltv = (loan_amount / ltv_denominator * 100) if ltv_denominator else None
 
     pi_payment, taxes, condo, heat, _ = get_subject_property_costs()
 
@@ -6040,6 +6099,35 @@ def detect_intake_discrepancies():
                 )
                 break
 
+    # --- Employment type (salaried vs. self-employed) ---
+    # Conservative by design: only flags when the notes clearly state ONE employment
+    # type and NONE of that type's income sources were entered anywhere for that
+    # borrower — never flags when both types are mentioned/entered, since having
+    # both salaried and self-employed income is common and not a real conflict.
+    salaried_phrases = ["salaried", "salary", "full-time employee", "full time employee", "works for", "employed at", "employed by"]
+    self_employed_phrases = ["self-employed", "self employed", "own business", "runs a business", "owns a business", "sole proprietor", "freelance", "independent contractor"]
+    self_employed_type_keys = ("self_employed", "self_employed_incorporated", "self_employed_professional")
+    mentions_salaried = any(p in lower_text for p in salaried_phrases)
+    mentions_self_employed = any(p in lower_text for p in self_employed_phrases)
+    if mentions_salaried != mentions_self_employed:  # exactly one is mentioned, not both/neither
+        for idx in range(st.session_state.borrower_count):
+            bidx = str(idx)
+            b = st.session_state.borrowers[idx] if idx < len(st.session_state.borrowers) else {}
+            name = b.get("full_name", "").strip() or ("Borrower " + str(idx + 1))
+            selected_base_keys = {base_income_key(k) for k in st.session_state.income_selected.get(bidx, [])}
+            has_salaried = "salaried" in selected_base_keys
+            has_self_employed = any(k in selected_base_keys for k in self_employed_type_keys)
+            if mentions_salaried and not has_salaried and not has_self_employed:
+                flags.append(
+                    "Intake notes mention salaried employment, but " + name
+                    + " has no Employed (Salaried) income entered on the Income step."
+                )
+            elif mentions_self_employed and not has_self_employed and not has_salaried:
+                flags.append(
+                    "Intake notes mention self-employment, but " + name
+                    + " has no self-employed income source entered on the Income step."
+                )
+
     # --- Down payment (purchase/builder purchase only) ---
     if not is_refinance():
         dp_mentions = extract_dollar_mentions(text, ["down payment", "downpayment"])
@@ -6668,41 +6756,15 @@ with timer_placeholder.container():
             st.rerun()
     else:
         _elapsed_now = time.time() - st.session_state.app_start_time
-        _start_ms = int(st.session_state.app_start_time * 1000)
-        components.html(
-            """
-            <style>
-              @keyframes timerbox-flash {
-                0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.85); border-color: #ef4444; }
-                50% { box-shadow: 0 0 0 3px rgba(239,68,68,0.85); border-color: #ef4444; }
-              }
-              .fh-timer-box {
-                text-align: center; margin-top: 6px; padding: 6px 10px; border-radius: 8px;
-                border: 1px solid #ef4444; background-color: rgba(239,68,68,0.12);
-                animation: timerbox-flash 1.4s ease-in-out infinite;
-                box-sizing: border-box; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-              }
-            </style>
-            <div class="fh-timer-box">
-              <div style="font-size:10px; color:#fca5a5;">Time elapsed</div>
-              <div id="fh-timer" style="font-size:17px; font-weight:700; font-family:monospace; color:#fecaca;">00:00</div>
-            </div>
-            <script>
-              (function() {
-                var startMs = """ + str(_start_ms) + """;
-                function tick() {
-                  var elapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
-                  var m = String(Math.floor(elapsed / 60)).padStart(2, '0');
-                  var s = String(elapsed % 60).padStart(2, '0');
-                  var el = document.getElementById('fh-timer');
-                  if (el) { el.textContent = m + ':' + s; }
-                }
-                tick();
-                setInterval(tick, 1000);
-              })();
-            </script>
-            """,
-            height=58,
+        _mins, _secs = divmod(int(_elapsed_now), 60)
+        st.markdown(
+            "<div style='text-align:center; margin-top:6px; padding:6px 10px; border-radius:8px; "
+            "border:1px solid #ef4444; background-color:rgba(239,68,68,0.12);'>"
+            "<div style='font-size:10px; color:#fca5a5;'>Time elapsed</div>"
+            "<div style='font-size:17px; font-weight:700; font-family:monospace; color:#fecaca;'>"
+            + "{:02d}:{:02d}".format(_mins, _secs) + "</div>"
+            "</div>",
+            unsafe_allow_html=True,
         )
         if st.button("Stop Timer", key="stop_timer_btn", use_container_width=True):
             st.session_state.app_paused_elapsed = _elapsed_now
