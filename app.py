@@ -365,33 +365,30 @@ def safe_calculate(expression):
 
 def render_calculator_popover(key_prefix):
     """
-    A compact quick-calculator. Rendered in the sidebar rather than as a
+    A compact quick-calculator, rendered in the sidebar rather than as a
     CSS-pinned floating button — Streamlit's internal DOM structure can
     silently break `position: fixed` (ancestor transforms change the
     containing block), so the sidebar is the reliable way to keep this
     visible on screen at all times regardless of scroll position.
     """
     with st.sidebar:
-        st.markdown(
-            "<div style='text-align:center; font-size:14px; color:#a3a8b4; margin-top:4px;'>Calculator</div>",
-            unsafe_allow_html=True,
-        )
-        expr = st.text_input(
-            "Expression", key=key_prefix + "_calc_expr", placeholder="1200 + 350*12",
-            label_visibility="collapsed",
-        )
-        if expr.strip():
-            try:
-                result = safe_calculate(expr)
-                st.markdown(
-                    "<div style='text-align:center; font-weight:700;'>= " + "{:,.2f}".format(result) + "</div>",
-                    unsafe_allow_html=True,
-                )
-            except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
-                st.markdown(
-                    "<div style='text-align:center; color:#ef4444;'>Invalid expression</div>",
-                    unsafe_allow_html=True,
-                )
+        with st.expander("🧮 Calculator", expanded=False):
+            expr = st.text_input(
+                "Expression", key=key_prefix + "_calc_expr", placeholder="1200 + 350*12",
+                label_visibility="collapsed",
+            )
+            if expr.strip():
+                try:
+                    result = safe_calculate(expr)
+                    st.markdown(
+                        "<div style='text-align:center; font-weight:700;'>= " + "{:,.2f}".format(result) + "</div>",
+                        unsafe_allow_html=True,
+                    )
+                except (ValueError, ZeroDivisionError, SyntaxError, TypeError):
+                    st.markdown(
+                        "<div style='text-align:center; color:#ef4444;'>Invalid expression</div>",
+                        unsafe_allow_html=True,
+                    )
 
 
 def empty_borrower():
@@ -3207,6 +3204,7 @@ def render_property_details():
                 st.session_state.subject_rental_kitchen and st.session_state.subject_rental_bathroom
                 and st.session_state.subject_rental_entrance
             )
+            st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
             if is_self_contained:
                 st.caption(":green[Self-contained unit confirmed — rental income can be used for qualification under Income → Rental Income (Component of Primary Residence).]")
             else:
@@ -5170,9 +5168,9 @@ def render_analysis():
             ("Heating (H)", heat, heat * 12),
             ("50% Condo Fees (0.5 × C)", condo * 0.5, condo * 0.5 * 12),
         ]
-        cell = "padding:4px 8px; border-bottom:1px solid #94a3b8 !important; color:#0f172a !important; background:#f1f5f9 !important;"
-        head = "padding:4px 8px; color:#0f172a !important; background:#cbd5e1 !important; font-weight:700 !important;"
-        total_cell = "padding:10px 8px; color:#78350f !important; background:#fde047 !important; font-weight:700 !important;"
+        cell = "padding:4px 8px; border-bottom:1px solid #94a3b8 !important; color:#0f172a !important; background:#f1f5f9 !important; word-break:break-word; overflow-wrap:break-word;"
+        head = "padding:4px 8px; color:#0f172a !important; background:#cbd5e1 !important; font-weight:700 !important; word-break:break-word; overflow-wrap:break-word;"
+        total_cell = "padding:10px 8px; color:#78350f !important; background:#fde047 !important; font-weight:700 !important; word-break:break-word; overflow-wrap:break-word;"
 
         # --- Row 1: both tables side by side ---
         gds_col, tds_col = st.columns(2)
@@ -5186,7 +5184,7 @@ def render_analysis():
             )
             st.markdown(
                 "<div style='border:1px solid #334155; border-radius:6px; overflow:hidden;'>"
-                "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:0;'>"
+                "<table style='width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px; margin-bottom:0;'>"
                 "<tr>"
                 "<th style='" + head + " text-align:left;'>Housing Cost Component</th>"
                 "<th style='" + head + " text-align:right;'>Monthly</th>"
@@ -5236,7 +5234,7 @@ def render_analysis():
             grand_total_annual = annual_housing_amount + annual_other_debt_amount
             st.markdown(
                 "<div style='border:1px solid #334155; border-radius:6px; overflow:hidden;'>"
-                "<table style='width:100%; border-collapse:collapse; font-size:13px; margin-bottom:0;'>"
+                "<table style='width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px; margin-bottom:0;'>"
                 "<tr>"
                 "<th style='" + head + " text-align:left;'>Debt Obligation Component</th>"
                 "<th style='" + head + " text-align:right;'>Monthly</th>"
