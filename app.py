@@ -45,6 +45,10 @@ from refinance_rules import (
 # Shared config
 # ---------------------------------------------------------------------------
 
+# Internal QA tools (timer, calculator) are hidden by default in the client-facing
+# build. Append ?debug=true to the URL to show them during internal testing.
+DEBUG_MODE = st.query_params.get("debug", "false").lower() == "true"
+
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 PHONE_RE = re.compile(r"^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$")
 
@@ -370,7 +374,11 @@ def render_calculator_popover(key_prefix):
     silently break `position: fixed` (ancestor transforms change the
     containing block), so the sidebar is the reliable way to keep this
     visible on screen at all times regardless of scroll position.
+    Internal QA tool only — hidden from the client-facing build unless
+    ?debug=true is present in the URL.
     """
+    if not DEBUG_MODE:
+        return
     with st.sidebar:
         with st.expander("🧮 Calculator", expanded=False):
             expr = st.text_input(
@@ -1326,6 +1334,12 @@ def render_stepper(active_index):
                         st.session_state.step = i
                         st.rerun()
 
+    st.markdown(
+        "<div style='text-align:center; font-size:11px; color:#9ca3af; margin-bottom:4px;'>"
+        "🟢 Complete &nbsp;•&nbsp; 🟡 Missing info (tap ⚠ for details) &nbsp;•&nbsp; ⚪ Not yet visited"
+        "</div>",
+        unsafe_allow_html=True,
+    )
     with st.container(key="stepper_help_row"):
         help_cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
@@ -1336,7 +1350,7 @@ def render_stepper(active_index):
             with help_cols[i]:
                 if show_help:
                     with st.container(key="helpbtn_step_" + str(i)):
-                        with st.popover("?", key="step_help_" + str(i)):
+                        with st.popover("⚠", key="step_help_" + str(i)):
                             st.markdown("**Still needed on this page:**")
                             for m in step_missing:
                                 st.markdown("- " + m)
@@ -1625,8 +1639,8 @@ st.markdown(
         margin-bottom: 0.35rem !important;
     }
     .doc-list {
-        background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
-        padding: 16px; margin-top: 8px; margin-bottom: 16px; font-size: 13px; color:#374151;
+        background: rgba(37,99,235,0.08); border:1px solid rgba(37,99,235,0.35); border-radius:8px;
+        padding: 16px; margin-top: 8px; margin-bottom: 16px; font-size: 13px; color:#e5e7eb;
     }
     /* Checkbox lists (Down Payment Sources, Debt Types, Income Sources, etc.) —
        even, generous vertical spacing so they read as a clean scannable column
@@ -1742,19 +1756,19 @@ st.markdown(
     }
     .metric-row {display:flex; gap: 12px; margin: 6px 0 2px; align-items: stretch;}
     .metric-card {
-        flex:1; border:1px solid #e5e7eb; border-radius:10px; padding: 10px 14px; background:#f9fafb;
+        flex:1; border:1px solid rgba(37,99,235,0.35); border-radius:10px; padding: 10px 14px; background: rgba(37,99,235,0.08);
         min-height: 62px; box-sizing: border-box; display:flex; flex-direction:column; justify-content:center;
     }
-    .metric-label {font-size:12px; color:#6b7280; margin-bottom:4px;}
-    .metric-value {font-size:20px; font-weight:700; color:#111827; word-break:break-word;}
+    .metric-label {font-size:12px; color:#9ca3af; margin-bottom:4px;}
+    .metric-value {font-size:20px; font-weight:700; color:#f3f4f6; word-break:break-word;}
     .borrower-total {
-        font-weight:600; font-size:15px; margin: 10px 0 4px; color:#111827;
+        font-weight:600; font-size:15px; margin: 10px 0 4px; color:#f3f4f6;
     }
     .ratio-green {color:#16a34a; font-weight:700;}
     .ratio-yellow {color:#ca8a04; font-weight:700;}
     .ratio-red {color:#dc2626; font-weight:700;}
     .property-total {
-        font-weight:600; font-size:14px; margin: 8px 0 4px; color:#111827;
+        font-weight:600; font-size:14px; margin: 8px 0 4px; color:#f3f4f6;
     }
     </style>
     """,
@@ -2392,12 +2406,13 @@ def render_client_details():
     st.write("Enter information for each borrower on this application.")
     render_calculator_popover("client")
 
-    new_borrower_count = st.selectbox(
-        "Number of Borrowers", [1, 2, 3, 4],
-        index=[1, 2, 3, 4].index(st.session_state.borrower_count)
-        if st.session_state.borrower_count in [1, 2, 3, 4] else 0,
-        key="borrower_count_select",
-    )
+    with st.container(key="card_borrower_count"):
+        new_borrower_count = st.selectbox(
+            "Number of Borrowers", [1, 2, 3, 4],
+            index=[1, 2, 3, 4].index(st.session_state.borrower_count)
+            if st.session_state.borrower_count in [1, 2, 3, 4] else 0,
+            key="borrower_count_select",
+        )
     if new_borrower_count != st.session_state.borrower_count:
         sync_borrower_count(new_borrower_count)
         st.rerun()
@@ -5707,6 +5722,8 @@ def render_document_checklist(data):
 
     total_count = 0
     categories = data.get("categories", [])
+    _preview_count = sum(len(c.get("items", [])) for c in categories)
+    st.caption(str(_preview_count) + " document(s) required for this file.")
     for cat_idx, category in enumerate(categories):
         items = category.get("items", [])
         cat_name = category.get("name", "")
@@ -5743,8 +5760,10 @@ def render_document_checklist(data):
                 for item in group_items:
                     st.markdown(
                         "<div style='margin-left:" + str(item_indent) + "px; margin-bottom:4px; font-size:13px; "
-                        "line-height:1.5; overflow-wrap:break-word;'>"
-                        "☐ " + item["text"] + "</div>",
+                        "line-height:1.5; overflow-wrap:break-word; display:flex; align-items:flex-start; gap:8px;'>"
+                        "<span style='flex-shrink:0; margin-top:2px; width:14px; height:14px; border:1.5px solid #6b7280; "
+                        "border-radius:3px; display:inline-block;'></span>"
+                        "<span>" + item["text"] + "</span></div>",
                         unsafe_allow_html=True,
                     )
 
@@ -6649,6 +6668,9 @@ def render_notes():
 
     if st.session_state.combined_notes:
         st.markdown("#### Final Summary")
+        with st.container(key="card_notes_preview"):
+            st.caption("Formatted preview:")
+            st.markdown(st.session_state.combined_notes.replace("=" * 40, "").replace("-" * 40, ""))
         with st.container(key="notes_font_scope_combined"):
             st.session_state.combined_notes = st.text_area(
                 "Final note (editable)", value=st.session_state.combined_notes, height=350, key="combined_notes_editor",
@@ -6726,7 +6748,9 @@ if (
     st.session_state.app_completed_seconds = time.time() - st.session_state.app_start_time
 
 with timer_placeholder.container():
-    if st.session_state.app_completed_seconds is not None:
+    if not DEBUG_MODE:
+        pass
+    elif st.session_state.app_completed_seconds is not None:
         _mins, _secs = divmod(int(st.session_state.app_completed_seconds), 60)
         st.markdown(
             "<div style='text-align:center; margin-top:6px; padding:6px 10px; border-radius:8px; "
