@@ -45,10 +45,6 @@ from refinance_rules import (
 # Shared config
 # ---------------------------------------------------------------------------
 
-# Internal QA tools (timer, calculator) are hidden by default in the client-facing
-# build. Append ?debug=true to the URL to show them during internal testing.
-DEBUG_MODE = st.query_params.get("debug", "false").lower() == "true"
-
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 PHONE_RE = re.compile(r"^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$")
 
@@ -374,11 +370,7 @@ def render_calculator_popover(key_prefix):
     silently break `position: fixed` (ancestor transforms change the
     containing block), so the sidebar is the reliable way to keep this
     visible on screen at all times regardless of scroll position.
-    Internal QA tool only — hidden from the client-facing build unless
-    ?debug=true is present in the URL.
     """
-    if not DEBUG_MODE:
-        return
     with st.sidebar:
         with st.expander("🧮 Calculator", expanded=False):
             expr = st.text_input(
@@ -6748,9 +6740,7 @@ if (
     st.session_state.app_completed_seconds = time.time() - st.session_state.app_start_time
 
 with timer_placeholder.container():
-    if not DEBUG_MODE:
-        pass
-    elif st.session_state.app_completed_seconds is not None:
+    if st.session_state.app_completed_seconds is not None:
         _mins, _secs = divmod(int(st.session_state.app_completed_seconds), 60)
         st.markdown(
             "<div style='text-align:center; margin-top:6px; padding:6px 10px; border-radius:8px; "
