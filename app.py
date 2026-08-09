@@ -1422,6 +1422,14 @@ st.markdown(
         min-height: 2.4em !important;
         display: flex !important;
         align-items: flex-end !important;
+        margin-top: 10px !important;
+    }
+    /* Section titles (### / ####) should read as a clear step above the
+       helper/caption text sitting directly under them — bump weight so the
+       hierarchy is unambiguous at a glance. */
+    .stApp h3, .stApp h4 {
+        font-weight: 700 !important;
+        margin-top: 4px !important;
     }
     /* Uniform height for every single-line text input, number input, and dropdown
        app-wide — so fields sitting side by side (like the Income section) always
@@ -1738,6 +1746,15 @@ st.markdown(
         width: 100% !important;
         margin: 0 !important;
     }
+    /* Breathing room between sidebar utility elements (timer, download,
+       upload, refresh, calculator) — default Streamlit spacing packs these
+       tightly enough to feel cluttered. */
+    section[data-testid="stSidebar"] div[data-testid="stElementContainer"] {
+        margin-bottom: 12px !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stFileUploader"] {
+        margin-bottom: 2px !important;
+    }
     .stButton > button, .stDownloadButton > button {
         min-height: 3.4em;
         white-space: normal;
@@ -1811,6 +1828,28 @@ st.markdown(
         border-radius: 10px;
         padding: 16px !important;
         margin: 8px 0 20px !important;
+    }
+    /* Transaction-type selection cards: consistent card look plus a fixed
+       min-height so all four cards' bottom borders line up horizontally
+       regardless of description text length (Purchase's one-liner vs
+       Switch's two-liner) — the radio+text row is vertically centered
+       within that fixed height rather than just top-aligned. */
+    div[class*="st-key-txntype_card_"] {
+        background: rgba(255,255,255,0.035);
+        border: 1px solid rgba(255,255,255,0.09);
+        border-radius: 10px;
+        padding: 14px 16px !important;
+        margin: 8px 0 !important;
+        min-height: 92px !important;
+        display: flex !important;
+        align-items: center !important;
+        box-sizing: border-box !important;
+    }
+    div[class*="st-key-txntype_card_"] > div {
+        width: 100% !important;
+    }
+    div[class*="st-key-txntype_card_"] div[data-testid="stHorizontalBlock"] {
+        align-items: center !important;
     }
     div[class*="st-key-card_doc_cat_"],
     div[class*="st-key-card_doc_edit_"] {
