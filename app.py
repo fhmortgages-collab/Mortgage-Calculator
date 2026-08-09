@@ -1405,27 +1405,35 @@ st.markdown(
     div[class*="st-key-sub_checkbox"] label p:not(:has(span)) {
         color: #b0b6c0 !important;
     }
+    div[class*="st-key-stepper_row"] {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: thin !important;
+    }
+    div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        min-width: max-content !important;
+    }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
-        min-width: 0 !important;
-        flex: 1 1 0 !important;
+        min-width: 92px !important;
+        flex: 0 0 auto !important;
+        width: 92px !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 9.5px !important;
-        white-space: normal !important;
-        word-break: keep-all !important;
-        overflow-wrap: normal !important;
-        padding: 6px 1px !important;
-        letter-spacing: -0.4px !important;
+        font-size: 12px !important;
+        white-space: nowrap !important;
+        padding: 6px 8px !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        min-height: 4.4em !important;
-        height: 4.4em !important;
+        min-height: 3.2em !important;
+        height: 3.2em !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         text-align: center !important;
-        line-height: 1.25 !important;
         overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button {
         background-color: #16a34a !important;
@@ -1449,12 +1457,19 @@ st.markdown(
         animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
-        min-width: 0 !important;
-        flex: 1 1 0 !important;
+        min-width: 92px !important;
+        flex: 0 0 auto !important;
+        width: 92px !important;
     }
     div[class*="st-key-stepper_help_row"] {
         margin-top: -4px;
         margin-bottom: 6px;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+    }
+    div[class*="st-key-stepper_help_row"] > div[data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        min-width: max-content !important;
     }
     div[class*="st-key-helpbtn_step_"] {
         display: flex;
@@ -2730,10 +2745,13 @@ def render_down_payment():
     st.write("**Total from Sources: " + fmt_money(total_sources) + "**")
 
     totals_match = False
+    any_amount_entered = any(st.session_state.source_amounts.get(key, "").strip() for key in eligible_selected)
     if not selected:
         st.caption(":red[Please select at least one source.]")
     elif down_payment is None:
         st.caption(":gray[Enter a down payment amount above to check totals.]")
+    elif eligible_selected and not any_amount_entered:
+        st.caption(":gray[Sources not yet itemized — enter an amount for each selected source above.]")
     else:
         if round(total_sources, 2) == round(down_payment, 2):
             st.success("✓ Source amounts match the down payment amount.")
@@ -5314,10 +5332,16 @@ def render_analysis():
         stressed_gds is not None and stressed_tds is not None
         and stressed_gds <= GDS_LIMIT and stressed_tds <= TDS_LIMIT
     )
-    stress_result = "PASS ✓" if stressed_qualified else "FAIL ✗"
-    st.caption(
-        "Stress Test Result (Qualifying Rate " + "{:.2f}%".format(qualifying_rate) + "): **" + stress_result + "**"
-    )
+    if total_income <= 0:
+        st.caption(
+            "Stress Test Result (Qualifying Rate " + "{:.2f}%".format(qualifying_rate) + "): "
+            "**Incomplete — enter income to calculate stress test result.**"
+        )
+    else:
+        stress_result = "PASS ✓" if stressed_qualified else "FAIL ✗"
+        st.caption(
+            "Stress Test Result (Qualifying Rate " + "{:.2f}%".format(qualifying_rate) + "): **" + stress_result + "**"
+        )
 
     st.divider()
 
