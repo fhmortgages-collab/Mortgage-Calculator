@@ -1427,12 +1427,12 @@ st.markdown(
         min-width: max-content !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
-        min-width: 104px !important;
+        min-width: 112px !important;
         flex: 0 0 auto !important;
-        width: 104px !important;
+        width: 112px !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 12.5px !important;
+        font-size: 12px !important;
         white-space: normal !important;
         padding: 6px 8px !important;
         width: 100% !important;
@@ -1443,10 +1443,26 @@ st.markdown(
         align-items: center !important;
         justify-content: center !important;
         text-align: center !important;
-        line-height: 1.15 !important;
+        line-height: 1.2 !important;
         overflow: hidden !important;
-        word-break: normal !important;
         border-radius: 8px !important;
+    }
+    /* The visible label text sits inside a <p> (or span/div) nested inside the
+       button, and an earlier app-wide rule pins ALL <p> tags to 14px !important.
+       That explicit rule on the child element wins over inheritance from the
+       button no matter how the button's own font-size is set — so it has to be
+       overridden directly on the text node itself, not just the button. */
+    div[class*="st-key-stepper_row"] button p,
+    div[class*="st-key-stepper_row"] button span,
+    div[class*="st-key-stepper_row"] button div {
+        font-size: 12px !important;
+        line-height: 1.2 !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+        hyphens: none !important;
+        margin: 0 !important;
+        text-align: center !important;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button {
         background-color: #16a34a !important;
@@ -1470,9 +1486,9 @@ st.markdown(
         animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
-        min-width: 104px !important;
+        min-width: 112px !important;
         flex: 0 0 auto !important;
-        width: 104px !important;
+        width: 112px !important;
     }
     div[class*="st-key-stepper_help_row"] {
         margin-top: -4px;
