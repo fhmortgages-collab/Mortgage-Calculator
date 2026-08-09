@@ -1387,6 +1387,17 @@ st.markdown(
     div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
         min-height: 2.6em !important;
         box-sizing: border-box !important;
+        border-radius: 8px !important;
+    }
+    /* Give every widget row consistent breathing room so multi-column form
+       sections (Property Characteristics, Income) don't drift out of alignment
+       when one field's help text or error message pushes neighboring rows. */
+    div[data-testid="stHorizontalBlock"] {
+        align-items: flex-start !important;
+        gap: 1rem !important;
+    }
+    div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"] {
+        margin-bottom: 0.35rem;
     }
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
@@ -1416,14 +1427,14 @@ st.markdown(
         min-width: max-content !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
-        min-width: 92px !important;
+        min-width: 124px !important;
         flex: 0 0 auto !important;
-        width: 92px !important;
+        width: 124px !important;
     }
     div[class*="st-key-stepper_row"] button {
-        font-size: 12px !important;
+        font-size: 12.5px !important;
         white-space: nowrap !important;
-        padding: 6px 8px !important;
+        padding: 6px 10px !important;
         width: 100% !important;
         box-sizing: border-box !important;
         min-height: 3.2em !important;
@@ -1432,8 +1443,9 @@ st.markdown(
         align-items: center !important;
         justify-content: center !important;
         text-align: center !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        border-radius: 8px !important;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button {
         background-color: #16a34a !important;
@@ -1457,9 +1469,9 @@ st.markdown(
         animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
-        min-width: 92px !important;
+        min-width: 124px !important;
         flex: 0 0 auto !important;
-        width: 92px !important;
+        width: 124px !important;
     }
     div[class*="st-key-stepper_help_row"] {
         margin-top: -4px;
@@ -5193,12 +5205,15 @@ def render_analysis():
             ("Heating (H)", heat, heat * 12),
             ("50% Condo Fees (0.5 × C)", condo * 0.5, condo * 0.5 * 12),
         ]
-        cell = "padding:4px 8px; border-bottom:1px solid #94a3b8 !important; color:#0f172a !important; background:#f1f5f9 !important; word-break:break-word; overflow-wrap:break-word;"
-        head = "padding:4px 8px; color:#0f172a !important; background:#cbd5e1 !important; font-weight:700 !important; word-break:break-word; overflow-wrap:break-word;"
-        total_cell = "padding:10px 8px; color:#78350f !important; background:#fde047 !important; font-weight:700 !important; word-break:break-word; overflow-wrap:break-word;"
+        cell = "padding:6px 10px; border-bottom:1px solid #94a3b8 !important; color:#0f172a !important; background:#f1f5f9 !important; word-break:normal; overflow-wrap:break-word; white-space:normal;"
+        head = "padding:6px 10px; color:#0f172a !important; background:#cbd5e1 !important; font-weight:700 !important; word-break:normal; overflow-wrap:break-word; white-space:normal;"
+        total_cell = "padding:10px 10px; color:#78350f !important; background:#fde047 !important; font-weight:700 !important; word-break:normal; overflow-wrap:break-word; white-space:normal;"
 
-        # --- Row 1: both tables side by side ---
-        gds_col, tds_col = st.columns(2)
+        # --- Row 1: GDS table, full width (stacked, not squeezed side-by-side —
+        # cramming two 3-column tables into half-width columns is what caused
+        # header text to break mid-word on narrower screens). ---
+        gds_col = st.container()
+        tds_col = st.container()
 
         with gds_col:
             table_rows_html = "".join(
@@ -5208,8 +5223,9 @@ def render_analysis():
                 for name, monthly, annual in rows
             )
             st.markdown(
-                "<div style='border:1px solid #334155; border-radius:6px; overflow:hidden;'>"
+                "<div style='border:1px solid #334155; border-radius:6px; overflow:hidden; margin-bottom:14px;'>"
                 "<table style='width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px; margin-bottom:0;'>"
+                "<colgroup><col style='width:50%;'><col style='width:25%;'><col style='width:25%;'></colgroup>"
                 "<tr>"
                 "<th style='" + head + " text-align:left;'>Housing Cost Component</th>"
                 "<th style='" + head + " text-align:right;'>Monthly</th>"
@@ -5260,6 +5276,7 @@ def render_analysis():
             st.markdown(
                 "<div style='border:1px solid #334155; border-radius:6px; overflow:hidden;'>"
                 "<table style='width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px; margin-bottom:0;'>"
+                "<colgroup><col style='width:50%;'><col style='width:25%;'><col style='width:25%;'></colgroup>"
                 "<tr>"
                 "<th style='" + head + " text-align:left;'>Debt Obligation Component</th>"
                 "<th style='" + head + " text-align:right;'>Monthly</th>"
@@ -5273,24 +5290,21 @@ def render_analysis():
                 unsafe_allow_html=True,
             )
 
-        # --- Row 2: both formula results side by side, aligned at the same height ---
-        gds_formula_col, tds_formula_col = st.columns(2)
-        with gds_formula_col:
-            st.markdown(
-                "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
-                "font-size:13px; color:#1e3a8a !important;'>"
-                "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
-                + " × 100 = <b>" + gds_disp + "</b></div>",
-                unsafe_allow_html=True,
-            )
-        with tds_formula_col:
-            st.markdown(
-                "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
-                "font-size:13px; color:#1e3a8a !important;'>"
-                "<b>TDS</b> = " + fmt_money(annual_housing_amount + annual_other_debt_amount) + " ÷ " + fmt_money(total_income)
-                + " × 100 = <b>" + tds_disp + "</b></div>",
-                unsafe_allow_html=True,
-            )
+        # --- Row 2: formula results, stacked full-width to match the tables above ---
+        st.markdown(
+            "<div style='background:#bfdbfe !important; border-radius:6px; padding:8px 12px; "
+            "font-size:13px; color:#1e3a8a !important; margin-bottom:8px;'>"
+            "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
+            + " × 100 = <b>" + gds_disp + "</b></div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div style='background:#bfdbfe !important; border-radius:6px; padding:8px 12px; "
+            "font-size:13px; color:#1e3a8a !important;'>"
+            "<b>TDS</b> = " + fmt_money(annual_housing_amount + annual_other_debt_amount) + " ÷ " + fmt_money(total_income)
+            + " × 100 = <b>" + tds_disp + "</b></div>",
+            unsafe_allow_html=True,
+        )
 
     with st.expander("Show calculation details (Contract Rate)", expanded=False):
         st.caption("Formula: GDS = (P + I + T + H + 0.5C) ÷ Gross Annual Income × 100  |  TDS adds all other monthly debts.")
@@ -6563,7 +6577,10 @@ def render_notes():
     with st.expander("System-Generated Summary (from application data)", expanded=True):
         with st.container(key="notes_font_scope_summary"):
             system_notes = build_system_notes()
-            st.markdown(system_notes.replace("\n", "  \n"))
+            # Escape literal "$" before markdown rendering — Streamlit's markdown treats
+            # a pair of "$" as LaTeX math delimiters, so two dollar amounts on the same
+            # line (very common in this summary) get swallowed as one broken math span.
+            st.markdown(system_notes.replace("$", "\\$").replace("\n", "  \n"))
 
     st.divider()
 
@@ -6572,7 +6589,7 @@ def render_notes():
     st.caption("What the client told you in the initial conversation, captured on the Deal step.")
     with st.container(key="card_intake_notes_readonly"):
         if st.session_state.client_intake_notes.strip():
-            st.markdown(st.session_state.client_intake_notes.replace("\n", "  \n"))
+            st.markdown(st.session_state.client_intake_notes.replace("$", "\\$").replace("\n", "  \n"))
         else:
             st.caption("No client intake notes were captured on the Deal step.")
 
@@ -6611,7 +6628,7 @@ def render_notes():
             with num_col:
                 st.markdown("**" + str(i + 1) + ".**")
             with text_col:
-                st.markdown(entry["text"])
+                st.markdown(entry["text"].replace("$", "\\$"))
                 entry["reason"] = st.text_input(
                     "Explanation", value=entry["reason"], key="disc_reason_" + str(i),
                     label_visibility="collapsed", placeholder="Explain or resolve this discrepancy...",
@@ -6686,7 +6703,10 @@ def render_notes():
         st.markdown("#### Final Summary")
         with st.container(key="card_notes_preview"):
             st.caption("Formatted preview:")
-            st.markdown(st.session_state.combined_notes.replace("=" * 40, "").replace("-" * 40, ""))
+            st.markdown(
+                st.session_state.combined_notes.replace("$", "\\$")
+                .replace("=" * 40, "").replace("-" * 40, "")
+            )
         with st.container(key="notes_font_scope_combined"):
             st.session_state.combined_notes = st.text_area(
                 "Final note (editable)", value=st.session_state.combined_notes, height=350, key="combined_notes_editor",
