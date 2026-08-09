@@ -1389,7 +1389,7 @@ st.markdown(
        Giving every label a fixed min-height (room for 2 lines) keeps every input box
        in a row starting at the same vertical position, regardless of label length. */
     [data-testid="stWidgetLabel"] {
-        min-height: 2.4em !important;
+        min-height: 1.9em !important;
         display: flex !important;
         align-items: flex-end !important;
     }
@@ -1473,7 +1473,7 @@ st.markdown(
     }
     div[class*="st-key-stepbtn_"][class*="_active"] button {
         outline: 2px solid #ef4444 !important;
-        outline-offset: 1px !important;
+        outline-offset: -1px !important;
         animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
@@ -1520,7 +1520,7 @@ st.markdown(
     }
     div[class*="st-key-order_appraisal_btn_wrap"],
     div[class*="st-key-mls_autofill_btn_wrap"] {
-        margin-top: 2.1rem;
+        margin-top: 1.66rem;
     }
     div[class*="st-key-helpbtn_"] {
         display: flex;
@@ -1619,18 +1619,23 @@ st.markdown(
     section[data-testid="stSidebar"] input {
         text-align: center !important;
     }
+    section[data-testid="stSidebar"] {
+        min-width: 210px !important;
+        max-width: 240px !important;
+    }
     section[data-testid="stSidebar"] button {
-        min-height: 3.4em !important;
+        min-height: 2.1em !important;
         width: 100% !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         text-align: center !important;
         white-space: normal !important;
-        line-height: 1.2 !important;
-        font-size: 13px !important;
-        padding: 4px 8px !important;
+        line-height: 1.15 !important;
+        font-size: 12px !important;
+        padding: 3px 6px !important;
         box-sizing: border-box !important;
+        margin-bottom: 2px !important;
     }
     section[data-testid="stSidebar"] button p,
     section[data-testid="stSidebar"] button div,
@@ -3051,7 +3056,7 @@ def render_property_details():
 
         pv_c1, pv_c2 = st.columns(2)
         with pv_c1:
-            st.markdown("<div style='min-height:2.4em;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='min-height:1.9em;'></div>", unsafe_allow_html=True)
             st.markdown(
                 "<span style='font-family: \"Source Code Pro\", monospace; font-size: 14px; color:#22c55e;'>"
                 "Property Value: `" + fmt_money(ref_value) + "`</span>",
