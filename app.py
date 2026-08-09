@@ -1304,10 +1304,6 @@ def render_stepper(active_index):
         cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
             btn_type = "primary" if i == active_index else "secondary"
-            display_label = label
-            if i == 2 and is_refinance():
-                display_label = "Refinance"
-
             step_missing = get_step_missing_fields(i)
             is_step_complete = is_step_fully_complete(i)
             was_visited = i in st.session_state.visited_steps
@@ -1323,14 +1319,46 @@ def render_stepper(active_index):
             container_key = "stepbtn_" + str(i) + state_suffix + ("_active" if is_currently_active else "")
             with cols[i]:
                 with st.container(key=container_key):
-                    button_label = STEP_ICONS[i] + " " + display_label
-                    if st.button(button_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
+                    if st.button(STEP_ICONS[i], key="nav_step_" + str(i), type=btn_type, use_container_width=True):
                         st.session_state.step = i
                         st.rerun()
 
+    # --- Labels row: step name under each circle, color-matched to that
+    # step's state, plus the missing-info popover when applicable. ---
+    with st.container(key="stepper_label_row"):
+        label_cols = st.columns(len(STEPS), gap="small")
+        for i, label in enumerate(STEPS):
+            display_label = label
+            if i == 2 and is_refinance():
+                display_label = "Refinance"
+            step_missing = get_step_missing_fields(i)
+            is_step_complete = is_step_fully_complete(i)
+            was_visited = i in st.session_state.visited_steps
+            is_currently_active = i == active_index
+            if is_step_complete:
+                label_class = "steplabel_complete"
+            elif is_currently_active:
+                label_class = "steplabel_active"
+            elif was_visited and step_missing:
+                label_class = "steplabel_flagged"
+            else:
+                label_class = "steplabel_default"
+            with label_cols[i]:
+                st.markdown(
+                    "<div class='" + label_class + "'>" + display_label + "</div>",
+                    unsafe_allow_html=True,
+                )
+                show_help = was_visited and not is_currently_active and step_missing and not is_step_complete
+                if show_help:
+                    with st.container(key="helpbtn_step_" + str(i)):
+                        with st.popover("⚠", key="step_help_" + str(i)):
+                            st.markdown("**Still needed on this page:**")
+                            for m in step_missing:
+                                st.markdown("- " + m)
+
     st.markdown(
         "<div style='display:flex; justify-content:center; align-items:center; gap:14px; "
-        "font-size:11px; color:#9ca3af; margin-bottom:4px; flex-wrap:wrap;'>"
+        "font-size:11px; color:#9ca3af; margin: 6px 0 4px; flex-wrap:wrap;'>"
         "<span style='display:inline-flex; align-items:center; gap:5px;'>"
         "<span style='width:9px; height:9px; border-radius:50%; background:#16a34a; display:inline-block;'></span>"
         "Complete</span>"
@@ -1338,26 +1366,15 @@ def render_stepper(active_index):
         "<span style='width:9px; height:9px; border-radius:50%; background:#eab308; display:inline-block;'></span>"
         "Missing info (tap ⚠ for details)</span>"
         "<span style='display:inline-flex; align-items:center; gap:5px;'>"
+        "<span style='width:9px; height:9px; border-radius:50%; background:#2563eb; display:inline-block;'></span>"
+        "Current step</span>"
+        "<span style='display:inline-flex; align-items:center; gap:5px;'>"
         "<span style='width:9px; height:9px; border-radius:50%; background:#4b5563; display:inline-block; "
         "border:1px solid #6b7280;'></span>"
         "Not yet visited</span>"
         "</div>",
         unsafe_allow_html=True,
     )
-    with st.container(key="stepper_help_row"):
-        help_cols = st.columns(len(STEPS), gap="small")
-        for i, label in enumerate(STEPS):
-            step_missing = get_step_missing_fields(i)
-            was_visited = i in st.session_state.visited_steps
-            is_currently_active = i == active_index
-            show_help = was_visited and not is_currently_active and step_missing and not is_step_fully_complete(i)
-            with help_cols[i]:
-                if show_help:
-                    with st.container(key="helpbtn_step_" + str(i)):
-                        with st.popover("⚠", key="step_help_" + str(i)):
-                            st.markdown("**Still needed on this page:**")
-                            for m in step_missing:
-                                st.markdown("- " + m)
 
 
 st.set_page_config(page_title="FH.Mortgages Calculator", page_icon="🏠", layout="centered")
@@ -1433,87 +1450,110 @@ st.markdown(
         overflow-y: visible !important;
         -webkit-overflow-scrolling: touch !important;
         scrollbar-width: thin !important;
-        padding-top: 5px !important;
-        padding-bottom: 5px !important;
+        padding-top: 10px !important;
+        padding-bottom: 4px !important;
     }
     div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
         min-width: max-content !important;
+        position: relative !important;
+    }
+    /* Connecting line drawn behind the row of circles — spans from the first
+       circle's center to the last, sitting at the same vertical mid-point as
+       the circles so it reads as a continuous progress line. */
+    div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"]::before {
+        content: "";
+        position: absolute;
+        top: 27px;
+        left: 46px;
+        right: 46px;
+        height: 2px;
+        background: #3b3f47;
+        z-index: 0;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
-        min-width: 112px !important;
+        min-width: 92px !important;
         flex: 0 0 auto !important;
-        width: 112px !important;
+        width: 92px !important;
+        position: relative !important;
+        z-index: 1 !important;
     }
+    /* Circle badges: fixed 36px circle, icon only, centered in its column so
+       the connecting line above passes through each circle's middle. */
     div[class*="st-key-stepper_row"] button {
-        font-size: 12px !important;
-        white-space: normal !important;
-        padding: 6px 8px !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
-        min-height: 3.7em !important;
-        height: 3.7em !important;
+        font-size: 15px !important;
+        padding: 0 !important;
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 36px !important;
+        min-height: 36px !important;
+        max-width: 36px !important;
+        border-radius: 50% !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        text-align: center !important;
-        line-height: 1.2 !important;
+        margin: 0 auto !important;
         overflow: hidden !important;
-        border-radius: 8px !important;
     }
-    /* The visible label text sits inside a <p> (or span/div) nested inside the
-       button, and an earlier app-wide rule pins ALL <p> tags to 14px !important.
-       That explicit rule on the child element wins over inheritance from the
-       button no matter how the button's own font-size is set — so it has to be
-       overridden directly on the text node itself, not just the button. */
     div[class*="st-key-stepper_row"] button p,
     div[class*="st-key-stepper_row"] button span,
     div[class*="st-key-stepper_row"] button div {
-        font-size: 12px !important;
-        line-height: 1.2 !important;
-        white-space: normal !important;
-        word-break: normal !important;
-        overflow-wrap: normal !important;
-        hyphens: none !important;
+        font-size: 15px !important;
+        line-height: 1 !important;
         margin: 0 !important;
-        text-align: center !important;
+    }
+    /* Default (not yet visited): hollow gray ring on the page background. */
+    div[class*="st-key-stepbtn_"] button {
+        background-color: #1a1d23 !important;
+        border: 1.5px solid #4b5563 !important;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button {
         background-color: #16a34a !important;
-        border: 1px solid #16a34a !important;
-        color: white !important;
-        font-weight: 700 !important;
+        border: 1.5px solid #16a34a !important;
     }
     div[class*="st-key-stepbtn_"][class*="_flagged"] button {
         background-color: #eab308 !important;
-        border: 1px solid #eab308 !important;
-        color: #1a1a1a !important;
-        font-weight: 700 !important;
+        border: 1.5px solid #eab308 !important;
     }
     @keyframes stepbtn-active-flash {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.85); }
-        50% { box-shadow: 0 0 0 4px rgba(239,68,68,0.85); }
+        0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.7); }
+        50% { box-shadow: 0 0 0 5px rgba(37,99,235,0.35); }
     }
     div[class*="st-key-stepbtn_"][class*="_active"] button {
-        outline: 2px solid #ef4444 !important;
-        outline-offset: 1px !important;
+        background-color: #2563eb !important;
+        border: 1.5px solid #2563eb !important;
         animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
-    div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
-        min-width: 112px !important;
-        flex: 0 0 auto !important;
-        width: 112px !important;
-    }
-    div[class*="st-key-stepper_help_row"] {
-        margin-top: -4px;
-        margin-bottom: 6px;
+    /* Labels row: step name centered under each circle, non-interactive
+       except for the small ⚠ popover that can appear beneath it. */
+    div[class*="st-key-stepper_label_row"] {
         overflow-x: auto !important;
-        overflow-y: hidden !important;
+        overflow-y: visible !important;
+        margin-top: 2px;
+        margin-bottom: 4px;
     }
-    div[class*="st-key-stepper_help_row"] > div[data-testid="stHorizontalBlock"] {
+    div[class*="st-key-stepper_label_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
         min-width: max-content !important;
     }
+    div[class*="st-key-stepper_label_row"] div[data-testid="column"] {
+        min-width: 92px !important;
+        flex: 0 0 auto !important;
+        width: 92px !important;
+    }
+    .steplabel_complete, .steplabel_active, .steplabel_flagged, .steplabel_default {
+        font-size: 11px;
+        text-align: center;
+        line-height: 1.25;
+        padding: 0 2px;
+        white-space: normal;
+        word-break: normal;
+        overflow-wrap: normal;
+    }
+    .steplabel_complete { color: #4ade80; font-weight: 600; }
+    .steplabel_active { color: #60a5fa; font-weight: 700; }
+    .steplabel_flagged { color: #facc15; font-weight: 600; }
+    .steplabel_default { color: #9ca3af; font-weight: 400; }
     div[class*="st-key-helpbtn_step_"] {
         display: flex;
         justify-content: center;
@@ -1532,6 +1572,7 @@ st.markdown(
         box-shadow: none !important;
         border-radius: 0 !important;
         color: #6b7280 !important;
+        margin: 2px auto 0 !important;
     }
     div[class*="st-key-helpbtn_step_"] svg,
     div[class*="st-key-helpbtn_step_"] [data-testid="stIconMaterial"],
