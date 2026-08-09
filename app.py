@@ -1325,7 +1325,6 @@ def render_stepper(active_index):
                 state_suffix = ""
 
             container_key = "stepbtn_" + str(i) + state_suffix + ("_active" if is_currently_active else "")
-            show_badge = was_visited and not is_currently_active and step_missing and not is_step_complete
             with cols[i]:
                 with st.container(key=container_key):
                     if st.button(
@@ -1334,21 +1333,30 @@ def render_stepper(active_index):
                     ):
                         st.session_state.step = i
                         st.rerun()
-                    # Count badge on the circle's corner — a plain st.button
-                    # (not st.popover, which twice now has caused its own
-                    # chevron/indicator DOM to render as a separate floating
-                    # shape). Clicking it toggles an explanation panel below
-                    # the whole stepper instead of opening its own popup.
-                    if show_badge:
-                        with st.container(key="stepbadge_" + str(i)):
-                            count_label = str(len(step_missing))
-                            tooltip = str(len(step_missing)) + " item" + ("s" if len(step_missing) != 1 else "") + " still needed on the " + label + " step — tap for the list"
-                            if st.button(count_label, key="step_badge_btn_" + str(i), help=tooltip):
-                                if st.session_state.stepper_open_missing == i:
-                                    st.session_state.stepper_open_missing = None
-                                else:
-                                    st.session_state.stepper_open_missing = i
-                                st.rerun()
+
+    # --- Badge row: sits in normal document flow directly under each circle
+    # (not overlaid via position:absolute — that trick has failed to render
+    # reliably across three attempts). This guarantees the badge is visible
+    # exactly where it's placed, at the cost of a little extra row height. ---
+    with st.container(key="stepper_badge_row"):
+        badge_cols = st.columns(len(STEPS), gap="small")
+        for i, label in enumerate(STEPS):
+            step_missing = get_step_missing_fields(i)
+            is_step_complete = is_step_fully_complete(i)
+            was_visited = i in st.session_state.visited_steps
+            is_currently_active = i == active_index
+            show_badge = was_visited and not is_currently_active and step_missing and not is_step_complete
+            with badge_cols[i]:
+                if show_badge:
+                    with st.container(key="stepbadge_" + str(i)):
+                        count_label = str(len(step_missing))
+                        tooltip = str(len(step_missing)) + " item" + ("s" if len(step_missing) != 1 else "") + " still needed on the " + label + " step — tap for the list"
+                        if st.button(count_label, key="step_badge_btn_" + str(i), help=tooltip, use_container_width=True):
+                            if st.session_state.stepper_open_missing == i:
+                                st.session_state.stepper_open_missing = None
+                            else:
+                                st.session_state.stepper_open_missing = i
+                            st.rerun()
 
     # --- Labels row: full-width-per-column so text-align:center actually
     # centers within the column, not just within its own shrink-wrapped box. ---
@@ -1390,6 +1398,7 @@ def render_stepper(active_index):
                     st.markdown("- " + m)
         else:
             st.session_state.stepper_open_missing = None
+
 
     # --- Legend: collapsed into a small info popover instead of an
     # always-visible row, so it doesn't compete for attention with the
@@ -1567,28 +1576,32 @@ st.markdown(
     div[class*="st-key-stepbtn_"][class*="_active"] button [data-testid="stIconMaterial"] {
         color: #ffffff !important;
     }
-    /* Count badge: a plain st.button (not st.popover — that caused its own
-       chevron DOM to render as a separate floating shape, twice). Clicking
-       it toggles the explanation panel below the stepper instead of
-       opening its own popup, so there's no extra Streamlit UI to fight
-       with. Sized to scale with the bigger circles above. */
-    div[class*="st-key-stepbadge_"] {
-        position: absolute !important;
-        top: -4px !important;
-        right: 2px !important;
-        z-index: 3 !important;
+    /* Badge row: normal in-flow row directly under the circles (not an
+       absolute-positioned overlay — that approach failed to render
+       reliably across three prior attempts). Columns match the circle
+       row's flexible sizing so each badge lines up under its own circle. */
+    div[class*="st-key-stepper_badge_row"] {
+        overflow: visible !important;
+        margin-top: 4px;
+        margin-bottom: 0;
+    }
+    div[class*="st-key-stepper_badge_row"] > div[data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        width: 100% !important;
+        gap: 2px !important;
+    }
+    div[class*="st-key-stepper_badge_row"] div[data-testid="column"] {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
         width: auto !important;
     }
     div[class*="st-key-stepbadge_"] button {
-        min-height: 20px !important;
-        height: 20px !important;
-        width: 20px !important;
-        min-width: 20px !important;
-        max-width: 20px !important;
-        padding: 0 !important;
-        border-radius: 50% !important;
+        min-height: 22px !important;
+        height: 22px !important;
+        padding: 0 6px !important;
+        border-radius: 11px !important;
         background: #dc2626 !important;
-        border: 1.5px solid #0e1117 !important;
+        border: none !important;
         color: #ffffff !important;
         font-size: 11px !important;
         font-weight: 800 !important;
@@ -1597,7 +1610,7 @@ st.markdown(
         align-items: center !important;
         justify-content: center !important;
         box-shadow: none !important;
-        margin: 0 !important;
+        margin: 0 auto !important;
     }
     div[class*="st-key-stepbadge_"] button p {
         margin: 0 !important;
