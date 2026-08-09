@@ -1430,9 +1430,11 @@ st.markdown(
     }
     div[class*="st-key-stepper_row"] {
         overflow-x: auto !important;
-        overflow-y: hidden !important;
+        overflow-y: visible !important;
         -webkit-overflow-scrolling: touch !important;
         scrollbar-width: thin !important;
+        padding-top: 5px !important;
+        padding-bottom: 5px !important;
     }
     div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
