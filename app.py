@@ -1427,24 +1427,25 @@ st.markdown(
         min-width: max-content !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
-        min-width: 124px !important;
+        min-width: 104px !important;
         flex: 0 0 auto !important;
-        width: 124px !important;
+        width: 104px !important;
     }
     div[class*="st-key-stepper_row"] button {
         font-size: 12.5px !important;
-        white-space: nowrap !important;
-        padding: 6px 10px !important;
+        white-space: normal !important;
+        padding: 6px 8px !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        min-height: 3.2em !important;
-        height: 3.2em !important;
+        min-height: 3.4em !important;
+        height: 3.4em !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         text-align: center !important;
-        overflow: visible !important;
-        text-overflow: unset !important;
+        line-height: 1.15 !important;
+        overflow: hidden !important;
+        word-break: normal !important;
         border-radius: 8px !important;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button {
@@ -1469,9 +1470,9 @@ st.markdown(
         animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
-        min-width: 124px !important;
+        min-width: 104px !important;
         flex: 0 0 auto !important;
-        width: 124px !important;
+        width: 104px !important;
     }
     div[class*="st-key-stepper_help_row"] {
         margin-top: -4px;
