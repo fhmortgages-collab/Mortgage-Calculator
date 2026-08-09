@@ -89,6 +89,7 @@ PROPERTY_STATUS_OPTIONS = [
 ]
 
 STEPS = ["Deal", "Client", "Down Payment", "Property", "Income", "Debts", "Analysis", "Docs", "Notes"]
+STEP_ICONS = ["🤝", "👤", "💰", "🏘️", "💵", "💳", "📊", "📄", "📝"]
 
 TRANSACTION_TYPE_OPTIONS = [
     {
@@ -1322,13 +1323,24 @@ def render_stepper(active_index):
             container_key = "stepbtn_" + str(i) + state_suffix + ("_active" if is_currently_active else "")
             with cols[i]:
                 with st.container(key=container_key):
-                    if st.button(display_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
+                    button_label = STEP_ICONS[i] + " " + display_label
+                    if st.button(button_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
                         st.session_state.step = i
                         st.rerun()
 
     st.markdown(
-        "<div style='text-align:center; font-size:11px; color:#9ca3af; margin-bottom:4px;'>"
-        "🟢 Complete &nbsp;•&nbsp; 🟡 Missing info (tap ⚠ for details) &nbsp;•&nbsp; ⚪ Not yet visited"
+        "<div style='display:flex; justify-content:center; align-items:center; gap:14px; "
+        "font-size:11px; color:#9ca3af; margin-bottom:4px; flex-wrap:wrap;'>"
+        "<span style='display:inline-flex; align-items:center; gap:5px;'>"
+        "<span style='width:9px; height:9px; border-radius:50%; background:#16a34a; display:inline-block;'></span>"
+        "Complete</span>"
+        "<span style='display:inline-flex; align-items:center; gap:5px;'>"
+        "<span style='width:9px; height:9px; border-radius:50%; background:#eab308; display:inline-block;'></span>"
+        "Missing info (tap ⚠ for details)</span>"
+        "<span style='display:inline-flex; align-items:center; gap:5px;'>"
+        "<span style='width:9px; height:9px; border-radius:50%; background:#4b5563; display:inline-block; "
+        "border:1px solid #6b7280;'></span>"
+        "Not yet visited</span>"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -1437,8 +1449,8 @@ st.markdown(
         padding: 6px 8px !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        min-height: 3.4em !important;
-        height: 3.4em !important;
+        min-height: 3.7em !important;
+        height: 3.7em !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
