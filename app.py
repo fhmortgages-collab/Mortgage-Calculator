@@ -1308,6 +1308,10 @@ def render_stepper(active_index):
     with st.container(key="stepper_row"):
         cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
+            display_label = label
+            if i == 2 and is_refinance():
+                display_label = "Refinance"
+
             btn_type = "primary" if i == active_index else "secondary"
             step_missing = get_step_missing_fields(i)
             is_step_complete = is_step_fully_complete(i)
@@ -1322,49 +1326,14 @@ def render_stepper(active_index):
                 state_suffix = ""
 
             container_key = "stepbtn_" + str(i) + state_suffix + ("_active" if is_currently_active else "")
-            show_badge = was_visited and not is_currently_active and step_missing and not is_step_complete
             with cols[i]:
                 with st.container(key=container_key):
                     if st.button(
-                        "", key="nav_step_" + str(i), type=btn_type, use_container_width=True,
+                        display_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True,
                         icon=":material/" + STEP_ICONS[i] + ":",
                     ):
                         st.session_state.step = i
                         st.rerun()
-                    # Small badge overlaid on the circle's corner instead of a
-                    # separate floating triangle — tap it for what's missing.
-                    if show_badge:
-                        with st.container(key="stepbadge_" + str(i)):
-                            with st.popover("!", key="step_help_" + str(i)):
-                                st.markdown("**Still needed on this page:**")
-                                for m in step_missing:
-                                    st.markdown("- " + m)
-
-    # --- Labels row: step name under each circle, color-matched to that
-    # step's state. ---
-    with st.container(key="stepper_label_row"):
-        label_cols = st.columns(len(STEPS), gap="small")
-        for i, label in enumerate(STEPS):
-            display_label = label
-            if i == 2 and is_refinance():
-                display_label = "Refinance"
-            step_missing = get_step_missing_fields(i)
-            is_step_complete = is_step_fully_complete(i)
-            is_currently_active = i == active_index
-            was_visited = i in st.session_state.visited_steps
-            if is_step_complete:
-                label_class = "steplabel_complete"
-            elif is_currently_active:
-                label_class = "steplabel_active"
-            elif was_visited and step_missing:
-                label_class = "steplabel_flagged"
-            else:
-                label_class = "steplabel_default"
-            with label_cols[i]:
-                st.markdown(
-                    "<div class='" + label_class + "'>" + display_label + "</div>",
-                    unsafe_allow_html=True,
-                )
 
     # --- Legend: collapsed into a small info popover instead of an
     # always-visible row, so it doesn't compete for attention with the
@@ -1378,7 +1347,7 @@ def render_stepper(active_index):
                 "Complete</span>"
                 "<span style='display:flex; align-items:center; gap:8px;'>"
                 "<span style='width:12px; height:12px; border-radius:50%; background:#eab308; display:inline-block; flex-shrink:0;'></span>"
-                "Missing info — tap the ! badge on that step</span>"
+                "Missing info — the small red dot marks it; tap the step to see what's needed</span>"
                 "<span style='display:flex; align-items:center; gap:8px;'>"
                 "<span style='width:12px; height:12px; border-radius:50%; background:#2563eb; display:inline-block; flex-shrink:0;'></span>"
                 "Current step</span>"
@@ -1463,160 +1432,106 @@ st.markdown(
         overflow-y: visible !important;
         -webkit-overflow-scrolling: touch !important;
         scrollbar-width: thin !important;
-        padding-top: 10px !important;
-        padding-bottom: 4px !important;
+        background: #1a1d23 !important;
+        border-radius: 14px !important;
+        padding: 5px !important;
     }
     div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
         min-width: max-content !important;
-        position: relative !important;
-    }
-    /* Connecting line drawn behind the row of circles — spans from the first
-       circle's center to the last, sitting at the same vertical mid-point as
-       the circles so it reads as a continuous progress line. */
-    div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"]::before {
-        content: "";
-        position: absolute;
-        top: 27px;
-        left: 46px;
-        right: 46px;
-        height: 2px;
-        background: #3b3f47;
-        z-index: 0;
+        gap: 2px !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
-        min-width: 92px !important;
+        min-width: 84px !important;
         flex: 0 0 auto !important;
-        width: 92px !important;
-        position: relative !important;
-        z-index: 1 !important;
+        width: 84px !important;
     }
-    /* Circle badges: fixed 36px circle, icon only, centered in its column so
-       the connecting line above passes through each circle's middle. */
+    /* Tab: icon stacked above label inside one button — Streamlit renders
+       the icon param and label text as sibling nodes inside the button, so
+       flex-direction:column stacks them instead of the default inline row. */
     div[class*="st-key-stepper_row"] button {
-        font-size: 15px !important;
-        padding: 0 !important;
-        width: 36px !important;
-        height: 36px !important;
-        min-width: 36px !important;
-        min-height: 36px !important;
-        max-width: 36px !important;
-        border-radius: 50% !important;
+        flex-direction: column !important;
+        gap: 4px !important;
+        padding: 8px 4px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        min-height: 58px !important;
+        border-radius: 10px !important;
+        border: none !important;
+        background: transparent !important;
         display: flex !important;
         align-items: center !important;
+        justify-content: flex-start !important;
+    }
+    /* Label text matches the app's standard body font size (14px) rather
+       than a shrunk-down nav-specific size. Height is fixed to room for two
+       lines and text is top-aligned, so a one-word label ("Deal") and a
+       two-word label ("Down payment") both start at the same vertical
+       position instead of drifting based on how much text they have. */
+    div[class*="st-key-stepper_row"] button p,
+    div[class*="st-key-stepper_row"] button span:not([data-testid="stIconMaterial"]),
+    div[class*="st-key-stepper_row"] button div {
+        font-size: 14px !important;
+        line-height: 1.2 !important;
+        margin: 0 !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+        text-align: center !important;
+        height: 34px !important;
+        display: flex !important;
+        align-items: flex-start !important;
         justify-content: center !important;
-        margin: 0 auto !important;
-        overflow: hidden !important;
+    }
+    div[class*="st-key-stepper_row"] button [data-testid="stIconMaterial"] {
+        color: #9ca3af !important;
+        font-variation-settings: "FILL" 1, "wght" 600 !important;
+        font-size: 19px !important;
     }
     div[class*="st-key-stepper_row"] button p,
-    div[class*="st-key-stepper_row"] button span,
-    div[class*="st-key-stepper_row"] button div {
-        font-size: 15px !important;
-        line-height: 1 !important;
-        margin: 0 !important;
-    }
-    /* Icons use Streamlit's Material icon font (monochrome by nature, unlike
-       emoji) so a color can actually be forced here — white holds up cleanly
-       across all four circle background colors (green/yellow/blue/dark gray),
-       which plain black would not (too low-contrast on the blue and dark-gray
-       states). */
-    div[class*="st-key-stepper_row"] button [data-testid="stIconMaterial"] {
-        color: #ffffff !important;
-        font-variation-settings: "FILL" 1, "wght" 600 !important;
-        font-size: 17px !important;
-    }
-    /* Default (not yet visited): hollow gray ring on the page background. */
-    div[class*="st-key-stepbtn_"] button {
-        background-color: #1a1d23 !important;
-        border: 1.5px solid #4b5563 !important;
-    }
-    div[class*="st-key-stepbtn_"] button [data-testid="stIconMaterial"] {
-        color: #9ca3af !important;
-    }
-    div[class*="st-key-stepbtn_"][class*="_complete"] button {
-        background-color: #16a34a !important;
-        border: 1.5px solid #16a34a !important;
-    }
-    div[class*="st-key-stepbtn_"][class*="_flagged"] button {
-        background-color: #eab308 !important;
-        border: 1.5px solid #eab308 !important;
+    div[class*="st-key-stepper_row"] button span:not([data-testid="stIconMaterial"]) {
+        color: #9ca3af;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button [data-testid="stIconMaterial"],
-    div[class*="st-key-stepbtn_"][class*="_flagged"] button [data-testid="stIconMaterial"] {
-        color: #ffffff !important;
+    div[class*="st-key-stepbtn_"][class*="_complete"] button p {
+        color: #4ade80 !important;
+    }
+    div[class*="st-key-stepbtn_"][class*="_flagged"] button [data-testid="stIconMaterial"],
+    div[class*="st-key-stepbtn_"][class*="_flagged"] button p {
+        color: #facc15 !important;
     }
     @keyframes stepbtn-active-flash {
         0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.7); }
-        50% { box-shadow: 0 0 0 5px rgba(37,99,235,0.35); }
+        50% { box-shadow: 0 0 0 4px rgba(37,99,235,0.35); }
     }
     div[class*="st-key-stepbtn_"][class*="_active"] button {
-        background-color: #2563eb !important;
-        border: 1.5px solid #2563eb !important;
+        background: #2563eb !important;
         animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
-    div[class*="st-key-stepbtn_"][class*="_active"] button [data-testid="stIconMaterial"] {
+    div[class*="st-key-stepbtn_"][class*="_active"] button [data-testid="stIconMaterial"],
+    div[class*="st-key-stepbtn_"][class*="_active"] button p {
         color: #ffffff !important;
+        font-weight: 600;
     }
-    /* Missing-info badge: small filled dot overlaid on the circle's
-       top-right corner, instead of a separate floating triangle below the
-       label — reads as a standard notification badge. */
+    /* Missing-info dot: pure CSS, no separate widget — sits on the tab's own
+       corner. Tapping the tab (its normal click behavior) navigates to that
+       step to see what's missing. */
     div[class*="st-key-stepbtn_"] {
         position: relative !important;
     }
-    div[class*="st-key-stepbadge_"] {
-        position: absolute !important;
-        top: -2px !important;
-        right: 22px !important;
-        z-index: 2 !important;
+    div[class*="st-key-stepbtn_"][class*="_flagged"]::after {
+        content: "";
+        position: absolute;
+        top: 4px;
+        right: 10px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #dc2626;
+        border: 1.5px solid #1a1d23;
+        z-index: 2;
+        pointer-events: none;
     }
-    div[class*="st-key-stepbadge_"] button {
-        min-height: 16px !important;
-        height: 16px !important;
-        width: 16px !important;
-        min-width: 16px !important;
-        max-width: 16px !important;
-        padding: 0 !important;
-        font-size: 10px !important;
-        font-weight: 800 !important;
-        line-height: 1 !important;
-        border: 1.5px solid #1a1d23 !important;
-        border-radius: 50% !important;
-        background: #dc2626 !important;
-        color: #ffffff !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-shadow: none !important;
-    }
-    /* Labels row: step name centered under each circle. */
-    div[class*="st-key-stepper_label_row"] {
-        overflow-x: auto !important;
-        overflow-y: visible !important;
-        margin-top: 2px;
-        margin-bottom: 2px;
-    }
-    div[class*="st-key-stepper_label_row"] > div[data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        min-width: max-content !important;
-    }
-    div[class*="st-key-stepper_label_row"] div[data-testid="column"] {
-        min-width: 92px !important;
-        flex: 0 0 auto !important;
-        width: 92px !important;
-    }
-    .steplabel_complete, .steplabel_active, .steplabel_flagged, .steplabel_default {
-        font-size: 11px;
-        text-align: center;
-        line-height: 1.25;
-        padding: 0 2px;
-        white-space: normal;
-        word-break: normal;
-        overflow-wrap: normal;
-    }
-    .steplabel_complete { color: #4ade80; font-weight: 600; }
-    .steplabel_active { color: #60a5fa; font-weight: 700; }
-    .steplabel_flagged { color: #facc15; font-weight: 600; }
-    .steplabel_default { color: #9ca3af; font-weight: 400; }
     /* Legend trigger: small unobtrusive link-style popover instead of an
        always-visible row of dot+text, so it doesn't compete with the
        stepper itself for attention. */
