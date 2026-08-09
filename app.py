@@ -1305,6 +1305,9 @@ def is_step_fully_complete(step_index):
 
 
 def render_stepper(active_index):
+    if "stepper_open_missing" not in st.session_state:
+        st.session_state.stepper_open_missing = None
+
     with st.container(key="stepper_row"):
         cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
@@ -1331,17 +1334,21 @@ def render_stepper(active_index):
                     ):
                         st.session_state.step = i
                         st.rerun()
-                    # Count badge on the circle's corner — a real popover this
-                    # time (tap it to see exactly what's missing), with
-                    # Streamlit's default chevron indicator hidden via CSS so
-                    # only the styled red circle shows, instead of the arrow
-                    # rendering as its own separate floating element.
+                    # Count badge on the circle's corner — a plain st.button
+                    # (not st.popover, which twice now has caused its own
+                    # chevron/indicator DOM to render as a separate floating
+                    # shape). Clicking it toggles an explanation panel below
+                    # the whole stepper instead of opening its own popup.
                     if show_badge:
                         with st.container(key="stepbadge_" + str(i)):
-                            with st.popover(str(len(step_missing)), key="step_badge_pop_" + str(i)):
-                                st.markdown("**Still needed on this page:**")
-                                for m in step_missing:
-                                    st.markdown("- " + m)
+                            count_label = str(len(step_missing))
+                            tooltip = str(len(step_missing)) + " item" + ("s" if len(step_missing) != 1 else "") + " still needed on the " + label + " step — tap for the list"
+                            if st.button(count_label, key="step_badge_btn_" + str(i), help=tooltip):
+                                if st.session_state.stepper_open_missing == i:
+                                    st.session_state.stepper_open_missing = None
+                                else:
+                                    st.session_state.stepper_open_missing = i
+                                st.rerun()
 
     # --- Labels row: full-width-per-column so text-align:center actually
     # centers within the column, not just within its own shrink-wrapped box. ---
@@ -1369,6 +1376,21 @@ def render_stepper(active_index):
                     unsafe_allow_html=True,
                 )
 
+    # --- Explanation panel: opened by tapping a red badge above. Plain-language
+    # heading naming the step, so it's clear what's being explained without
+    # having to trace it back to which badge was tapped. ---
+    open_idx = st.session_state.stepper_open_missing
+    if open_idx is not None:
+        open_missing = get_step_missing_fields(open_idx)
+        open_label = STEPS[open_idx] if not (open_idx == 2 and is_refinance()) else "Refinance"
+        if open_missing:
+            with st.container(key="stepper_missing_panel"):
+                st.markdown("**The " + open_label + " step still needs:**")
+                for m in open_missing:
+                    st.markdown("- " + m)
+        else:
+            st.session_state.stepper_open_missing = None
+
     # --- Legend: collapsed into a small info popover instead of an
     # always-visible row, so it doesn't compete for attention with the
     # stepper itself. ---
@@ -1381,7 +1403,7 @@ def render_stepper(active_index):
                 "Complete</span>"
                 "<span style='display:flex; align-items:center; gap:8px;'>"
                 "<span style='width:12px; height:12px; border-radius:50%; background:#eab308; display:inline-block; flex-shrink:0;'></span>"
-                "Missing info — the red badge shows how many fields; tap the step to see what's needed</span>"
+                "Missing info — the red badge shows how many fields are still needed; tap the badge itself to see the list</span>"
                 "<span style='display:flex; align-items:center; gap:8px;'>"
                 "<span style='width:12px; height:12px; border-radius:50%; background:#2563eb; display:inline-block; flex-shrink:0;'></span>"
                 "Current step</span>"
@@ -1490,15 +1512,17 @@ st.markdown(
         width: auto !important;
         position: relative !important;
     }
-    /* Circle: fixed 34px circle, icon only, centered in its (flexible) column. */
+    /* Circle: responsive size via clamp() — scales up to 46px on comfortable
+       screen widths ("bigger tabs") while shrinking down to a 32px floor on
+       the narrowest phones, so 9 of them can never force a horizontal
+       scroll no matter the viewport. */
     div[class*="st-key-stepper_row"] button {
         font-size: 14px !important;
         padding: 0 !important;
-        width: 34px !important;
-        height: 34px !important;
-        min-width: 34px !important;
-        min-height: 34px !important;
-        max-width: 34px !important;
+        width: clamp(32px, 9vw, 46px) !important;
+        height: clamp(32px, 9vw, 46px) !important;
+        min-width: 32px !important;
+        min-height: 32px !important;
         border-radius: 50% !important;
         display: flex !important;
         align-items: center !important;
@@ -1509,7 +1533,7 @@ st.markdown(
     div[class*="st-key-stepper_row"] button [data-testid="stIconMaterial"] {
         color: #ffffff !important;
         font-variation-settings: "FILL" 1, "wght" 600 !important;
-        font-size: 16px !important;
+        font-size: clamp(15px, 4vw, 21px) !important;
     }
     /* Default (not yet visited): hollow gray ring on the page background. */
     div[class*="st-key-stepbtn_"] button {
@@ -1543,30 +1567,30 @@ st.markdown(
     div[class*="st-key-stepbtn_"][class*="_active"] button [data-testid="stIconMaterial"] {
         color: #ffffff !important;
     }
-    /* Count badge: a real popover (tap for the list of what's missing),
-       overlaid on the circle's corner. Positioned absolutely relative to
-       the column; Streamlit's own dropdown-chevron indicator on the
-       popover trigger is hidden so only the styled red circle + number
-       shows, instead of the arrow appearing as a separate floating shape. */
+    /* Count badge: a plain st.button (not st.popover — that caused its own
+       chevron DOM to render as a separate floating shape, twice). Clicking
+       it toggles the explanation panel below the stepper instead of
+       opening its own popup, so there's no extra Streamlit UI to fight
+       with. Sized to scale with the bigger circles above. */
     div[class*="st-key-stepbadge_"] {
         position: absolute !important;
-        top: -3px !important;
-        right: 4px !important;
+        top: -4px !important;
+        right: 2px !important;
         z-index: 3 !important;
         width: auto !important;
     }
     div[class*="st-key-stepbadge_"] button {
-        min-height: 17px !important;
-        height: 17px !important;
-        width: 17px !important;
-        min-width: 17px !important;
-        max-width: 17px !important;
+        min-height: 20px !important;
+        height: 20px !important;
+        width: 20px !important;
+        min-width: 20px !important;
+        max-width: 20px !important;
         padding: 0 !important;
         border-radius: 50% !important;
         background: #dc2626 !important;
         border: 1.5px solid #0e1117 !important;
         color: #ffffff !important;
-        font-size: 10px !important;
+        font-size: 11px !important;
         font-weight: 800 !important;
         line-height: 1 !important;
         display: flex !important;
@@ -1577,16 +1601,18 @@ st.markdown(
     }
     div[class*="st-key-stepbadge_"] button p {
         margin: 0 !important;
-        font-size: 10px !important;
+        font-size: 11px !important;
         color: #ffffff !important;
     }
-    /* Hide Streamlit's built-in popover chevron — without this it renders
-       as its own small arrow glyph next to the badge text, breaking the
-       "single red circle" look. */
-    div[class*="st-key-stepbadge_"] button svg,
-    div[class*="st-key-stepbadge_"] button [data-testid="stIconMaterial"],
-    div[class*="st-key-stepbadge_"] button [data-testid*="Icon"] {
-        display: none !important;
+    /* Explanation panel: opened by tapping a red badge, names which step
+       it's for right in the heading so it reads clearly on its own. */
+    div[class*="st-key-stepper_missing_panel"] {
+        background: rgba(220,38,38,0.08);
+        border: 1px solid rgba(220,38,38,0.35);
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin: 4px 0 12px;
+        font-size: 13px;
     }
     /* Labels row: each label div is forced to the FULL column width (not
        shrink-wrapped to its own text), so text-align:center actually
