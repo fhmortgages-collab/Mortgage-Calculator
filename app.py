@@ -1331,14 +1331,17 @@ def render_stepper(active_index):
                     ):
                         st.session_state.step = i
                         st.rerun()
-                    # Count badge on the circle's corner — plain markdown, not
-                    # a separate widget, so there's nothing for Streamlit to
-                    # decorate with its own chevron/indicator styling.
+                    # Count badge on the circle's corner — a real popover this
+                    # time (tap it to see exactly what's missing), with
+                    # Streamlit's default chevron indicator hidden via CSS so
+                    # only the styled red circle shows, instead of the arrow
+                    # rendering as its own separate floating element.
                     if show_badge:
-                        st.markdown(
-                            "<div class='stepbadge'>" + str(len(step_missing)) + "</div>",
-                            unsafe_allow_html=True,
-                        )
+                        with st.container(key="stepbadge_" + str(i)):
+                            with st.popover(str(len(step_missing)), key="step_badge_pop_" + str(i)):
+                                st.markdown("**Still needed on this page:**")
+                                for m in step_missing:
+                                    st.markdown("- " + m)
 
     # --- Labels row: full-width-per-column so text-align:center actually
     # centers within the column, not just within its own shrink-wrapped box. ---
@@ -1467,33 +1470,35 @@ st.markdown(
     div[class*="st-key-sub_checkbox"] label p:not(:has(span)) {
         color: #b0b6c0 !important;
     }
+    /* Columns are flexible (no fixed width, no forced min-width on the row) so
+       all 9 steps always divide the available width exactly — nothing to
+       scroll, on any screen size. Circle size below is picked to stay
+       comfortably tappable even on the narrowest common phone width. */
     div[class*="st-key-stepper_row"] {
-        overflow-x: auto !important;
-        overflow-y: visible !important;
-        -webkit-overflow-scrolling: touch !important;
-        scrollbar-width: thin !important;
+        overflow: visible !important;
         padding-top: 8px !important;
         padding-bottom: 4px !important;
     }
     div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
-        min-width: max-content !important;
+        width: 100% !important;
+        gap: 2px !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
-        min-width: 84px !important;
-        flex: 0 0 auto !important;
-        width: 84px !important;
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        width: auto !important;
         position: relative !important;
     }
-    /* Circle: fixed 40px circle, icon only, centered in its column. */
+    /* Circle: fixed 34px circle, icon only, centered in its (flexible) column. */
     div[class*="st-key-stepper_row"] button {
-        font-size: 15px !important;
+        font-size: 14px !important;
         padding: 0 !important;
-        width: 40px !important;
-        height: 40px !important;
-        min-width: 40px !important;
-        min-height: 40px !important;
-        max-width: 40px !important;
+        width: 34px !important;
+        height: 34px !important;
+        min-width: 34px !important;
+        min-height: 34px !important;
+        max-width: 34px !important;
         border-radius: 50% !important;
         display: flex !important;
         align-items: center !important;
@@ -1504,7 +1509,7 @@ st.markdown(
     div[class*="st-key-stepper_row"] button [data-testid="stIconMaterial"] {
         color: #ffffff !important;
         font-variation-settings: "FILL" 1, "wght" 600 !important;
-        font-size: 18px !important;
+        font-size: 16px !important;
     }
     /* Default (not yet visited): hollow gray ring on the page background. */
     div[class*="st-key-stepbtn_"] button {
@@ -1538,48 +1543,71 @@ st.markdown(
     div[class*="st-key-stepbtn_"][class*="_active"] button [data-testid="stIconMaterial"] {
         color: #ffffff !important;
     }
-    /* Count badge: overlaid on the circle's own top-right corner. This is
-       plain markdown (not a widget), positioned absolutely relative to the
-       column — so there's no separate interactive element to overlap the
-       circle awkwardly or pick up Streamlit's own indicator styling. */
-    .stepbadge {
-        position: absolute;
-        top: -3px;
-        right: 14px;
-        width: 17px;
-        height: 17px;
-        border-radius: 50%;
-        background: #dc2626;
-        border: 1.5px solid #0e1117;
-        color: #ffffff;
-        font-size: 10px;
-        font-weight: 800;
-        line-height: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 2;
-        pointer-events: none;
+    /* Count badge: a real popover (tap for the list of what's missing),
+       overlaid on the circle's corner. Positioned absolutely relative to
+       the column; Streamlit's own dropdown-chevron indicator on the
+       popover trigger is hidden so only the styled red circle + number
+       shows, instead of the arrow appearing as a separate floating shape. */
+    div[class*="st-key-stepbadge_"] {
+        position: absolute !important;
+        top: -3px !important;
+        right: 4px !important;
+        z-index: 3 !important;
+        width: auto !important;
+    }
+    div[class*="st-key-stepbadge_"] button {
+        min-height: 17px !important;
+        height: 17px !important;
+        width: 17px !important;
+        min-width: 17px !important;
+        max-width: 17px !important;
+        padding: 0 !important;
+        border-radius: 50% !important;
+        background: #dc2626 !important;
+        border: 1.5px solid #0e1117 !important;
+        color: #ffffff !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+    }
+    div[class*="st-key-stepbadge_"] button p {
+        margin: 0 !important;
+        font-size: 10px !important;
+        color: #ffffff !important;
+    }
+    /* Hide Streamlit's built-in popover chevron — without this it renders
+       as its own small arrow glyph next to the badge text, breaking the
+       "single red circle" look. */
+    div[class*="st-key-stepbadge_"] button svg,
+    div[class*="st-key-stepbadge_"] button [data-testid="stIconMaterial"],
+    div[class*="st-key-stepbadge_"] button [data-testid*="Icon"] {
+        display: none !important;
     }
     /* Labels row: each label div is forced to the FULL column width (not
        shrink-wrapped to its own text), so text-align:center actually
        centers within the column — a narrower auto-width box would center
        text only within itself and end up looking left-shifted inside a
-       wider column. */
+       wider column. Columns match the flexible sizing of the circle row
+       above so labels stay aligned under their icons. */
     div[class*="st-key-stepper_label_row"] {
-        overflow-x: auto !important;
-        overflow-y: visible !important;
+        overflow: visible !important;
         margin-top: 4px;
         margin-bottom: 2px;
     }
     div[class*="st-key-stepper_label_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
-        min-width: max-content !important;
+        width: 100% !important;
+        gap: 2px !important;
     }
     div[class*="st-key-stepper_label_row"] div[data-testid="column"] {
-        min-width: 84px !important;
-        flex: 0 0 auto !important;
-        width: 84px !important;
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        width: auto !important;
     }
     div[class*="st-key-stepper_label_row"] div[data-testid="stMarkdownContainer"] {
         width: 100% !important;
@@ -1588,10 +1616,10 @@ st.markdown(
         display: block;
         width: 100%;
         box-sizing: border-box;
-        font-size: 12px;
+        font-size: 11px;
         text-align: center;
-        line-height: 1.25;
-        padding: 0 2px;
+        line-height: 1.2;
+        padding: 0 1px;
         white-space: normal;
         word-break: normal;
         overflow-wrap: normal;
