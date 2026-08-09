@@ -89,12 +89,6 @@ PROPERTY_STATUS_OPTIONS = [
 ]
 
 STEPS = ["Deal", "Client", "Down Payment", "Property", "Income", "Debts", "Analysis", "Docs", "Notes"]
-# Material Symbols icon names (rendered via st.button(icon=":material/<name>:")) —
-# monochrome glyphs, unlike emoji, so their color can actually be controlled via CSS.
-STEP_ICONS = [
-    "handshake", "person", "payments", "home_work", "attach_money",
-    "credit_card", "bar_chart", "description", "edit_note",
-]
 
 TRANSACTION_TYPE_OPTIONS = [
     {
@@ -212,10 +206,10 @@ def help_gds_text(total_income_val, annual_housing_val, gds_val):
     if gds_val is not None:
         file_example = (
             "**Example from this file:** combined gross annual income across all borrowers is **"
-            + fmt_money_md(total_income_val) + "**, and annual housing costs (mortgage principal + interest, "
-            "property taxes, heat, and half of any condo fees) come to **" + fmt_money_md(annual_housing_val)
-            + "**. Dividing one by the other: " + fmt_money_md(annual_housing_val) + " ÷ "
-            + fmt_money_md(total_income_val) + " × 100 = **{:.2f}%**.".format(gds_val)
+            + fmt_money(total_income_val) + "**, and annual housing costs (mortgage principal + interest, "
+            "property taxes, heat, and half of any condo fees) come to **" + fmt_money(annual_housing_val)
+            + "**. Dividing one by the other: " + fmt_money(annual_housing_val) + " ÷ "
+            + fmt_money(total_income_val) + " × 100 = **{:.2f}%**.".format(gds_val)
         )
     else:
         file_example = "**Example from this file:** income hasn't been entered yet, so GDS can't be calculated for this file."
@@ -233,11 +227,11 @@ def help_tds_text(total_income_val, annual_housing_val, annual_other_debt_val, t
     if tds_val is not None:
         total_debt = annual_housing_val + annual_other_debt_val
         file_example = (
-            "**Example from this file:** annual housing costs are **" + fmt_money_md(annual_housing_val)
+            "**Example from this file:** annual housing costs are **" + fmt_money(annual_housing_val)
             + "**, plus other annual debt payments (car loans, credit cards, other properties, etc.) of **"
-            + fmt_money_md(annual_other_debt_val) + "**, giving total annual debt obligations of **"
-            + fmt_money_md(total_debt) + "**. Dividing by combined gross annual income: " + fmt_money_md(total_debt)
-            + " ÷ " + fmt_money_md(total_income_val) + " × 100 = **{:.2f}%**.".format(tds_val)
+            + fmt_money(annual_other_debt_val) + "**, giving total annual debt obligations of **"
+            + fmt_money(total_debt) + "**. Dividing by combined gross annual income: " + fmt_money(total_debt)
+            + " ÷ " + fmt_money(total_income_val) + " × 100 = **{:.2f}%**.".format(tds_val)
         )
     else:
         file_example = "**Example from this file:** income hasn't been entered yet, so TDS can't be calculated for this file."
@@ -1232,7 +1226,7 @@ def get_step_missing_fields(step_index):
                     total_sources += parse_money(amt_raw) or 0.0
                 down_payment_val = parse_money(st.session_state.down_payment_raw)
                 if down_payment_val is not None and round(total_sources, 2) != round(down_payment_val, 2):
-                    missing.append("Down payment source amounts (" + fmt_money_md(total_sources) + ") must sum to the down payment total (" + fmt_money_md(down_payment_val) + ")")
+                    missing.append("Down payment source amounts (" + fmt_money(total_sources) + ") must sum to the down payment total (" + fmt_money(down_payment_val) + ")")
 
     elif step_index == 3:
         if not st.session_state.subject_address.strip():
@@ -1305,13 +1299,14 @@ def is_step_fully_complete(step_index):
 
 
 def render_stepper(active_index):
-    if "stepper_open_missing" not in st.session_state:
-        st.session_state.stepper_open_missing = None
-
     with st.container(key="stepper_row"):
         cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
             btn_type = "primary" if i == active_index else "secondary"
+            display_label = label
+            if i == 2 and is_refinance():
+                display_label = "Refinance"
+
             step_missing = get_step_missing_fields(i)
             is_step_complete = is_step_fully_complete(i)
             was_visited = i in st.session_state.visited_steps
@@ -1327,102 +1322,30 @@ def render_stepper(active_index):
             container_key = "stepbtn_" + str(i) + state_suffix + ("_active" if is_currently_active else "")
             with cols[i]:
                 with st.container(key=container_key):
-                    if st.button(
-                        "", key="nav_step_" + str(i), type=btn_type, use_container_width=True,
-                        icon=":material/" + STEP_ICONS[i] + ":",
-                    ):
+                    if st.button(display_label, key="nav_step_" + str(i), type=btn_type, use_container_width=True):
                         st.session_state.step = i
                         st.rerun()
 
-    # --- Badge row: sits in normal document flow directly under each circle
-    # (not overlaid via position:absolute — that trick has failed to render
-    # reliably across three attempts). This guarantees the badge is visible
-    # exactly where it's placed, at the cost of a little extra row height. ---
-    with st.container(key="stepper_badge_row"):
-        badge_cols = st.columns(len(STEPS), gap="small")
+    st.markdown(
+        "<div style='text-align:center; font-size:9px; color:#6b7280; margin-bottom:1px; line-height:1.2;'>"
+        "🟢 Complete &nbsp;•&nbsp; 🟡 Missing (tap ⚠) &nbsp;•&nbsp; ⚪ Not visited"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    with st.container(key="stepper_help_row"):
+        help_cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
             step_missing = get_step_missing_fields(i)
-            is_step_complete = is_step_fully_complete(i)
             was_visited = i in st.session_state.visited_steps
             is_currently_active = i == active_index
-            show_badge = was_visited and not is_currently_active and step_missing and not is_step_complete
-            with badge_cols[i]:
-                if show_badge:
-                    with st.container(key="stepbadge_" + str(i)):
-                        count_label = str(len(step_missing))
-                        tooltip = str(len(step_missing)) + " item" + ("s" if len(step_missing) != 1 else "") + " still needed on the " + label + " step — tap for the list"
-                        if st.button(count_label, key="step_badge_btn_" + str(i), help=tooltip, use_container_width=True):
-                            if st.session_state.stepper_open_missing == i:
-                                st.session_state.stepper_open_missing = None
-                            else:
-                                st.session_state.stepper_open_missing = i
-                            st.rerun()
-
-    # --- Labels row: full-width-per-column so text-align:center actually
-    # centers within the column, not just within its own shrink-wrapped box. ---
-    with st.container(key="stepper_label_row"):
-        label_cols = st.columns(len(STEPS), gap="small")
-        for i, label in enumerate(STEPS):
-            display_label = label
-            if i == 2 and is_refinance():
-                display_label = "Refinance"
-            step_missing = get_step_missing_fields(i)
-            is_step_complete = is_step_fully_complete(i)
-            is_currently_active = i == active_index
-            was_visited = i in st.session_state.visited_steps
-            if is_step_complete:
-                label_class = "steplabel_complete"
-            elif is_currently_active:
-                label_class = "steplabel_active"
-            elif was_visited and step_missing:
-                label_class = "steplabel_flagged"
-            else:
-                label_class = "steplabel_default"
-            with label_cols[i]:
-                st.markdown(
-                    "<div class='steplabel " + label_class + "'>" + display_label + "</div>",
-                    unsafe_allow_html=True,
-                )
-
-    # --- Explanation panel: opened by tapping a red badge above. Plain-language
-    # heading naming the step, so it's clear what's being explained without
-    # having to trace it back to which badge was tapped. ---
-    open_idx = st.session_state.stepper_open_missing
-    if open_idx is not None:
-        open_missing = get_step_missing_fields(open_idx)
-        open_label = STEPS[open_idx] if not (open_idx == 2 and is_refinance()) else "Refinance"
-        if open_missing:
-            with st.container(key="stepper_missing_panel"):
-                st.markdown("**The " + open_label + " step still needs:**")
-                for m in open_missing:
-                    st.markdown("- " + m)
-        else:
-            st.session_state.stepper_open_missing = None
-
-
-    # --- Legend: collapsed into a small info popover instead of an
-    # always-visible row, so it doesn't compete for attention with the
-    # stepper itself. ---
-    with st.container(key="stepper_legend_trigger"):
-        with st.popover(":material/info: Legend", key="stepper_legend_popover"):
-            st.markdown(
-                "<div style='display:flex; flex-direction:column; gap:8px; font-size:13px;'>"
-                "<span style='display:flex; align-items:center; gap:8px;'>"
-                "<span style='width:12px; height:12px; border-radius:50%; background:#16a34a; display:inline-block; flex-shrink:0;'></span>"
-                "Complete</span>"
-                "<span style='display:flex; align-items:center; gap:8px;'>"
-                "<span style='width:12px; height:12px; border-radius:50%; background:#eab308; display:inline-block; flex-shrink:0;'></span>"
-                "Missing info — the red badge shows how many fields are still needed; tap the badge itself to see the list</span>"
-                "<span style='display:flex; align-items:center; gap:8px;'>"
-                "<span style='width:12px; height:12px; border-radius:50%; background:#2563eb; display:inline-block; flex-shrink:0;'></span>"
-                "Current step</span>"
-                "<span style='display:flex; align-items:center; gap:8px;'>"
-                "<span style='width:12px; height:12px; border-radius:50%; background:#1a1d23; border:1.5px solid #4b5563; display:inline-block; flex-shrink:0;'></span>"
-                "Not yet visited</span>"
-                "</div>",
-                unsafe_allow_html=True,
-            )
-
+            show_help = was_visited and not is_currently_active and step_missing and not is_step_fully_complete(i)
+            with help_cols[i]:
+                if show_help:
+                    with st.container(key="helpbtn_step_" + str(i)):
+                        with st.popover("⚠", key="step_help_" + str(i)):
+                            st.markdown("**Still needed on this page:**")
+                            for m in step_missing:
+                                st.markdown("- " + m)
 
 
 st.set_page_config(page_title="FH.Mortgages Calculator", page_icon="🏠", layout="centered")
@@ -1438,6 +1361,19 @@ st.markdown(
     }
     .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stCaptionContainer"] p {
         font-size: 13px !important;
+    }
+    /* Force column pairs (Creditor/Payment, Employer Name/Address, etc.) to stay
+       side-by-side down to 480px, instead of Streamlit's default stacking breakpoint
+       which kicks in much wider and causes fields to stack full-width unnecessarily. */
+    @media (min-width: 481px) {
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+        }
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+            width: unset !important;
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+        }
     }
     /* Calculated values shown inline via markdown backticks (e.g. debt/income math
        explanations) render as <code> spans, which Streamlit sizes/fonts differently
@@ -1456,14 +1392,6 @@ st.markdown(
         min-height: 2.4em !important;
         display: flex !important;
         align-items: flex-end !important;
-        margin-top: 10px !important;
-    }
-    /* Section titles (### / ####) should read as a clear step above the
-       helper/caption text sitting directly under them — bump weight so the
-       hierarchy is unambiguous at a glance. */
-    .stApp h3, .stApp h4 {
-        font-weight: 700 !important;
-        margin-top: 4px !important;
     }
     /* Uniform height for every single-line text input, number input, and dropdown
        app-wide — so fields sitting side by side (like the Income section) always
@@ -1472,17 +1400,13 @@ st.markdown(
     div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
         min-height: 2.6em !important;
         box-sizing: border-box !important;
-        border-radius: 8px !important;
     }
-    /* Give every widget row consistent breathing room so multi-column form
-       sections (Property Characteristics, Income) don't drift out of alignment
-       when one field's help text or error message pushes neighboring rows. */
-    div[data-testid="stHorizontalBlock"] {
-        align-items: flex-start !important;
-        gap: 1rem !important;
+    div[data-baseweb="tag"] {
+        min-height: 1.7em !important;
+        margin: 2px !important;
     }
-    div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"] {
-        margin-bottom: 0.35rem;
+    div[data-baseweb="select"] {
+        gap: 4px !important;
     }
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
@@ -1501,193 +1425,95 @@ st.markdown(
     div[class*="st-key-sub_checkbox"] label p:not(:has(span)) {
         color: #b0b6c0 !important;
     }
-    /* Columns are flexible (no fixed width, no forced min-width on the row) so
-       all 9 steps always divide the available width exactly — nothing to
-       scroll, on any screen size. Circle size below is picked to stay
-       comfortably tappable even on the narrowest common phone width. */
     div[class*="st-key-stepper_row"] {
-        overflow: visible !important;
-        padding-top: 8px !important;
-        padding-bottom: 4px !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: thin !important;
     }
     div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
-        width: 100% !important;
-        gap: 2px !important;
+        min-width: max-content !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
-        flex: 1 1 0 !important;
-        min-width: 0 !important;
-        width: auto !important;
-        position: relative !important;
+        min-width: 92px !important;
+        flex: 0 0 auto !important;
+        width: 92px !important;
     }
-    /* Circle: responsive size via clamp() — scales up to 46px on comfortable
-       screen widths ("bigger tabs") while shrinking down to a 32px floor on
-       the narrowest phones, so 9 of them can never force a horizontal
-       scroll no matter the viewport. */
     div[class*="st-key-stepper_row"] button {
-        font-size: 14px !important;
-        padding: 0 !important;
-        width: clamp(32px, 9vw, 46px) !important;
-        height: clamp(32px, 9vw, 46px) !important;
-        min-width: 32px !important;
-        min-height: 32px !important;
-        border-radius: 50% !important;
+        font-size: 12px !important;
+        white-space: nowrap !important;
+        padding: 6px 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        min-height: 3.2em !important;
+        height: 3.2em !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin: 0 auto !important;
+        text-align: center !important;
         overflow: hidden !important;
-    }
-    div[class*="st-key-stepper_row"] button [data-testid="stIconMaterial"] {
-        color: #ffffff !important;
-        font-variation-settings: "FILL" 1, "wght" 600 !important;
-        font-size: clamp(15px, 4vw, 21px) !important;
-    }
-    /* Default (not yet visited): hollow gray ring on the page background. */
-    div[class*="st-key-stepbtn_"] button {
-        background-color: #1a1d23 !important;
-        border: 1.5px solid #4b5563 !important;
-    }
-    div[class*="st-key-stepbtn_"] button [data-testid="stIconMaterial"] {
-        color: #9ca3af !important;
+        text-overflow: ellipsis !important;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button {
         background-color: #16a34a !important;
-        border: 1.5px solid #16a34a !important;
+        border: 1px solid #16a34a !important;
+        color: white !important;
+        font-weight: 700 !important;
     }
     div[class*="st-key-stepbtn_"][class*="_flagged"] button {
         background-color: #eab308 !important;
-        border: 1.5px solid #eab308 !important;
-    }
-    div[class*="st-key-stepbtn_"][class*="_complete"] button [data-testid="stIconMaterial"],
-    div[class*="st-key-stepbtn_"][class*="_flagged"] button [data-testid="stIconMaterial"] {
-        color: #ffffff !important;
+        border: 1px solid #eab308 !important;
+        color: #1a1a1a !important;
+        font-weight: 700 !important;
     }
     @keyframes stepbtn-active-flash {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.7); }
-        50% { box-shadow: 0 0 0 5px rgba(37,99,235,0.35); }
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.85); }
+        50% { box-shadow: 0 0 0 4px rgba(239,68,68,0.85); }
     }
     div[class*="st-key-stepbtn_"][class*="_active"] button {
-        background-color: #2563eb !important;
-        border: 1.5px solid #2563eb !important;
+        outline: 2px solid #ef4444 !important;
+        outline-offset: 1px !important;
         animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
-    div[class*="st-key-stepbtn_"][class*="_active"] button [data-testid="stIconMaterial"] {
-        color: #ffffff !important;
+    div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
+        min-width: 92px !important;
+        flex: 0 0 auto !important;
+        width: 92px !important;
     }
-    /* Badge row: normal in-flow row directly under the circles (not an
-       absolute-positioned overlay — that approach failed to render
-       reliably across three prior attempts). Columns match the circle
-       row's flexible sizing so each badge lines up under its own circle. */
-    div[class*="st-key-stepper_badge_row"] {
-        overflow: visible !important;
-        margin-top: 4px;
-        margin-bottom: 0;
+    div[class*="st-key-stepper_help_row"] {
+        margin-top: -4px;
+        margin-bottom: 6px;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
     }
-    div[class*="st-key-stepper_badge_row"] > div[data-testid="stHorizontalBlock"] {
+    div[class*="st-key-stepper_help_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
-        width: 100% !important;
-        gap: 2px !important;
+        min-width: max-content !important;
     }
-    div[class*="st-key-stepper_badge_row"] div[data-testid="column"] {
-        flex: 1 1 0 !important;
-        min-width: 0 !important;
-        width: auto !important;
-    }
-    div[class*="st-key-stepbadge_"] button {
-        min-height: 22px !important;
-        height: 22px !important;
-        padding: 0 6px !important;
-        border-radius: 11px !important;
-        background: #dc2626 !important;
-        border: none !important;
-        color: #ffffff !important;
-        font-size: 11px !important;
-        font-weight: 800 !important;
-        line-height: 1 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-shadow: none !important;
-        margin: 0 auto !important;
-    }
-    div[class*="st-key-stepbadge_"] button p {
-        margin: 0 !important;
-        font-size: 11px !important;
-        color: #ffffff !important;
-    }
-    /* Explanation panel: opened by tapping a red badge, names which step
-       it's for right in the heading so it reads clearly on its own. */
-    div[class*="st-key-stepper_missing_panel"] {
-        background: rgba(220,38,38,0.08);
-        border: 1px solid rgba(220,38,38,0.35);
-        border-radius: 10px;
-        padding: 12px 16px;
-        margin: 4px 0 12px;
-        font-size: 13px;
-    }
-    /* Labels row: each label div is forced to the FULL column width (not
-       shrink-wrapped to its own text), so text-align:center actually
-       centers within the column — a narrower auto-width box would center
-       text only within itself and end up looking left-shifted inside a
-       wider column. Columns match the flexible sizing of the circle row
-       above so labels stay aligned under their icons. */
-    div[class*="st-key-stepper_label_row"] {
-        overflow: visible !important;
-        margin-top: 4px;
-        margin-bottom: 2px;
-    }
-    div[class*="st-key-stepper_label_row"] > div[data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        width: 100% !important;
-        gap: 2px !important;
-    }
-    div[class*="st-key-stepper_label_row"] div[data-testid="column"] {
-        flex: 1 1 0 !important;
-        min-width: 0 !important;
-        width: auto !important;
-    }
-    div[class*="st-key-stepper_label_row"] div[data-testid="stMarkdownContainer"] {
-        width: 100% !important;
-    }
-    .steplabel {
-        display: block;
-        width: 100%;
-        box-sizing: border-box;
-        font-size: 11px;
-        text-align: center;
-        line-height: 1.2;
-        padding: 0 1px;
-        white-space: normal;
-        word-break: normal;
-        overflow-wrap: normal;
-    }
-    .steplabel_complete { color: #4ade80; font-weight: 600; }
-    .steplabel_active { color: #60a5fa; font-weight: 700; }
-    .steplabel_flagged { color: #facc15; font-weight: 600; }
-    .steplabel_default { color: #9ca3af; font-weight: 400; }
-    /* Legend trigger: small unobtrusive link-style popover instead of an
-       always-visible row of dot+text, so it doesn't compete with the
-       stepper itself for attention. */
-    div[class*="st-key-stepper_legend_trigger"] {
+    div[class*="st-key-helpbtn_step_"] {
         display: flex;
         justify-content: center;
-        margin-bottom: 8px;
     }
-    div[class*="st-key-stepper_legend_trigger"] button {
-        min-height: unset !important;
-        height: auto !important;
-        padding: 2px 10px !important;
+    div[class*="st-key-helpbtn_step_"] button {
+        min-height: 1.2em !important;
+        height: 1.2em !important;
+        width: 1.2em !important;
+        min-width: 1.2em !important;
+        padding: 0 !important;
         font-size: 11px !important;
-        color: #9ca3af !important;
-        background: transparent !important;
+        font-weight: 700 !important;
+        line-height: 1 !important;
         border: none !important;
+        background: transparent !important;
         box-shadow: none !important;
+        border-radius: 0 !important;
+        color: #6b7280 !important;
     }
-    div[class*="st-key-stepper_legend_trigger"] button [data-testid="stIconMaterial"] {
-        font-size: 13px !important;
-        color: #9ca3af !important;
+    div[class*="st-key-helpbtn_step_"] svg,
+    div[class*="st-key-helpbtn_step_"] [data-testid="stIconMaterial"],
+    div[class*="st-key-helpbtn_step_"] [data-testid*="Icon"] {
+        display: none !important;
     }
     div[class*="st-key-fieldrow_"] div[data-testid="stHorizontalBlock"] {
         align-items: flex-end !important;
@@ -1813,15 +1639,6 @@ st.markdown(
         width: 100% !important;
         margin: 0 !important;
     }
-    /* Breathing room between sidebar utility elements (timer, download,
-       upload, refresh, calculator) — default Streamlit spacing packs these
-       tightly enough to feel cluttered. */
-    section[data-testid="stSidebar"] div[data-testid="stElementContainer"] {
-        margin-bottom: 12px !important;
-    }
-    section[data-testid="stSidebar"] [data-testid="stFileUploader"] {
-        margin-bottom: 2px !important;
-    }
     .stButton > button, .stDownloadButton > button {
         min-height: 3.4em;
         white-space: normal;
@@ -1829,6 +1646,27 @@ st.markdown(
         font-size: 13px;
         padding: 4px 8px;
         box-sizing: border-box;
+    }
+    /* De-emphasize secondary buttons (Back, Refresh) relative to primary buttons
+       (Continue, Submit) — smaller, lighter, less visual weight, so the primary
+       action is unambiguous on every page without needing per-page layout changes. */
+    button[kind="secondary"] {
+        min-height: 2.6em !important;
+        font-size: 12px !important;
+        opacity: 0.75 !important;
+        font-weight: 400 !important;
+    }
+    button[kind="primary"] {
+        font-weight: 700 !important;
+    }
+    /* Re-assert the stepper tab row's own sizing immediately after the rule above,
+       since it shares equal CSS specificity — this guarantees the stepper's tuned
+       sizing wins via source order rather than being silently overridden. */
+    div[class*="st-key-stepper_row"] button[kind="secondary"] {
+        min-height: 3.2em !important;
+        font-size: 12px !important;
+        opacity: 1 !important;
+        font-weight: 400 !important;
     }
     .stepper-wrap {display:flex; justify-content:space-between; margin-bottom: 1.5rem;}
     .step {text-align:center; flex:1; font-size:13px; color:#9ca3af;}
@@ -1850,7 +1688,7 @@ st.markdown(
     }
     .doc-list {
         background: rgba(37,99,235,0.08); border:1px solid rgba(37,99,235,0.35); border-radius:8px;
-        padding: 16px; margin-top: 8px; margin-bottom: 16px; font-size: 13px; color:#e5e7eb;
+        padding: 12px; margin-top: 6px; margin-bottom: 10px; font-size: 13px; color:#e5e7eb; line-height:1.4;
     }
     /* Checkbox lists (Down Payment Sources, Debt Types, Income Sources, etc.) —
        even, generous vertical spacing so they read as a clean scannable column
@@ -1896,27 +1734,18 @@ st.markdown(
         padding: 16px !important;
         margin: 8px 0 20px !important;
     }
-    /* Transaction-type selection cards: consistent card look plus a fixed
-       min-height so all four cards' bottom borders line up horizontally
-       regardless of description text length (Purchase's one-liner vs
-       Switch's two-liner) — the radio+text row is vertically centered
-       within that fixed height rather than just top-aligned. */
     div[class*="st-key-txntype_card_"] {
         background: rgba(255,255,255,0.035);
         border: 1px solid rgba(255,255,255,0.09);
         border-radius: 10px;
-        padding: 14px 16px !important;
-        margin: 8px 0 !important;
-        min-height: 92px !important;
-        display: flex !important;
-        align-items: center !important;
-        box-sizing: border-box !important;
+        padding: 10px 14px !important;
+        margin: 0 0 8px !important;
     }
-    div[class*="st-key-txntype_card_"] > div {
-        width: 100% !important;
+    div[class*="st-key-txntype_card_"] [data-testid="stMarkdownContainer"] p {
+        margin-bottom: 1px !important;
     }
-    div[class*="st-key-txntype_card_"] div[data-testid="stHorizontalBlock"] {
-        align-items: center !important;
+    div[class*="st-key-txntype_card_"] [data-testid="stCaptionContainer"] {
+        margin-bottom: 0 !important;
     }
     div[class*="st-key-card_doc_cat_"],
     div[class*="st-key-card_doc_edit_"] {
@@ -2556,7 +2385,7 @@ def render_transaction_type():
     st.write("Select the type of transaction this application is for.")
     render_calculator_popover("txntype")
 
-    for opt in TRANSACTION_TYPE_OPTIONS:
+    def render_txntype_card(opt):
         selected = st.session_state.transaction_type == opt["key"]
         with st.container(key="txntype_card_" + opt["key"]):
             col_radio, col_text = st.columns([1, 6])
@@ -2575,6 +2404,13 @@ def render_transaction_type():
             with col_text:
                 st.markdown("**" + opt["label"] + "**")
                 st.caption(opt["description"])
+
+    for row_start in range(0, len(TRANSACTION_TYPE_OPTIONS), 2):
+        row_opts = TRANSACTION_TYPE_OPTIONS[row_start:row_start + 2]
+        grid_cols = st.columns(2)
+        for opt, col in zip(row_opts, grid_cols):
+            with col:
+                render_txntype_card(opt)
 
     if st.session_state.transaction_type_error:
         st.markdown(":red[" + st.session_state.transaction_type_error + "]")
@@ -2944,11 +2780,11 @@ def render_down_payment():
                 docs_html = ""
                 for d in source["documents"]:
                     docs_html += "<li>" + d + "</li>"
-                st.markdown(
-                    "<div class='doc-list'><b>Required Documentation</b>"
-                    "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
-                    unsafe_allow_html=True,
-                )
+                with st.expander("Required documents (" + str(len(source["documents"])) + ")", expanded=False):
+                    st.markdown(
+                        "<div class='doc-list'><ul style='margin:0 0 0 18px;'>" + docs_html + "</ul></div>",
+                        unsafe_allow_html=True,
+                    )
                 if source["notes"]:
                     st.markdown("<div class='doc-list-note'>" + source["notes"] + "</div>", unsafe_allow_html=True)
 
@@ -2983,8 +2819,8 @@ def render_down_payment():
             totals_match = True
         else:
             st.error(
-                "✗ The total down payment amount (" + fmt_money_md(down_payment) + ") does not match "
-                "the sum of the sources (" + fmt_money_md(total_sources) + "). Please adjust your entries."
+                "✗ The total down payment amount (" + fmt_money(down_payment) + ") does not match "
+                "the sum of the sources (" + fmt_money(total_sources) + "). Please adjust your entries."
             )
 
     st.divider()
@@ -3788,8 +3624,8 @@ def explain_income_source(key, source, amounts):
         rate = rental_inclusion_rate_value(rate_label)
         qualifying = gross_rental * rate
         return (
-            source["label"] + ": :green[" + fmt_money_md(gross_rental) + "] gross annual rental × :green[" + rate_label + "]"
-            + " inclusion rate = :green[" + fmt_money_md(qualifying) + "]"
+            source["label"] + ": :green[" + fmt_money(gross_rental) + "] gross annual rental × :green[" + rate_label + "]"
+            + " inclusion rate = :green[" + fmt_money(qualifying) + "]"
         )
 
     if base_key == "rental_component_primary":
@@ -3798,8 +3634,8 @@ def explain_income_source(key, source, amounts):
         rate = rental_inclusion_rate_value(rate_label)
         qualifying = gross_amount * rate
         return (
-            source["label"] + ": :green[" + fmt_money_md(gross_amount) + "] gross annual rental × :green[" + rate_label + "]"
-            + " inclusion rate = :green[" + fmt_money_md(qualifying) + "]"
+            source["label"] + ": :green[" + fmt_money(gross_amount) + "] gross annual rental × :green[" + rate_label + "]"
+            + " inclusion rate = :green[" + fmt_money(qualifying) + "]"
         )
 
     if base_key in VARIABLE_INCOME_KEYS:
@@ -3816,19 +3652,19 @@ def explain_income_source(key, source, amounts):
         qualifying = compute_qualifying_variable_income(amounts)
         if recent_v < prior_v:
             return (
-                source["label"] + ownership_note + ": most recent year (:green[" + fmt_money_md(recent_v) + "]) is lower than the "
-                "prior year (:green[" + fmt_money_md(prior_v) + "]), so the lower, most recent year is used = "
-                + ":green[" + fmt_money_md(qualifying) + "]"
+                source["label"] + ownership_note + ": most recent year (:green[" + fmt_money(recent_v) + "]) is lower than the "
+                "prior year (:green[" + fmt_money(prior_v) + "]), so the lower, most recent year is used = "
+                + ":green[" + fmt_money(qualifying) + "]"
             )
         else:
             return (
-                source["label"] + ownership_note + ": :green[" + fmt_money_md(recent_v) + "] (recent year) + :green[" + fmt_money_md(prior_v)
-                + "] (prior year), 2-year average = (:green[" + fmt_money_md(recent_v) + "] + :green[" + fmt_money_md(prior_v)
-                + "]) ÷ 2 = :green[" + fmt_money_md(qualifying) + "]"
+                source["label"] + ownership_note + ": :green[" + fmt_money(recent_v) + "] (recent year) + :green[" + fmt_money(prior_v)
+                + "] (prior year), 2-year average = (:green[" + fmt_money(recent_v) + "] + :green[" + fmt_money(prior_v)
+                + "]) ÷ 2 = :green[" + fmt_money(qualifying) + "]"
             )
 
     amount = parse_money(amounts.get("amount", "")) or 0.0
-    return source["label"] + ": stated annual amount = :green[" + fmt_money_md(amount) + "]"
+    return source["label"] + ": stated annual amount = :green[" + fmt_money(amount) + "]"
 
 
 def compute_borrower_income(borrower_idx):
@@ -3889,16 +3725,16 @@ def render_income_category_card(bidx, skey, source, amounts):
             if recent_v < prior_v:
                 qualifying = recent_v
                 rule_note = (
-                    "most recent year (" + fmt_money_md(recent_v) + ") is lower than the prior year ("
-                    + fmt_money_md(prior_v) + "), so the lower, most recent year is used"
+                    "most recent year (" + fmt_money(recent_v) + ") is lower than the prior year ("
+                    + fmt_money(prior_v) + "), so the lower, most recent year is used"
                 )
             else:
                 qualifying = (recent_v + prior_v) / 2.0
                 rule_note = (
-                    "(" + fmt_money_md(recent_v) + " + " + fmt_money_md(prior_v) + ") ÷ 2 = "
-                    + fmt_money_md(qualifying) + " (2-year average, since the most recent year is higher or equal)"
+                    "(" + fmt_money(recent_v) + " + " + fmt_money(prior_v) + ") ÷ 2 = "
+                    + fmt_money(qualifying) + " (2-year average, since the most recent year is higher or equal)"
                 )
-            st.caption("Qualifying Income (used for GDS/TDS): **" + fmt_money_md(qualifying) + "** — " + rule_note)
+            st.caption("Qualifying Income (used for GDS/TDS): **" + fmt_money(qualifying) + "** — " + rule_note)
         elif recent_v is not None or prior_v is not None:
             st.caption("Enter both years to calculate qualifying income for GDS/TDS.")
 
@@ -4186,11 +4022,11 @@ def render_income_category_card(bidx, skey, source, amounts):
 
     # --- Required documentation (unchanged from before) ---
     docs_html = "".join("<li>" + d + "</li>" for d in source["documents"])
-    st.markdown(
-        "<div class='doc-list'><b>Required Documentation</b>"
-        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
-        unsafe_allow_html=True,
-    )
+    with st.expander("Required documents (" + str(len(source["documents"])) + ")", expanded=False):
+        st.markdown(
+            "<div class='doc-list'><ul style='margin:0 0 0 18px;'>" + docs_html + "</ul></div>",
+            unsafe_allow_html=True,
+        )
     if source["notes"]:
         st.markdown("<div class='doc-list-note'>" + source["notes"] + "</div>", unsafe_allow_html=True)
 
@@ -4282,7 +4118,7 @@ def render_income():
                         unsafe_allow_html=True,
                     )
                 render_income_category_card(bidx, instance_key, source, amounts)
-                if type_key not in VARIABLE_INCOME_KEYS:
+                if type_key not in VARIABLE_INCOME_KEYS and compute_income_source_value(instance_key, amounts) != 0:
                     # Variable-income sources already show their own full-calculation
                     # caption inline within the card (2-year rule breakdown).
                     st.caption(explain_income_source(instance_key, source, amounts))
@@ -4311,8 +4147,12 @@ def render_income():
             st.session_state.income_errors[bidx] = errors
             if errors:
                 all_valid = False
-                for msg in errors.values():
-                    st.caption(":red[" + msg + "]")
+                if len(errors) == 1:
+                    st.caption(":red[" + next(iter(errors.values())) + "]")
+                else:
+                    with st.expander(":red[" + str(len(errors)) + " items need attention]", expanded=False):
+                        for msg in errors.values():
+                            st.caption(":red[" + msg + "]")
 
     st.divider()
     income_header_col, income_help_col = st.columns([12, 1])
@@ -4334,7 +4174,7 @@ def render_income():
             with st.container(key="helpbtn_help_income_calc"):
                 with st.popover("?", key="help_income_calc"):
                     st.caption(
-                        "Calculation: " + " + ".join(fmt_money_md(v) for _, v in calc_terms) + " = " + fmt_money_md(grand_total)
+                        "Calculation: " + " + ".join(fmt_money(v) for _, v in calc_terms) + " = " + fmt_money(grand_total)
                     )
                     st.divider()
                     for label, v in calc_terms:
@@ -4452,12 +4292,12 @@ def explain_debt_payment(debt_type, amounts):
         payment = balance * pct
         explanation = (
             debt_type["label"] + ": " + "{:.0f}%".format(pct * 100) + " of "
-            + ":green[" + fmt_money_md(balance) + "]" + " balance = " + ":green[" + fmt_money_md(payment) + "]" + "/month"
+            + ":green[" + fmt_money(balance) + "]" + " balance = " + ":green[" + fmt_money(payment) + "]" + "/month"
         )
         return payment, explanation
     else:
         payment = parse_money(amounts.get("payment", "")) or 0.0
-        explanation = debt_type["label"] + ": stated monthly payment = " + ":green[" + fmt_money_md(payment) + "]" + "/month"
+        explanation = debt_type["label"] + ": stated monthly payment = " + ":green[" + fmt_money(payment) + "]" + "/month"
         return payment, explanation
 
 
@@ -4657,9 +4497,9 @@ def render_debts():
                 total_heat += h
 
             st.caption(
-                "Mortgage/Loan " + fmt_money_md(m) + " + Taxes " + fmt_money_md(t)
-                + " + Condo " + fmt_money_md(c) + " + Heat " + fmt_money_md(h)
-                + " = " + fmt_money_md(prop_total) + "/month"
+                "Mortgage/Loan " + fmt_money(m) + " + Taxes " + fmt_money(t)
+                + " + Condo " + fmt_money(c) + " + Heat " + fmt_money(h)
+                + " = " + fmt_money(prop_total) + "/month"
                 + (" (excluded from GDS/TDS — firm sale)" if is_firm_sale else "")
             )
             st.markdown(
@@ -4671,15 +4511,16 @@ def render_debts():
                 st.caption(":red[Please enter the property address.]")
                 property_errors_any = True
 
-            st.markdown(
-                "<div class='doc-list'><b>Required Documentation</b><ul style='margin:6px 0 0 18px;'>"
-                "<li>Mortgage statement or loan agreement</li>"
-                "<li>Property tax assessment or bill</li>"
-                "<li>Condo fee statement (if applicable)</li>"
-                "<li>Heating bill or utility estimate</li>"
-                "</ul></div>",
-                unsafe_allow_html=True,
-            )
+            with st.expander("Required documents (4)", expanded=False):
+                st.markdown(
+                    "<div class='doc-list'><ul style='margin:0 0 0 18px;'>"
+                    "<li>Mortgage statement or loan agreement</li>"
+                    "<li>Property tax assessment or bill</li>"
+                    "<li>Condo fee statement (if applicable)</li>"
+                    "<li>Heating bill or utility estimate</li>"
+                    "</ul></div>",
+                    unsafe_allow_html=True,
+                )
 
             if st.button("Remove Property " + str(pidx + 1), key="remove_prop_" + str(pidx)):
                 st.session_state["confirm_remove_prop"] = pidx
@@ -4791,18 +4632,20 @@ def render_debts():
                             )
                         if amounts.get("balance", "").strip() == "":
                             other_debt_errors_any = True
-                        _, debt_explanation = explain_debt_payment(debt_type, amounts)
+                        pay_val, debt_explanation = explain_debt_payment(debt_type, amounts)
                         with calc_col:
                             st.markdown("<div style='margin-top:1.9rem;'></div>", unsafe_allow_html=True)
-                            st.caption(debt_explanation)
+                            if pay_val != 0:
+                                st.caption(debt_explanation)
                     elif base_debt_key(instance_key) == "alimony":
                         amounts["payment"] = money_text_input("Monthly Payment Amount ($)", amounts.get("payment", ""),
                             placeholder="Enter monthly payment amount", key="debt_pay_" + instance_key,
                         )
                         if amounts.get("payment", "").strip() == "":
                             other_debt_errors_any = True
-                        _, debt_explanation = explain_debt_payment(debt_type, amounts)
-                        st.caption(debt_explanation)
+                        pay_val, debt_explanation = explain_debt_payment(debt_type, amounts)
+                        if pay_val != 0:
+                            st.caption(debt_explanation)
                     else:
                         lender_col, pay_col, bal_col = st.columns([1.6, 1.6, 1.6])
                         with lender_col:
@@ -4822,8 +4665,9 @@ def render_debts():
                             amounts["total_balance"] = money_text_input("Total Balance Owing ($)", amounts.get("total_balance", ""),
                                 placeholder="Enter total balance owing", key="debt_totalbal_" + instance_key,
                             )
-                        _, debt_explanation = explain_debt_payment(debt_type, amounts)
-                        st.caption(debt_explanation)
+                        pay_val, debt_explanation = explain_debt_payment(debt_type, amounts)
+                        if pay_val != 0:
+                            st.caption(debt_explanation)
 
                     payment_value = compute_debt_payment(debt_type, amounts)
 
@@ -4868,11 +4712,11 @@ def render_debts():
                     docs_html = ""
                     for d in debt_type["documents"]:
                         docs_html += "<li>" + d + "</li>"
-                    st.markdown(
-                        "<div class='doc-list'><b>Required Documentation</b>"
-                        "<ul style='margin:6px 0 0 18px;'>" + docs_html + "</ul></div>",
-                        unsafe_allow_html=True,
-                    )
+                    with st.expander("Required documents (" + str(len(debt_type["documents"])) + ")", expanded=False):
+                        st.markdown(
+                            "<div class='doc-list'><ul style='margin:0 0 0 18px;'>" + docs_html + "</ul></div>",
+                            unsafe_allow_html=True,
+                        )
                     if debt_type["notes"]:
                         st.markdown("<div class='doc-list-note'>" + debt_type["notes"] + "</div>", unsafe_allow_html=True)
 
@@ -5239,9 +5083,9 @@ def render_analysis():
 
     def help_combined_ltv_text():
         return (
-            "Combined LTV = (subject loan " + fmt_money_md(loan_amount) + " + other property mortgage balances "
-            + fmt_money_md(combined_loan - loan_amount) + ") ÷ (subject purchase price " + fmt_money_md(purchase_price)
-            + " + other property values " + fmt_money_md(combined_value - purchase_price) + "). Properties being "
+            "Combined LTV = (subject loan " + fmt_money(loan_amount) + " + other property mortgage balances "
+            + fmt_money(combined_loan - loan_amount) + ") ÷ (subject purchase price " + fmt_money(purchase_price)
+            + " + other property values " + fmt_money(combined_value - purchase_price) + "). Properties being "
             "sold under a firm agreement are excluded, matching how they're excluded from GDS/TDS. Enter "
             "property value and mortgage balance for each property under Debts & Liabilities to populate this."
         )
@@ -5309,10 +5153,7 @@ def render_analysis():
         with st.container(key="helpbtn_help_gds_tds"):
             with st.popover("?", key="help_gds_tds"):
                 def mo_yr(monthly_val):
-                    # Two fmt_money() results land in the same string here, which
-                    # would otherwise be mangled by Streamlit's LaTeX math parsing —
-                    # use the escaped variant for both.
-                    return "**" + fmt_money_md(monthly_val) + "**/mo  ·  **" + fmt_money_md(monthly_val * 12) + "**/yr"
+                    return "**" + fmt_money(monthly_val) + "**/mo  ·  **" + fmt_money(monthly_val * 12) + "**/yr"
 
                 st.markdown("**Housing costs (GDS numerator)**")
                 st.markdown("- Principal & Interest (contract, " + "{:.2f}%".format(st.session_state.contract_rate) + "): " + mo_yr(pi_payment))
@@ -5355,7 +5196,7 @@ def render_analysis():
                 st.markdown("- Total Housing Costs (GDS, stressed): " + mo_yr(stressed_annual_housing / 12))
                 st.markdown("- Total Debt Obligations (TDS, contract): " + mo_yr((annual_housing + annual_other_debt) / 12))
                 st.markdown("- Total Debt Obligations (TDS, stressed): " + mo_yr((stressed_annual_housing + stressed_annual_other_debt) / 12))
-                st.markdown("- Combined Gross Annual Income: **" + fmt_money_md(total_income) + "**/yr  ·  **" + fmt_money_md(total_income / 12) + "**/mo")
+                st.markdown("- Combined Gross Annual Income: **" + fmt_money(total_income) + "**/yr  ·  **" + fmt_money(total_income / 12) + "**/mo")
                 st.divider()
                 st.caption(help_gds_text(total_income, annual_housing, gds))
                 st.divider()
@@ -5421,15 +5262,12 @@ def render_analysis():
             ("Heating (H)", heat, heat * 12),
             ("50% Condo Fees (0.5 × C)", condo * 0.5, condo * 0.5 * 12),
         ]
-        cell = "padding:6px 10px; border-bottom:1px solid #94a3b8 !important; color:#0f172a !important; background:#f1f5f9 !important; word-break:normal; overflow-wrap:break-word; white-space:normal;"
-        head = "padding:6px 10px; color:#0f172a !important; background:#cbd5e1 !important; font-weight:700 !important; word-break:normal; overflow-wrap:break-word; white-space:normal;"
-        total_cell = "padding:10px 10px; color:#78350f !important; background:#fde047 !important; font-weight:700 !important; word-break:normal; overflow-wrap:break-word; white-space:normal;"
+        cell = "padding:4px 8px; border-bottom:1px solid #94a3b8 !important; color:#0f172a !important; background:#f1f5f9 !important; word-break:break-word; overflow-wrap:break-word;"
+        head = "padding:4px 8px; color:#0f172a !important; background:#cbd5e1 !important; font-weight:700 !important; word-break:break-word; overflow-wrap:break-word;"
+        total_cell = "padding:10px 8px; color:#78350f !important; background:#fde047 !important; font-weight:700 !important; word-break:break-word; overflow-wrap:break-word;"
 
-        # --- Row 1: GDS table, full width (stacked, not squeezed side-by-side —
-        # cramming two 3-column tables into half-width columns is what caused
-        # header text to break mid-word on narrower screens). ---
-        gds_col = st.container()
-        tds_col = st.container()
+        # --- Row 1: both tables side by side ---
+        gds_col, tds_col = st.columns(2)
 
         with gds_col:
             table_rows_html = "".join(
@@ -5439,9 +5277,8 @@ def render_analysis():
                 for name, monthly, annual in rows
             )
             st.markdown(
-                "<div style='border:1px solid #334155; border-radius:6px; overflow:hidden; margin-bottom:14px;'>"
+                "<div style='border:1px solid #334155; border-radius:6px; overflow:hidden;'>"
                 "<table style='width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px; margin-bottom:0;'>"
-                "<colgroup><col style='width:50%;'><col style='width:25%;'><col style='width:25%;'></colgroup>"
                 "<tr>"
                 "<th style='" + head + " text-align:left;'>Housing Cost Component</th>"
                 "<th style='" + head + " text-align:right;'>Monthly</th>"
@@ -5492,7 +5329,6 @@ def render_analysis():
             st.markdown(
                 "<div style='border:1px solid #334155; border-radius:6px; overflow:hidden;'>"
                 "<table style='width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px; margin-bottom:0;'>"
-                "<colgroup><col style='width:50%;'><col style='width:25%;'><col style='width:25%;'></colgroup>"
                 "<tr>"
                 "<th style='" + head + " text-align:left;'>Debt Obligation Component</th>"
                 "<th style='" + head + " text-align:right;'>Monthly</th>"
@@ -5506,21 +5342,24 @@ def render_analysis():
                 unsafe_allow_html=True,
             )
 
-        # --- Row 2: formula results, stacked full-width to match the tables above ---
-        st.markdown(
-            "<div style='background:#bfdbfe !important; border-radius:6px; padding:8px 12px; "
-            "font-size:13px; color:#1e3a8a !important; margin-bottom:8px;'>"
-            "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
-            + " × 100 = <b>" + gds_disp + "</b></div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "<div style='background:#bfdbfe !important; border-radius:6px; padding:8px 12px; "
-            "font-size:13px; color:#1e3a8a !important;'>"
-            "<b>TDS</b> = " + fmt_money(annual_housing_amount + annual_other_debt_amount) + " ÷ " + fmt_money(total_income)
-            + " × 100 = <b>" + tds_disp + "</b></div>",
-            unsafe_allow_html=True,
-        )
+        # --- Row 2: both formula results side by side, aligned at the same height ---
+        gds_formula_col, tds_formula_col = st.columns(2)
+        with gds_formula_col:
+            st.markdown(
+                "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
+                "font-size:13px; color:#1e3a8a !important;'>"
+                "<b>GDS</b> = " + fmt_money(annual_housing_amount) + " ÷ " + fmt_money(total_income)
+                + " × 100 = <b>" + gds_disp + "</b></div>",
+                unsafe_allow_html=True,
+            )
+        with tds_formula_col:
+            st.markdown(
+                "<div style='background:#bfdbfe !important; border-radius:6px; padding:6px 10px; "
+                "font-size:13px; color:#1e3a8a !important;'>"
+                "<b>TDS</b> = " + fmt_money(annual_housing_amount + annual_other_debt_amount) + " ÷ " + fmt_money(total_income)
+                + " × 100 = <b>" + tds_disp + "</b></div>",
+                unsafe_allow_html=True,
+            )
 
     with st.expander("Show calculation details (Contract Rate)", expanded=False):
         st.caption("Formula: GDS = (P + I + T + H + 0.5C) ÷ Gross Annual Income × 100  |  TDS adds all other monthly debts.")
@@ -6793,10 +6632,7 @@ def render_notes():
     with st.expander("System-Generated Summary (from application data)", expanded=True):
         with st.container(key="notes_font_scope_summary"):
             system_notes = build_system_notes()
-            # Escape literal "$" before markdown rendering — Streamlit's markdown treats
-            # a pair of "$" as LaTeX math delimiters, so two dollar amounts on the same
-            # line (very common in this summary) get swallowed as one broken math span.
-            st.markdown(system_notes.replace("$", "\\$").replace("\n", "  \n"))
+            st.markdown(system_notes.replace("\n", "  \n"))
 
     st.divider()
 
@@ -6805,7 +6641,7 @@ def render_notes():
     st.caption("What the client told you in the initial conversation, captured on the Deal step.")
     with st.container(key="card_intake_notes_readonly"):
         if st.session_state.client_intake_notes.strip():
-            st.markdown(st.session_state.client_intake_notes.replace("$", "\\$").replace("\n", "  \n"))
+            st.markdown(st.session_state.client_intake_notes.replace("\n", "  \n"))
         else:
             st.caption("No client intake notes were captured on the Deal step.")
 
@@ -6844,7 +6680,7 @@ def render_notes():
             with num_col:
                 st.markdown("**" + str(i + 1) + ".**")
             with text_col:
-                st.markdown(entry["text"].replace("$", "\\$"))
+                st.markdown(entry["text"])
                 entry["reason"] = st.text_input(
                     "Explanation", value=entry["reason"], key="disc_reason_" + str(i),
                     label_visibility="collapsed", placeholder="Explain or resolve this discrepancy...",
@@ -6919,10 +6755,7 @@ def render_notes():
         st.markdown("#### Final Summary")
         with st.container(key="card_notes_preview"):
             st.caption("Formatted preview:")
-            st.markdown(
-                st.session_state.combined_notes.replace("$", "\\$")
-                .replace("=" * 40, "").replace("-" * 40, "")
-            )
+            st.markdown(st.session_state.combined_notes.replace("=" * 40, "").replace("-" * 40, ""))
         with st.container(key="notes_font_scope_combined"):
             st.session_state.combined_notes = st.text_area(
                 "Final note (editable)", value=st.session_state.combined_notes, height=350, key="combined_notes_editor",
