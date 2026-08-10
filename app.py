@@ -3042,10 +3042,8 @@ def render_property_details():
                 st.caption(":green[✓ Ordered (to be set up later).]")
 
         ref_value = get_reference_property_value()
-        pv_header_col, pv_help_col = st.columns([12, 1])
-        with pv_header_col:
-            st.write("**Property Value & Appraisal**")
-        with pv_help_col:
+        av_help_col_spacer, av_help_col = st.columns([11, 1])
+        with av_help_col:
             with st.container(key="helpbtn_help_ltv_calc"):
                 with st.popover("?", key="help_ltv_calc"):
                     st.caption(
@@ -3054,16 +3052,8 @@ def render_property_details():
                         "Price or Appraised Value."
                     )
 
-        pv_c1, pv_c2 = st.columns(2)
-        with pv_c1:
-            st.markdown("<div style='min-height:1.9em;'></div>", unsafe_allow_html=True)
-            st.markdown(
-                "<span style='font-family: \"Source Code Pro\", monospace; font-size: 14px; color:#22c55e;'>"
-                "Property Value: `" + fmt_money(ref_value) + "`</span>",
-                unsafe_allow_html=True,
-            )
-            st.caption("Carried over from " + ("Lender Details" if is_refinance() else "Down Payment") + ".")
-        with pv_c2:
+        av_c1, av_c2 = st.columns(2)
+        with av_c1:
             st.session_state.property_appraisal_value_raw = money_text_input(
                 "Appraisal Value ($)", st.session_state.property_appraisal_value_raw,
                 key="property_appraisal_value_input", placeholder="Enter once the appraisal comes back",
@@ -3080,24 +3070,23 @@ def render_property_details():
                     "Appraisal Value: `" + fmt_money(appraisal_val) + "`</span>" + diff_caption,
                     unsafe_allow_html=True,
                 )
-
-        if not is_refinance():
-            pc_c1, pc_c2 = st.columns(2)
-            with pc_c1:
+        with av_c2:
+            if not is_refinance():
                 st.session_state.property_purchase_channel = st.selectbox(
                     "Purchase Channel", ["", "Private Sale - No MLS", "MLS Listed"],
                     index=["", "Private Sale - No MLS", "MLS Listed"].index(st.session_state.property_purchase_channel)
                     if st.session_state.property_purchase_channel in ["", "Private Sale - No MLS", "MLS Listed"] else 0,
                     key="property_purchase_channel_input",
                 )
-            with pc_c2:
-                if st.session_state.property_purchase_channel == "MLS Listed":
-                    st.session_state.property_details_method = st.selectbox(
-                        "Property Characteristics", ["", "Auto-fill from MLS Link", "Enter Manually"],
-                        index=["", "Auto-fill from MLS Link", "Enter Manually"].index(st.session_state.property_details_method)
-                        if st.session_state.property_details_method in ["", "Auto-fill from MLS Link", "Enter Manually"] else 0,
-                        key="property_details_method_input",
-                    )
+
+        if not is_refinance():
+            if st.session_state.property_purchase_channel == "MLS Listed":
+                st.session_state.property_details_method = st.selectbox(
+                    "Property Characteristics", ["", "Auto-fill from MLS Link", "Enter Manually"],
+                    index=["", "Auto-fill from MLS Link", "Enter Manually"].index(st.session_state.property_details_method)
+                    if st.session_state.property_details_method in ["", "Auto-fill from MLS Link", "Enter Manually"] else 0,
+                    key="property_details_method_input",
+                )
 
             if st.session_state.property_purchase_channel == "MLS Listed":
                 if st.session_state.property_details_method == "Auto-fill from MLS Link":
@@ -3325,13 +3314,14 @@ def render_property_details():
             else:
                 st.caption(":orange[⚠ not found — enter manually]")
 
-        c1, c2, c3 = st.columns(3)
-        with c1:
+        def field_prop_purpose():
             st.session_state.subject_prop_purpose = st.selectbox(
                 "Property Purpose", PROPERTY_PURPOSE_OPTIONS,
                 index=PROPERTY_PURPOSE_OPTIONS.index(st.session_state.subject_prop_purpose)
                 if st.session_state.subject_prop_purpose in PROPERTY_PURPOSE_OPTIONS else 0,
             )
+
+        def field_title_type():
             st.session_state.subject_title_type = st.selectbox(
                 "Title", TITLE_TYPE_OPTIONS,
                 index=TITLE_TYPE_OPTIONS.index(st.session_state.subject_title_type)
@@ -3341,6 +3331,8 @@ def render_property_details():
                 render_other_description_field(
                     "Describe title type", "subject_title_type_other", "subject_title_type_other_input",
                 )
+
+        def field_prop_type():
             st.session_state.subject_prop_type = st.selectbox(
                 "Property Type", PROPERTY_STYLE_TYPES,
                 index=PROPERTY_STYLE_TYPES.index(st.session_state.subject_prop_type)
@@ -3353,16 +3345,22 @@ def render_property_details():
                 )
             else:
                 mls_field_note("subject_prop_type")
+
+        def field_prop_age():
             st.session_state.subject_prop_age = st.text_input(
                 "Property Age (yrs or year built)", value=st.session_state.subject_prop_age,
                 placeholder="e.g. 15 years or Built 2011",
             )
+
+        def field_rural_urban():
             st.session_state.subject_rural_urban = st.selectbox(
                 "Rural / Urban / Ag.",
                 RURAL_URBAN_OPTIONS,
                 index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
                 if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
             )
+
+        def field_foundation():
             st.session_state.subject_foundation = st.selectbox(
                 "Foundation Type", FOUNDATION_TYPE_OPTIONS,
                 index=FOUNDATION_TYPE_OPTIONS.index(st.session_state.subject_foundation)
@@ -3373,22 +3371,30 @@ def render_property_details():
                     "Describe foundation type", "subject_foundation_other", "subject_foundation_other_input",
                 )
 
-        with c2:
+        def field_sqft():
             st.session_state.subject_sqft = st.text_input(
                 "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
             )
             mls_field_note("subject_sqft")
+
+        def field_storeys():
             st.session_state.subject_storeys = st.text_input(
                 "Number of Storeys", value=st.session_state.subject_storeys, placeholder="e.g. 2",
             )
             mls_field_note("subject_storeys")
+
+        def field_land_size():
             st.session_state.subject_land_size = st.text_input(
                 "Land Size", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
             )
+
+        def field_parking():
             st.session_state.subject_parking_spaces = st.text_input(
                 "Total Parking Spaces", value=st.session_state.subject_parking_spaces, placeholder="e.g. 4",
             )
             mls_field_note("subject_parking_spaces")
+
+        def field_garage():
             st.session_state.subject_garage = st.selectbox(
                 "Garage", GARAGE_OPTIONS,
                 index=GARAGE_OPTIONS.index(st.session_state.subject_garage)
@@ -3399,7 +3405,7 @@ def render_property_details():
                     "Describe garage / parking", "subject_garage_other", "subject_garage_other_input",
                 )
 
-        with c3:
+        def field_heating():
             st.session_state.subject_heating_type = st.selectbox(
                 "Heating Type", HEATING_TYPE_OPTIONS,
                 index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
@@ -3409,6 +3415,8 @@ def render_property_details():
                 render_other_description_field(
                     "Describe heating type", "subject_heating_type_other", "subject_heating_type_other_input",
                 )
+
+        def field_exterior():
             st.session_state.subject_exterior_finish = st.selectbox(
                 "Exterior Finish", EXTERIOR_FINISH_OPTIONS,
                 index=EXTERIOR_FINISH_OPTIONS.index(st.session_state.subject_exterior_finish)
@@ -3418,6 +3426,8 @@ def render_property_details():
                 render_other_description_field(
                     "Describe exterior finish", "subject_exterior_finish_other", "subject_exterior_finish_other_input",
                 )
+
+        def field_water():
             st.session_state.subject_water = st.selectbox(
                 "Water", WATER_OPTIONS,
                 index=WATER_OPTIONS.index(st.session_state.subject_water)
@@ -3427,6 +3437,8 @@ def render_property_details():
                 render_other_description_field(
                     "Describe water source", "subject_water_other", "subject_water_other_input",
                 )
+
+        def field_sewer():
             st.session_state.subject_sewer = st.selectbox(
                 "Utility Sewer", SEWER_OPTIONS,
                 index=SEWER_OPTIONS.index(st.session_state.subject_sewer)
@@ -3436,6 +3448,18 @@ def render_property_details():
                 render_other_description_field(
                     "Describe utility sewer", "subject_sewer_other", "subject_sewer_other_input",
                 )
+
+        prop_char_fields = [
+            field_prop_purpose, field_title_type, field_prop_type, field_prop_age, field_rural_urban,
+            field_foundation, field_sqft, field_storeys, field_land_size, field_parking,
+            field_garage, field_heating, field_exterior, field_water, field_sewer,
+        ]
+        for row_start in range(0, len(prop_char_fields), 5):
+            row_fields = prop_char_fields[row_start:row_start + 5]
+            grid_cols = st.columns(5)
+            for field_fn, col in zip(row_fields, grid_cols):
+                with col:
+                    field_fn()
 
     st.divider()
 
@@ -4399,21 +4423,23 @@ def render_debts():
                         prop["status"] = inc_status
                     st.session_state[sync_key] = picked_source
 
-            prop["prop_type"] = st.selectbox(
-                "Property Type", PROPERTY_TYPES,
-                index=PROPERTY_TYPES.index(prop["prop_type"]) if prop["prop_type"] in PROPERTY_TYPES else 0,
-                key="prop_type_" + str(pidx),
-            )
-            if prop["prop_type"] == "Other":
-                prop["other_type_desc"] = st.text_input(
-                    "Describe property type", value=prop.get("other_type_desc", ""), key="prop_other_" + str(pidx)
+            pt_c1, pt_c2 = st.columns(2)
+            with pt_c1:
+                prop["prop_type"] = st.selectbox(
+                    "Property Type", PROPERTY_TYPES,
+                    index=PROPERTY_TYPES.index(prop["prop_type"]) if prop["prop_type"] in PROPERTY_TYPES else 0,
+                    key="prop_type_" + str(pidx),
                 )
-
-            prop["status"] = st.selectbox(
-                "What's happening with this property?", PROPERTY_STATUS_OPTIONS,
-                index=PROPERTY_STATUS_OPTIONS.index(prop.get("status", "")) if prop.get("status", "") in PROPERTY_STATUS_OPTIONS else 0,
-                key="prop_status_" + str(pidx),
-            )
+                if prop["prop_type"] == "Other":
+                    prop["other_type_desc"] = st.text_input(
+                        "Describe property type", value=prop.get("other_type_desc", ""), key="prop_other_" + str(pidx)
+                    )
+            with pt_c2:
+                prop["status"] = st.selectbox(
+                    "What's happening with this property?", PROPERTY_STATUS_OPTIONS,
+                    index=PROPERTY_STATUS_OPTIONS.index(prop.get("status", "")) if prop.get("status", "") in PROPERTY_STATUS_OPTIONS else 0,
+                    key="prop_status_" + str(pidx),
+                )
             is_firm_sale = prop["status"] == "Being Sold — Firm (Unconditional) Sale Agreement"
             if is_firm_sale:
                 st.caption(
