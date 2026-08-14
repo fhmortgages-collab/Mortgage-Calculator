@@ -1436,14 +1436,14 @@ st.markdown(
         min-width: max-content !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
-        min-width: 92px !important;
+        min-width: 108px !important;
         flex: 0 0 auto !important;
-        width: 92px !important;
+        width: 108px !important;
     }
     div[class*="st-key-stepper_row"] button {
         font-size: 12px !important;
         white-space: nowrap !important;
-        padding: 6px 8px !important;
+        padding: 6px 10px !important;
         width: 100% !important;
         box-sizing: border-box !important;
         min-height: 3.2em !important;
@@ -1452,8 +1452,7 @@ st.markdown(
         align-items: center !important;
         justify-content: center !important;
         text-align: center !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
+        overflow: visible !important;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button {
         background-color: #16a34a !important;
@@ -1468,18 +1467,18 @@ st.markdown(
         font-weight: 700 !important;
     }
     @keyframes stepbtn-active-flash {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.85); }
-        50% { box-shadow: 0 0 0 4px rgba(239,68,68,0.85); }
+        0%, 100% { outline-color: rgba(239,68,68,0.5); }
+        50% { outline-color: rgba(239,68,68,1); }
     }
     div[class*="st-key-stepbtn_"][class*="_active"] button {
         outline: 2px solid #ef4444 !important;
-        outline-offset: -1px !important;
+        outline-offset: -2px !important;
         animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
-        min-width: 92px !important;
+        min-width: 108px !important;
         flex: 0 0 auto !important;
-        width: 92px !important;
+        width: 108px !important;
     }
     div[class*="st-key-stepper_help_row"] {
         margin-top: -4px;
@@ -2995,22 +2994,23 @@ def render_property_details():
                 st.caption(":green[✓ Ordered (to be set up later).]")
 
         ref_value = get_reference_property_value()
-        av_help_col_spacer, av_help_col = st.columns([11, 1])
-        with av_help_col:
-            with st.container(key="helpbtn_help_ltv_calc"):
-                with st.popover("?", key="help_ltv_calc"):
-                    st.caption(
-                        "For Refinance transactions, LTV is calculated using the Appraised Value. "
-                        "For Purchase transactions, LTV is calculated using the lower of the Purchase "
-                        "Price or Appraised Value."
-                    )
-
         av_c1, av_c2 = st.columns(2)
         with av_c1:
-            st.session_state.property_appraisal_value_raw = money_text_input(
-                "Appraisal Value ($)", st.session_state.property_appraisal_value_raw,
-                key="property_appraisal_value_input", placeholder="Enter once the appraisal comes back",
-            )
+            av_label_col, av_help_col = st.columns([5, 1])
+            with av_label_col:
+                st.session_state.property_appraisal_value_raw = money_text_input(
+                    "Appraisal Value ($)", st.session_state.property_appraisal_value_raw,
+                    key="property_appraisal_value_input", placeholder="Enter once the appraisal comes back",
+                )
+            with av_help_col:
+                st.markdown("<div style='min-height:1.9em;'></div>", unsafe_allow_html=True)
+                with st.container(key="helpbtn_help_ltv_calc"):
+                    with st.popover("?", key="help_ltv_calc"):
+                        st.caption(
+                            "For Refinance transactions, LTV is calculated using the Appraised Value. "
+                            "For Purchase transactions, LTV is calculated using the lower of the Purchase "
+                            "Price or Appraised Value."
+                        )
             appraisal_val = parse_money(st.session_state.property_appraisal_value_raw)
             if appraisal_val is not None:
                 diff_caption = ""
@@ -3269,7 +3269,7 @@ def render_property_details():
 
         def field_prop_purpose():
             st.session_state.subject_prop_purpose = st.selectbox(
-                "Property Purpose", PROPERTY_PURPOSE_OPTIONS,
+                "Purpose", PROPERTY_PURPOSE_OPTIONS,
                 index=PROPERTY_PURPOSE_OPTIONS.index(st.session_state.subject_prop_purpose)
                 if st.session_state.subject_prop_purpose in PROPERTY_PURPOSE_OPTIONS else 0,
             )
@@ -3287,7 +3287,7 @@ def render_property_details():
 
         def field_prop_type():
             st.session_state.subject_prop_type = st.selectbox(
-                "Property Type", PROPERTY_STYLE_TYPES,
+                "Type", PROPERTY_STYLE_TYPES,
                 index=PROPERTY_STYLE_TYPES.index(st.session_state.subject_prop_type)
                 if st.session_state.subject_prop_type in PROPERTY_STYLE_TYPES else 0,
                 key="subject_prop_type_select",
@@ -3301,13 +3301,13 @@ def render_property_details():
 
         def field_prop_age():
             st.session_state.subject_prop_age = st.text_input(
-                "Property Age (yrs or year built)", value=st.session_state.subject_prop_age,
+                "Age", value=st.session_state.subject_prop_age,
                 placeholder="e.g. 15 years or Built 2011",
             )
 
         def field_rural_urban():
             st.session_state.subject_rural_urban = st.selectbox(
-                "Rural / Urban / Ag.",
+                "Zone",
                 RURAL_URBAN_OPTIONS,
                 index=RURAL_URBAN_OPTIONS.index(st.session_state.subject_rural_urban)
                 if st.session_state.subject_rural_urban in RURAL_URBAN_OPTIONS else 0,
@@ -3315,7 +3315,7 @@ def render_property_details():
 
         def field_foundation():
             st.session_state.subject_foundation = st.selectbox(
-                "Foundation Type", FOUNDATION_TYPE_OPTIONS,
+                "Foundation", FOUNDATION_TYPE_OPTIONS,
                 index=FOUNDATION_TYPE_OPTIONS.index(st.session_state.subject_foundation)
                 if st.session_state.subject_foundation in FOUNDATION_TYPE_OPTIONS else 0,
             )
@@ -3326,24 +3326,24 @@ def render_property_details():
 
         def field_sqft():
             st.session_state.subject_sqft = st.text_input(
-                "Square Footage", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
+                "SqFt", value=st.session_state.subject_sqft, placeholder="e.g. 1,850",
             )
             mls_field_note("subject_sqft")
 
         def field_storeys():
             st.session_state.subject_storeys = st.text_input(
-                "Number of Storeys", value=st.session_state.subject_storeys, placeholder="e.g. 2",
+                "Storeys", value=st.session_state.subject_storeys, placeholder="e.g. 2",
             )
             mls_field_note("subject_storeys")
 
         def field_land_size():
             st.session_state.subject_land_size = st.text_input(
-                "Land Size", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
+                "Lot", value=st.session_state.subject_land_size, placeholder="e.g. 50 x 120 FT",
             )
 
         def field_parking():
             st.session_state.subject_parking_spaces = st.text_input(
-                "Total Parking Spaces", value=st.session_state.subject_parking_spaces, placeholder="e.g. 4",
+                "Parking", value=st.session_state.subject_parking_spaces, placeholder="e.g. 4",
             )
             mls_field_note("subject_parking_spaces")
 
@@ -3360,7 +3360,7 @@ def render_property_details():
 
         def field_heating():
             st.session_state.subject_heating_type = st.selectbox(
-                "Heating Type", HEATING_TYPE_OPTIONS,
+                "Heating", HEATING_TYPE_OPTIONS,
                 index=HEATING_TYPE_OPTIONS.index(st.session_state.subject_heating_type)
                 if st.session_state.subject_heating_type in HEATING_TYPE_OPTIONS else 0,
             )
@@ -3371,7 +3371,7 @@ def render_property_details():
 
         def field_exterior():
             st.session_state.subject_exterior_finish = st.selectbox(
-                "Exterior Finish", EXTERIOR_FINISH_OPTIONS,
+                "Exterior", EXTERIOR_FINISH_OPTIONS,
                 index=EXTERIOR_FINISH_OPTIONS.index(st.session_state.subject_exterior_finish)
                 if st.session_state.subject_exterior_finish in EXTERIOR_FINISH_OPTIONS else 0,
             )
@@ -3393,7 +3393,7 @@ def render_property_details():
 
         def field_sewer():
             st.session_state.subject_sewer = st.selectbox(
-                "Utility Sewer", SEWER_OPTIONS,
+                "Sewer", SEWER_OPTIONS,
                 index=SEWER_OPTIONS.index(st.session_state.subject_sewer)
                 if st.session_state.subject_sewer in SEWER_OPTIONS else 0,
             )
@@ -4120,7 +4120,7 @@ def render_income():
                             st.caption(":red[" + msg + "]")
 
     st.divider()
-    income_header_col, income_help_col = st.columns([12, 1])
+    income_header_col, income_help_col = st.columns([5, 1])
     with income_header_col:
         st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
 
@@ -4889,7 +4889,7 @@ def render_analysis():
 
         def field_row(label_widget_fn, help_text_fn, help_key):
             with st.container(key="fieldrow_" + help_key):
-                c1, c2 = st.columns([12, 1])
+                c1, c2 = st.columns([5, 1])
                 with c1:
                     label_widget_fn()
                 with c2:
@@ -5023,7 +5023,7 @@ def render_analysis():
             "property value and mortgage balance for each property under Debts & Liabilities to populate this."
         )
 
-    ltv_header_col, ltv_help_col = st.columns([12, 1])
+    ltv_header_col, ltv_help_col = st.columns([5, 1])
     with ltv_header_col:
         st.markdown("**Combined LTV (Subject + Other Properties)**")
     with ltv_help_col:
@@ -5079,7 +5079,7 @@ def render_analysis():
         stressed_pi, taxes, heat, condo, other_debt_monthly, total_income
     )
 
-    gds_header_col, gds_help_col = st.columns([12, 1])
+    gds_header_col, gds_help_col = st.columns([5, 1])
     with gds_header_col:
         st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
     with gds_help_col:
@@ -6547,7 +6547,7 @@ def render_notes():
     st.divider()
 
     # --- 3. Discrepancies ---
-    disc_header_col, disc_help_col = st.columns([12, 1])
+    disc_header_col, disc_help_col = st.columns([5, 1])
     with disc_header_col:
         st.markdown("#### ⚠️ Discrepancies")
     with disc_help_col:
@@ -6606,7 +6606,7 @@ def render_notes():
     st.divider()
 
     # --- 4. Broker Notes ---
-    broker_header_col, broker_help_col = st.columns([12, 1])
+    broker_header_col, broker_help_col = st.columns([5, 1])
     with broker_header_col:
         st.markdown("#### Broker Notes")
     with broker_help_col:
