@@ -1307,7 +1307,7 @@ def render_stepper(active_index):
             btn_type = "primary" if i == active_index else "secondary"
             display_label = label
             if i == 2 and is_refinance():
-                display_label = "Refinance"
+                display_label = "Switch" if st.session_state.transaction_type == "refinance_new_lender" else "Refi"
 
             step_missing = get_step_missing_fields(i)
             is_step_complete = is_step_fully_complete(i)
@@ -1437,6 +1437,7 @@ st.markdown(
         overflow-y: hidden !important;
         -webkit-overflow-scrolling: touch !important;
         scrollbar-width: thin !important;
+        padding: 10px 0 !important;
     }
     div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
@@ -1486,11 +1487,11 @@ st.markdown(
     @keyframes stepbtn-active-flash {
         0%, 100% {
             outline-width: 3px; outline-offset: -3px; outline-color: rgba(239,68,68,0.6);
-            background-color: #dc2626 !important;
+            background-color: #dc2626 !important; transform: scale(1);
         }
         50% {
             outline-width: 6px; outline-offset: -6px; outline-color: rgba(255,255,255,1);
-            background-color: #ff2020 !important;
+            background-color: #ff2020 !important; transform: scale(1.12);
         }
     }
     div[class*="st-key-stepbtn_"][class*="_active"] button {
@@ -1499,6 +1500,8 @@ st.markdown(
         animation: stepbtn-active-flash 0.7s ease-in-out infinite !important;
         color: white !important;
         font-weight: 800 !important;
+        position: relative !important;
+        z-index: 5 !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
         min-width: 132px !important;
@@ -1752,9 +1755,9 @@ st.markdown(
         background: rgba(255,255,255,0.035);
         border: 1px solid rgba(255,255,255,0.09);
         border-radius: 10px;
-        padding: 10px 14px !important;
-        margin: 0 0 8px !important;
-        min-height: 148px !important;
+        padding: 6px 10px !important;
+        margin: 0 0 6px !important;
+        min-height: 108px !important;
         box-sizing: border-box !important;
         display: flex !important;
         flex-direction: column !important;
@@ -1762,9 +1765,17 @@ st.markdown(
     }
     div[class*="st-key-txntype_card_"] [data-testid="stMarkdownContainer"] p {
         margin-bottom: 1px !important;
+        font-size: 14px !important;
     }
     div[class*="st-key-txntype_card_"] [data-testid="stCaptionContainer"] {
         margin-bottom: 0 !important;
+        font-size: 12px !important;
+    }
+    div[class*="st-key-txntype_card_"] div[class*="st-key-txntype_pick_"] button {
+        min-height: 2em !important;
+        height: 2em !important;
+        font-size: 16px !important;
+        padding: 2px !important;
     }
     div[class*="st-key-card_doc_cat_"],
     div[class*="st-key-card_doc_edit_"] {
