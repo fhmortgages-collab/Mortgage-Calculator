@@ -80,12 +80,14 @@ EXTERIOR_FINISH_OPTIONS = [
     "Wood Siding", "Aluminum/Steel Siding", "Fiber Cement (Hardie Board)", "Other",
 ]
 GARAGE_OPTIONS = ["", "None", "Attached", "Detached", "Carport", "Underground Parking", "Other"]
-PROPERTY_STATUS_OPTIONS = [
-    "", "Keeping — Primary Residence", "Keeping — Primary Residence with Rental Unit (Secondary Suite)",
-    "Keeping — Second Home / Cottage", "Keeping — Investment Property",
-    "Converting — Owner-Occupied (Primary) to Rental", "Converting — Second Home / Cottage to Rental",
-    "Converting — Investment Property to Owner-Occupied", "Converting — Investment Property to Second Home / Cottage",
-    "Being Sold — Firm (Unconditional) Sale Agreement", "Being Sold — Not Yet Firm / Listed Only",
+# NEW: Property Disposition options for Debts tab
+PROPERTY_DISPOSITION_OPTIONS = [
+    "",
+    "Sold Firm (No debt / exclude from ratios)",
+    "Selling (Subject to sale / bridge / exclude if firm before closing)",
+    "Retaining as Rental (Include rental offset/rules in GDS/TDS)",
+    "Retaining - Owner Occupied / Second Home (Include full mortgage + taxes + heat in TDS)",
+    "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)",
 ]
 
 STEPS = ["Deal", "Client", "Down Payment", "Property", "Income", "Debts", "Analysis", "Docs", "Notes"]
@@ -418,7 +420,7 @@ def empty_property():
         "property_taxes": "",
         "condo_fees": "",
         "heating": "",
-        "status": "",
+        "status": "",  # will hold the new disposition value
         "property_value": "",
         "num_mortgages": "",
         "mortgages": [],
@@ -502,8 +504,7 @@ def init_state():
         st.session_state.sale_proceeds_mortgage_raw = ""
     if "sale_proceeds_legal_fees_raw" not in st.session_state:
         st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
-    if "sale_proceeds_other_debts_raw" not in st.session_state:
-        st.session_state.sale_proceeds_other_debts_raw = ""
+    # NEW: remove other_debts_raw, we no longer use it
     if "sale_proceeds_address_synced" not in st.session_state:
         st.session_state.sale_proceeds_address_synced = False
     if "sale_proceeds_mortgage_synced" not in st.session_state:
@@ -737,7 +738,8 @@ SAVE_STATE_KEYS = [
     "other_source_desc", "dp_errors",
     "sale_proceeds_address", "sale_proceeds_closing_date", "sale_proceeds_sale_price_raw",
     "sale_proceeds_deposit_raw", "sale_proceeds_mortgage_raw", "sale_proceeds_legal_fees_raw",
-    "sale_proceeds_other_debts_raw", "sale_proceeds_address_synced", "sale_proceeds_mortgage_synced",
+    # removed sale_proceeds_other_debts_raw
+    "sale_proceeds_address_synced", "sale_proceeds_mortgage_synced",
     "sale_proceeds_synced_net_amount",
     "income_selected", "income_counts", "income_amounts", "income_special", "income_other_desc", "income_errors",
     "properties", "debt_selected", "debt_amounts", "debt_other_desc", "debt_errors",
@@ -880,7 +882,6 @@ def refresh_all():
     st.session_state.sale_proceeds_deposit_raw = ""
     st.session_state.sale_proceeds_mortgage_raw = ""
     st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
-    st.session_state.sale_proceeds_other_debts_raw = ""
     st.session_state.sale_proceeds_address_synced = False
     st.session_state.sale_proceeds_mortgage_synced = False
     st.session_state.sale_proceeds_synced_net_amount = None
@@ -2152,7 +2153,6 @@ def clear_transaction_type_specific_fields():
     st.session_state.sale_proceeds_deposit_raw = ""
     st.session_state.sale_proceeds_mortgage_raw = ""
     st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
-    st.session_state.sale_proceeds_other_debts_raw = ""
     st.session_state.sale_proceeds_address_synced = False
     st.session_state.sale_proceeds_mortgage_synced = False
     st.session_state.sale_proceeds_synced_net_amount = None
@@ -2745,7 +2745,6 @@ def refresh_page2():
     st.session_state.sale_proceeds_deposit_raw = ""
     st.session_state.sale_proceeds_mortgage_raw = ""
     st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
-    st.session_state.sale_proceeds_other_debts_raw = ""
     st.session_state.sale_proceeds_address_synced = False
     st.session_state.sale_proceeds_mortgage_synced = False
     st.session_state.sale_proceeds_synced_net_amount = None
@@ -2875,67 +2874,88 @@ def render_down_payment():
                     )
 
                     # Auto-populate address and existing mortgage balance from the first property
-                    # entered under Debts & Liabilities, if any — but only the first time (so a
-                    # broker's manual edit here afterward doesn't get silently overwritten on rerun).
-                    existing_properties = st.session_state.properties
-                    if existing_properties and not st.session_state.sale_proceeds_address_synced:
-                        prior_address = existing_properties[0].get("address", "").strip()
-                        if prior_address:
-                            st.session_state.sale_proceeds_address = prior_address
+                    # that is marked as "Sold Firm" or "Selling" under Debts, if any.
+                    # We'll look at properties and pick the first one that matches these dispositions.
+                    found_address = None
+                    found_balance_total = 0.0
+                    for prop in st.session_state.properties:
+                        disp = prop.get("status", "")
+                        if disp in ("Sold Firm (No debt / exclude from ratios)", "Selling (Subject to sale / bridge / exclude if firm before closing)"):
+                            found_address = prop.get("address", "").strip()
+                            # Sum all mortgage balances for this property
+                            total_mtg = 0.0
+                            for mtg in prop.get("mortgages", []):
+                                total_mtg += parse_money(mtg.get("balance", "")) or 0.0
+                            found_balance_total = total_mtg
+                            break
+
+                    if found_address and not st.session_state.sale_proceeds_address_synced:
+                        st.session_state.sale_proceeds_address = found_address
                         st.session_state.sale_proceeds_address_synced = True
-                    if existing_properties and not st.session_state.sale_proceeds_mortgage_synced:
-                        prior_mortgages = existing_properties[0].get("mortgages", [])
-                        prior_balance_total = sum(parse_money(m.get("balance", "")) or 0.0 for m in prior_mortgages)
-                        if prior_balance_total > 0:
-                            st.session_state.sale_proceeds_mortgage_raw = fmt_money(prior_balance_total)
+                    if found_balance_total > 0 and not st.session_state.sale_proceeds_mortgage_synced:
+                        st.session_state.sale_proceeds_mortgage_raw = fmt_money(found_balance_total)
                         st.session_state.sale_proceeds_mortgage_synced = True
 
+                    # NEW layout: 4 rows, 2 columns each
                     sp_c1, sp_c2 = st.columns(2)
                     with sp_c1:
                         st.session_state.sale_proceeds_address = st.text_input(
                             "Existing Property Address", value=st.session_state.sale_proceeds_address,
                             key="sale_proceeds_address_input",
-                            placeholder="Auto-filled from Debts & Liabilities if entered there",
-                        )
-                        st.session_state.sale_proceeds_sale_price_raw = money_text_input(
-                            "Sale Price ($)", st.session_state.sale_proceeds_sale_price_raw,
-                            key="sale_proceeds_sale_price_input", placeholder="$0.00",
-                        )
-                        st.session_state.sale_proceeds_deposit_raw = money_text_input(
-                            "Deposit Received ($)", st.session_state.sale_proceeds_deposit_raw,
-                            key="sale_proceeds_deposit_input", placeholder="$0.00",
-                        )
-                        st.session_state.sale_proceeds_mortgage_raw = money_text_input(
-                            "Less: Existing Mortgage ($)", st.session_state.sale_proceeds_mortgage_raw,
-                            key="sale_proceeds_mortgage_input", placeholder="$0.00",
+                            placeholder="Auto-filled from Debts if available",
                         )
                     with sp_c2:
                         st.session_state.sale_proceeds_closing_date = st.date_input(
                             "Closing Date", value=st.session_state.sale_proceeds_closing_date,
                             key="sale_proceeds_closing_date_input",
                         )
+
+                    sp_c1, sp_c2 = st.columns(2)
+                    with sp_c1:
+                        st.session_state.sale_proceeds_sale_price_raw = money_text_input(
+                            "Sale Price ($)", st.session_state.sale_proceeds_sale_price_raw,
+                            key="sale_proceeds_sale_price_input", placeholder="$0.00",
+                        )
+                    with sp_c2:
+                        # Commission: auto-calc as 5% of sale price, displayed as a disabled text input
                         sale_price_v = parse_money(st.session_state.sale_proceeds_sale_price_raw) or 0.0
                         commission_v = sale_price_v * 0.05
-                        st.markdown(
-                            "<div style='margin-top:0.2rem;'></div>"
-                            "<div>Less: Commission @ 5% ($)</div>"
-                            "<div style='font-family:\"Source Code Pro\", monospace; font-size:14px; color:#22c55e; "
-                            "margin-top:2px; margin-bottom:14px;'>" + fmt_money(commission_v) + "</div>",
-                            unsafe_allow_html=True,
+                        st.text_input(
+                            "Less: Commission @ 5% ($)",
+                            value=fmt_money(commission_v),
+                            key="sale_proceeds_commission_display",
+                            disabled=True,
                         )
+
+                    sp_c1, sp_c2 = st.columns(2)
+                    with sp_c1:
+                        st.session_state.sale_proceeds_deposit_raw = money_text_input(
+                            "Deposit Received ($)", st.session_state.sale_proceeds_deposit_raw,
+                            key="sale_proceeds_deposit_input", placeholder="$0.00",
+                        )
+                    with sp_c2:
                         st.session_state.sale_proceeds_legal_fees_raw = money_text_input(
                             "Less: Legal Fees @ $1,000 ($)", st.session_state.sale_proceeds_legal_fees_raw,
                             key="sale_proceeds_legal_fees_input", placeholder="$1,000.00",
                         )
-                        st.session_state.sale_proceeds_other_debts_raw = money_text_input(
-                            "Less: Other Debts ($)", st.session_state.sale_proceeds_other_debts_raw,
-                            key="sale_proceeds_other_debts_input", placeholder="$0.00",
-                        )
 
+                    sp_c1, sp_c2 = st.columns(2)
+                    with sp_c1:
+                        st.session_state.sale_proceeds_mortgage_raw = money_text_input(
+                            "Less: Existing Mortgage ($)", st.session_state.sale_proceeds_mortgage_raw,
+                            key="sale_proceeds_mortgage_input", placeholder="Auto-filled if available",
+                        )
+                    with sp_c2:
+                        # Empty placeholder to maintain grid alignment
+                        st.write("")  # just an empty spacer
+
+                    # Net proceeds calculation
                     mortgage_v = parse_money(st.session_state.sale_proceeds_mortgage_raw) or 0.0
                     legal_fees_v = parse_money(st.session_state.sale_proceeds_legal_fees_raw) or 0.0
-                    other_debts_v = parse_money(st.session_state.sale_proceeds_other_debts_raw) or 0.0
-                    net_proceeds = sale_price_v - mortgage_v - commission_v - legal_fees_v - other_debts_v
+                    net_proceeds = sale_price_v - mortgage_v - commission_v - legal_fees_v
+                    # Deposit is not part of net proceeds for down payment, it's a separate field.
+                    # But we might want to include deposit as part of down payment? Per spec, net proceeds formula is as given.
+                    # The deposit is separate, but we keep it for reference.
 
                     st.markdown(
                         "<div style='font-weight:700; font-size:15px; margin-top:6px;'>"
@@ -2944,14 +2964,11 @@ def render_down_payment():
                     )
                     st.caption(
                         "= " + fmt_money(sale_price_v) + " (Sale Price) − " + fmt_money(mortgage_v) + " (Mortgage) − "
-                        + fmt_money(commission_v) + " (Commission) − " + fmt_money(legal_fees_v) + " (Legal Fees) − "
-                        + fmt_money(other_debts_v) + " (Other Debts)"
+                        + fmt_money(commission_v) + " (Commission) − " + fmt_money(legal_fees_v) + " (Legal Fees)"
                     )
 
-                    # Link Net Proceeds to this source's own amount, and to the top-level Down
-                    # Payment Amount — only re-syncing when the computed value actually changes,
-                    # so a broker's own unrelated edit to Down Payment Amount isn't clobbered on
-                    # every rerun (same non-destructive sync pattern used for amortization elsewhere).
+                    # Link Net Proceeds to this source's amount, and to the top-level Down Payment Amount
+                    # Only re-sync when the computed value actually changes, so a broker's own edit isn't clobbered.
                     if sale_price_v > 0 and st.session_state.sale_proceeds_synced_net_amount != net_proceeds:
                         st.session_state.source_amounts["sale_property"] = fmt_money(net_proceeds)
                         st.session_state.down_payment_raw = fmt_money(net_proceeds)
@@ -4549,24 +4566,24 @@ def render_debts():
                         "Describe property type", value=prop.get("other_type_desc", ""), key="prop_other_" + str(pidx)
                     )
             with pt_c2:
+                # NEW: Use PROPERTY_DISPOSITION_OPTIONS instead of PROPERTY_STATUS_OPTIONS
                 prop["status"] = st.selectbox(
-                    "What's happening with this property?", PROPERTY_STATUS_OPTIONS,
-                    index=PROPERTY_STATUS_OPTIONS.index(prop.get("status", "")) if prop.get("status", "") in PROPERTY_STATUS_OPTIONS else 0,
+                    "Property Disposition", PROPERTY_DISPOSITION_OPTIONS,
+                    index=PROPERTY_DISPOSITION_OPTIONS.index(prop.get("status", ""))
+                    if prop.get("status", "") in PROPERTY_DISPOSITION_OPTIONS else 0,
                     key="prop_status_" + str(pidx),
                 )
-            is_firm_sale = prop["status"] == "Being Sold — Firm (Unconditional) Sale Agreement"
-            if is_firm_sale:
-                st.caption(
-                    "✅ Excluded from GDS/TDS — with a firm, unconditional sale agreement in place, "
-                    "Canadian lenders generally exclude this property's carrying costs from qualifying "
-                    "ratios since it won't be an ongoing obligation."
-                )
-            elif prop["status"] == "Being Sold — Not Yet Firm / Listed Only":
-                st.caption(
-                    "⚠️ Still included in GDS/TDS — without a firm, unconditional sale agreement, lenders "
-                    "generally still count this property's carrying costs, since the sale isn't guaranteed "
-                    "to close."
-                )
+
+            # Determine if we should exclude this property from GDS/TDS
+            exclude_from_ratios = prop["status"] in (
+                "Sold Firm (No debt / exclude from ratios)",
+                "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
+            )
+
+            if exclude_from_ratios:
+                st.caption("✅ Excluded from GDS/TDS — this property's carrying costs will not be included in the ratios.")
+            else:
+                st.caption("⚠️ Included in GDS/TDS — this property's carrying costs will be counted.")
 
             c1, c2 = st.columns(2)
             with c1:
@@ -4633,8 +4650,7 @@ def render_debts():
             st.caption("Property value and mortgage balance feed the Combined LTV figure on the Analysis step.")
 
             prop_total, m, t, c, h = compute_property_total(prop)
-            is_firm_sale = prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement"
-            if not is_firm_sale:
+            if not exclude_from_ratios:
                 total_property_debt += prop_total
                 total_mortgage_pi_proxy += m
                 total_taxes += t
@@ -4645,7 +4661,7 @@ def render_debts():
                 "Mortgage/Loan " + fmt_money(m) + " + Taxes " + fmt_money(t)
                 + " + Condo " + fmt_money(c) + " + Heat " + fmt_money(h)
                 + " = " + fmt_money(prop_total) + "/month"
-                + (" (excluded from GDS/TDS — firm sale)" if is_firm_sale else "")
+                + (" (excluded from GDS/TDS)" if exclude_from_ratios else "")
             )
             st.markdown(
                 "<div class='property-total'>Total Monthly Property Debt: " + fmt_money(prop_total) + "</div>",
@@ -4876,7 +4892,12 @@ def render_debts():
             any_property_shown = False
             property_subtotal_terms = []
             for prop in st.session_state.properties:
-                if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+                # Exclude properties that are marked to be excluded from ratios
+                exclude = prop["status"] in (
+                    "Sold Firm (No debt / exclude from ratios)",
+                    "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
+                )
+                if exclude:
                     continue
                 p_total, m, t, c, h = compute_property_total(prop)
                 if not any_property_shown:
@@ -5163,9 +5184,13 @@ def render_analysis():
         if not excluded:
             other_debt_monthly += compute_debt_payment(dt, amounts)
     # All properties listed in the Debts step are treated as additional (non-subject) properties,
-    # except those marked as a firm/unconditional sale (excluded per standard Canadian lending practice)
+    # except those that are excluded via disposition (Sold Firm or Title Transfer)
     for prop in st.session_state.properties:
-        if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+        exclude = prop["status"] in (
+            "Sold Firm (No debt / exclude from ratios)",
+            "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
+        )
+        if exclude:
             continue
         p_total, _, _, _, _ = compute_property_total(prop)
         other_debt_monthly += p_total
@@ -5193,11 +5218,15 @@ def render_analysis():
     if ltv is None and is_refinance():
         st.caption(":red[LTV can't be calculated — enter the Current Estimated Property Value on the Property Details step.]")
 
-    # --- Combined LTV: subject property + all other (non-firm-sale) properties from Debts ---
+    # --- Combined LTV: subject property + all other (non-excluded) properties from Debts ---
     combined_loan = loan_amount
     combined_value = purchase_price
     for prop in st.session_state.properties:
-        if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+        exclude = prop["status"] in (
+            "Sold Firm (No debt / exclude from ratios)",
+            "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
+        )
+        if exclude:
             continue
         for mtg in prop.get("mortgages", []):
             combined_loan += parse_money(mtg.get("balance", "")) or 0.0
@@ -5295,7 +5324,11 @@ def render_analysis():
             st.markdown("- " + label + (" (" + lender + ")" if lender else "") + ": " + mo_yr(pay_val))
             any_debt_line = True
         for prop in st.session_state.properties:
-            if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+            exclude = prop["status"] in (
+                "Sold Firm (No debt / exclude from ratios)",
+                "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
+            )
+            if exclude:
                 continue
             p_total, m, t, c, h = compute_property_total(prop)
             prop_label = "Other Property (" + (prop.get("address", "").strip() or "unnamed") + ")"
@@ -5362,7 +5395,11 @@ def render_analysis():
                 label += " (" + lender + ")"
             rows.append((label, pay_val, pay_val * 12))
         for prop in st.session_state.properties:
-            if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+            exclude = prop["status"] in (
+                "Sold Firm (No debt / exclude from ratios)",
+                "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
+            )
+            if exclude:
                 continue
             p_total, _, _, _, _ = compute_property_total(prop)
             addr = prop.get("address", "").strip() or "Unnamed property"
@@ -6548,7 +6585,11 @@ def build_system_notes():
         if not excluded:
             other_debt_monthly += compute_debt_payment(dt, amounts)
     for prop in st.session_state.properties:
-        if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+        exclude = prop["status"] in (
+            "Sold Firm (No debt / exclude from ratios)",
+            "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
+        )
+        if exclude:
             continue
         p_total, _, _, _, _ = compute_property_total(prop)
         other_debt_monthly += p_total
