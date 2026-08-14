@@ -1308,6 +1308,8 @@ def render_stepper(active_index):
             display_label = label
             if i == 2 and is_refinance():
                 display_label = "Switch" if st.session_state.transaction_type == "refinance_new_lender" else "Refi"
+            elif i == 2:
+                display_label = "Down Pmt"
 
             step_missing = get_step_missing_fields(i)
             is_step_complete = is_step_fully_complete(i)
@@ -1434,10 +1436,10 @@ st.markdown(
     }
     div[class*="st-key-stepper_row"] {
         overflow-x: auto !important;
-        overflow-y: hidden !important;
+        overflow-y: visible !important;
         -webkit-overflow-scrolling: touch !important;
         scrollbar-width: thin !important;
-        padding: 10px 0 !important;
+        padding: 14px 0 !important;
     }
     div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
