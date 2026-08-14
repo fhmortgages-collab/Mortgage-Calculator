@@ -490,6 +490,26 @@ def init_state():
         st.session_state.source_amounts = {}
     if "source_details" not in st.session_state:
         st.session_state.source_details = {}
+    if "sale_proceeds_address" not in st.session_state:
+        st.session_state.sale_proceeds_address = ""
+    if "sale_proceeds_closing_date" not in st.session_state:
+        st.session_state.sale_proceeds_closing_date = None
+    if "sale_proceeds_sale_price_raw" not in st.session_state:
+        st.session_state.sale_proceeds_sale_price_raw = ""
+    if "sale_proceeds_deposit_raw" not in st.session_state:
+        st.session_state.sale_proceeds_deposit_raw = ""
+    if "sale_proceeds_mortgage_raw" not in st.session_state:
+        st.session_state.sale_proceeds_mortgage_raw = ""
+    if "sale_proceeds_legal_fees_raw" not in st.session_state:
+        st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
+    if "sale_proceeds_other_debts_raw" not in st.session_state:
+        st.session_state.sale_proceeds_other_debts_raw = ""
+    if "sale_proceeds_address_synced" not in st.session_state:
+        st.session_state.sale_proceeds_address_synced = False
+    if "sale_proceeds_mortgage_synced" not in st.session_state:
+        st.session_state.sale_proceeds_mortgage_synced = False
+    if "sale_proceeds_synced_net_amount" not in st.session_state:
+        st.session_state.sale_proceeds_synced_net_amount = None
     if "other_source_desc" not in st.session_state:
         st.session_state.other_source_desc = ""
     if "dp_errors" not in st.session_state:
@@ -715,6 +735,10 @@ SAVE_STATE_KEYS = [
     "step", "transaction_type", "borrower_count", "borrowers", "consent", "borrower_errors",
     "purchase_price_raw", "down_payment_raw", "selected_sources", "source_amounts", "source_details",
     "other_source_desc", "dp_errors",
+    "sale_proceeds_address", "sale_proceeds_closing_date", "sale_proceeds_sale_price_raw",
+    "sale_proceeds_deposit_raw", "sale_proceeds_mortgage_raw", "sale_proceeds_legal_fees_raw",
+    "sale_proceeds_other_debts_raw", "sale_proceeds_address_synced", "sale_proceeds_mortgage_synced",
+    "sale_proceeds_synced_net_amount",
     "income_selected", "income_counts", "income_amounts", "income_special", "income_other_desc", "income_errors",
     "properties", "debt_selected", "debt_amounts", "debt_other_desc", "debt_errors",
     "subject_address", "subject_taxes_raw", "subject_condo_raw", "subject_heat_raw",
@@ -773,6 +797,8 @@ def serialize_application():
             b_copy["dob"] = b_copy["dob"].isoformat()
         borrowers_out.append(b_copy)
     data["borrowers"] = borrowers_out
+    if isinstance(data.get("sale_proceeds_closing_date"), date):
+        data["sale_proceeds_closing_date"] = data["sale_proceeds_closing_date"].isoformat()
     return json.dumps(data, indent=2)
 
 
@@ -802,6 +828,14 @@ def load_application(json_text):
                         b_copy["dob"] = None
                 restored.append(b_copy)
             st.session_state[key] = restored
+        elif key == "sale_proceeds_closing_date":
+            if isinstance(value, str) and value:
+                try:
+                    st.session_state[key] = date.fromisoformat(value)
+                except ValueError:
+                    st.session_state[key] = None
+            else:
+                st.session_state[key] = None
         else:
             st.session_state[key] = value
     return True, "Application loaded successfully."
@@ -840,6 +874,16 @@ def refresh_all():
     st.session_state["amortization_synced_from"] = None
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
+    st.session_state.sale_proceeds_address = ""
+    st.session_state.sale_proceeds_closing_date = None
+    st.session_state.sale_proceeds_sale_price_raw = ""
+    st.session_state.sale_proceeds_deposit_raw = ""
+    st.session_state.sale_proceeds_mortgage_raw = ""
+    st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
+    st.session_state.sale_proceeds_other_debts_raw = ""
+    st.session_state.sale_proceeds_address_synced = False
+    st.session_state.sale_proceeds_mortgage_synced = False
+    st.session_state.sale_proceeds_synced_net_amount = None
     st.session_state.other_source_desc = ""
     st.session_state.dp_errors = {}
     st.session_state.income_selected = {}
@@ -2102,6 +2146,16 @@ def clear_transaction_type_specific_fields():
     st.session_state.down_payment_raw = ""
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
+    st.session_state.sale_proceeds_address = ""
+    st.session_state.sale_proceeds_closing_date = None
+    st.session_state.sale_proceeds_sale_price_raw = ""
+    st.session_state.sale_proceeds_deposit_raw = ""
+    st.session_state.sale_proceeds_mortgage_raw = ""
+    st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
+    st.session_state.sale_proceeds_other_debts_raw = ""
+    st.session_state.sale_proceeds_address_synced = False
+    st.session_state.sale_proceeds_mortgage_synced = False
+    st.session_state.sale_proceeds_synced_net_amount = None
     st.session_state.source_details = {}
     st.session_state.subject_property_value_raw = ""
 
@@ -2685,6 +2739,16 @@ def refresh_page2():
     st.session_state.refinance_balance_raw = ""
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
+    st.session_state.sale_proceeds_address = ""
+    st.session_state.sale_proceeds_closing_date = None
+    st.session_state.sale_proceeds_sale_price_raw = ""
+    st.session_state.sale_proceeds_deposit_raw = ""
+    st.session_state.sale_proceeds_mortgage_raw = ""
+    st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
+    st.session_state.sale_proceeds_other_debts_raw = ""
+    st.session_state.sale_proceeds_address_synced = False
+    st.session_state.sale_proceeds_mortgage_synced = False
+    st.session_state.sale_proceeds_synced_net_amount = None
     st.session_state.source_details = {}
     st.session_state.other_source_desc = ""
     st.session_state.dp_errors = {}
@@ -2802,6 +2866,97 @@ def render_down_payment():
                         value=st.session_state.other_source_desc,
                         key="other_source_desc_input",
                     )
+
+                if source["key"] == "sale_property":
+                    st.markdown(
+                        "<div style='font-weight:600; font-size:14px; margin-top:10px;'>"
+                        "Existing Property Sale Proceeds</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                    # Auto-populate address and existing mortgage balance from the first property
+                    # entered under Debts & Liabilities, if any — but only the first time (so a
+                    # broker's manual edit here afterward doesn't get silently overwritten on rerun).
+                    existing_properties = st.session_state.properties
+                    if existing_properties and not st.session_state.sale_proceeds_address_synced:
+                        prior_address = existing_properties[0].get("address", "").strip()
+                        if prior_address:
+                            st.session_state.sale_proceeds_address = prior_address
+                        st.session_state.sale_proceeds_address_synced = True
+                    if existing_properties and not st.session_state.sale_proceeds_mortgage_synced:
+                        prior_mortgages = existing_properties[0].get("mortgages", [])
+                        prior_balance_total = sum(parse_money(m.get("balance", "")) or 0.0 for m in prior_mortgages)
+                        if prior_balance_total > 0:
+                            st.session_state.sale_proceeds_mortgage_raw = fmt_money(prior_balance_total)
+                        st.session_state.sale_proceeds_mortgage_synced = True
+
+                    sp_c1, sp_c2 = st.columns(2)
+                    with sp_c1:
+                        st.session_state.sale_proceeds_address = st.text_input(
+                            "Existing Property Address", value=st.session_state.sale_proceeds_address,
+                            key="sale_proceeds_address_input",
+                            placeholder="Auto-filled from Debts & Liabilities if entered there",
+                        )
+                        st.session_state.sale_proceeds_sale_price_raw = money_text_input(
+                            "Sale Price ($)", st.session_state.sale_proceeds_sale_price_raw,
+                            key="sale_proceeds_sale_price_input", placeholder="$0.00",
+                        )
+                        st.session_state.sale_proceeds_deposit_raw = money_text_input(
+                            "Deposit Received ($)", st.session_state.sale_proceeds_deposit_raw,
+                            key="sale_proceeds_deposit_input", placeholder="$0.00",
+                        )
+                        st.session_state.sale_proceeds_mortgage_raw = money_text_input(
+                            "Less: Existing Mortgage ($)", st.session_state.sale_proceeds_mortgage_raw,
+                            key="sale_proceeds_mortgage_input", placeholder="$0.00",
+                        )
+                    with sp_c2:
+                        st.session_state.sale_proceeds_closing_date = st.date_input(
+                            "Closing Date", value=st.session_state.sale_proceeds_closing_date,
+                            key="sale_proceeds_closing_date_input",
+                        )
+                        sale_price_v = parse_money(st.session_state.sale_proceeds_sale_price_raw) or 0.0
+                        commission_v = sale_price_v * 0.05
+                        st.markdown(
+                            "<div style='margin-top:0.2rem;'></div>"
+                            "<div>Less: Commission @ 5% ($)</div>"
+                            "<div style='font-family:\"Source Code Pro\", monospace; font-size:14px; color:#22c55e; "
+                            "margin-top:2px; margin-bottom:14px;'>" + fmt_money(commission_v) + "</div>",
+                            unsafe_allow_html=True,
+                        )
+                        st.session_state.sale_proceeds_legal_fees_raw = money_text_input(
+                            "Less: Legal Fees @ $1,000 ($)", st.session_state.sale_proceeds_legal_fees_raw,
+                            key="sale_proceeds_legal_fees_input", placeholder="$1,000.00",
+                        )
+                        st.session_state.sale_proceeds_other_debts_raw = money_text_input(
+                            "Less: Other Debts ($)", st.session_state.sale_proceeds_other_debts_raw,
+                            key="sale_proceeds_other_debts_input", placeholder="$0.00",
+                        )
+
+                    mortgage_v = parse_money(st.session_state.sale_proceeds_mortgage_raw) or 0.0
+                    legal_fees_v = parse_money(st.session_state.sale_proceeds_legal_fees_raw) or 0.0
+                    other_debts_v = parse_money(st.session_state.sale_proceeds_other_debts_raw) or 0.0
+                    net_proceeds = sale_price_v - mortgage_v - commission_v - legal_fees_v - other_debts_v
+
+                    st.markdown(
+                        "<div style='font-weight:700; font-size:15px; margin-top:6px;'>"
+                        "Net Proceeds from Sale: <span style='color:#22c55e;'>" + fmt_money(net_proceeds) + "</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(
+                        "= " + fmt_money(sale_price_v) + " (Sale Price) − " + fmt_money(mortgage_v) + " (Mortgage) − "
+                        + fmt_money(commission_v) + " (Commission) − " + fmt_money(legal_fees_v) + " (Legal Fees) − "
+                        + fmt_money(other_debts_v) + " (Other Debts)"
+                    )
+
+                    # Link Net Proceeds to this source's own amount, and to the top-level Down
+                    # Payment Amount — only re-syncing when the computed value actually changes,
+                    # so a broker's own unrelated edit to Down Payment Amount isn't clobbered on
+                    # every rerun (same non-destructive sync pattern used for amortization elsewhere).
+                    if sale_price_v > 0 and st.session_state.sale_proceeds_synced_net_amount != net_proceeds:
+                        st.session_state.source_amounts["sale_property"] = fmt_money(net_proceeds)
+                        st.session_state.down_payment_raw = fmt_money(net_proceeds)
+                        st.session_state.sale_proceeds_synced_net_amount = net_proceeds
+                        st.rerun()
 
                 docs_html = ""
                 for d in source["documents"]:
