@@ -1393,6 +1393,11 @@ st.markdown(
         display: flex !important;
         align-items: flex-end !important;
     }
+    /* Tighter vertical rhythm inside expanders app-wide (Income sections, borrower
+       groups, etc.) so repeated blocks don't leave excess space between fields. */
+    [data-testid="stExpanderDetails"] [data-testid="stVerticalBlock"] {
+        gap: 0.5rem !important;
+    }
     /* Uniform height for every single-line text input, number input, and dropdown
        app-wide — so fields sitting side by side (like the Income section) always
        present the same box size regardless of field type. */
@@ -1436,13 +1441,14 @@ st.markdown(
         min-width: max-content !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
-        min-width: 108px !important;
+        min-width: 132px !important;
         flex: 0 0 auto !important;
-        width: 108px !important;
+        width: 132px !important;
     }
     div[class*="st-key-stepper_row"] button {
         font-size: 12px !important;
         white-space: nowrap !important;
+        letter-spacing: -0.2px !important;
         padding: 6px 10px !important;
         width: 100% !important;
         box-sizing: border-box !important;
@@ -1453,6 +1459,15 @@ st.markdown(
         justify-content: center !important;
         text-align: center !important;
         overflow: visible !important;
+    }
+    div[class*="st-key-stepper_row"] button p,
+    div[class*="st-key-stepper_row"] button div,
+    div[class*="st-key-stepper_row"] button span {
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
+        width: auto !important;
+        max-width: none !important;
     }
     div[class*="st-key-stepbtn_"][class*="_complete"] button {
         background-color: #16a34a !important;
@@ -1467,8 +1482,8 @@ st.markdown(
         font-weight: 700 !important;
     }
     @keyframes stepbtn-active-flash {
-        0%, 100% { outline-color: rgba(239,68,68,0.5); }
-        50% { outline-color: rgba(239,68,68,1); }
+        0%, 100% { outline-width: 2px; outline-offset: -2px; outline-color: rgba(239,68,68,0.5); }
+        50% { outline-width: 5px; outline-offset: -5px; outline-color: rgba(239,68,68,1); }
     }
     div[class*="st-key-stepbtn_"][class*="_active"] button {
         outline: 2px solid #ef4444 !important;
@@ -1476,9 +1491,9 @@ st.markdown(
         animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
-        min-width: 108px !important;
+        min-width: 132px !important;
         flex: 0 0 auto !important;
-        width: 108px !important;
+        width: 132px !important;
     }
     div[class*="st-key-stepper_help_row"] {
         margin-top: -4px;
@@ -4044,12 +4059,14 @@ def render_income():
                 count_key = "inc_count_" + bidx + "_" + type_key
                 count = st.session_state.income_counts.get(bidx, {}).get(type_key, 1)
                 if len(chosen_type_keys) >= 1:
-                    count = st.selectbox(
-                        "How many " + source["label"] + " income sources does this borrower have?",
-                        [1, 2, 3, 4, 5],
-                        index=min(count, 5) - 1,
-                        key=count_key,
-                    )
+                    count_col, _spacer_col = st.columns([1, 3])
+                    with count_col:
+                        count = st.selectbox(
+                            "# of " + source["label"],
+                            [1, 2, 3, 4, 5],
+                            index=min(count, 5) - 1,
+                            key=count_key,
+                        )
                 if bidx not in st.session_state.income_counts:
                     st.session_state.income_counts[bidx] = {}
                 st.session_state.income_counts[bidx][type_key] = count
@@ -4094,10 +4111,11 @@ def render_income():
             label_name = borrower_name if borrower_name else ("Borrower " + str(idx + 1))
             borrower_totals_for_display.append((label_name, borrower_total))
 
-            st.markdown(
-                "<div class='borrower-total'>" + label_name + " Total Income: " + fmt_money(borrower_total) + "</div>",
-                unsafe_allow_html=True,
-            )
+            if borrower_total != 0:
+                st.markdown(
+                    "<div class='borrower-total'>" + label_name + " Total Income: " + fmt_money(borrower_total) + "</div>",
+                    unsafe_allow_html=True,
+                )
 
             errors = {}
             if not selected:
