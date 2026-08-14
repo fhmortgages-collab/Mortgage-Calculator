@@ -1309,7 +1309,7 @@ def render_stepper(active_index):
             if i == 2 and is_refinance():
                 display_label = "Switch" if st.session_state.transaction_type == "refinance_new_lender" else "Refi"
             elif i == 2:
-                display_label = "Down Pmt"
+                display_label = "Down"
 
             step_missing = get_step_missing_fields(i)
             is_step_complete = is_step_fully_complete(i)
@@ -1497,11 +1497,13 @@ st.markdown(
     @keyframes stepbtn-active-flash {
         0%, 100% {
             outline-width: 3px; outline-offset: -3px; outline-color: rgba(239,68,68,0.6);
-            background-color: #dc2626 !important; transform: scale(1);
+            background-color: #dc2626 !important;
+            box-shadow: 0 0 0 0 rgba(255,32,32,0.7);
         }
         50% {
             outline-width: 6px; outline-offset: -6px; outline-color: rgba(255,255,255,1);
-            background-color: #ff2020 !important; transform: scale(1.12);
+            background-color: #ff2020 !important;
+            box-shadow: 0 0 14px 6px rgba(255,32,32,0.7);
         }
     }
     div[class*="st-key-stepbtn_"][class*="_active"] button {
