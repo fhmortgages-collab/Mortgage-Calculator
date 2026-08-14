@@ -731,6 +731,22 @@ def init_state():
     if "builder_rate_buydown" not in st.session_state:
         st.session_state.builder_rate_buydown = ""
 
+    # --- Manual Refinance Calculator (standalone, does not affect app data) ---
+    if "calc_property_value_raw" not in st.session_state:
+        st.session_state.calc_property_value_raw = ""
+    if "calc_first_mtg_raw" not in st.session_state:
+        st.session_state.calc_first_mtg_raw = ""
+    if "calc_second_mtg_raw" not in st.session_state:
+        st.session_state.calc_second_mtg_raw = ""
+    if "calc_loan_requested_raw" not in st.session_state:
+        st.session_state.calc_loan_requested_raw = ""
+    if "calc_other_debts" not in st.session_state:
+        st.session_state.calc_other_debts = []  # list of {"description": "", "balance": ""}
+    if "calc_other_debt_descriptions" not in st.session_state:
+        st.session_state.calc_other_debt_descriptions = []
+    if "calc_other_debt_balances" not in st.session_state:
+        st.session_state.calc_other_debt_balances = []
+
 
 SAVE_STATE_KEYS = [
     "step", "transaction_type", "borrower_count", "borrowers", "consent", "borrower_errors",
@@ -782,6 +798,9 @@ SAVE_STATE_KEYS = [
     "builder_mortgage_product", "builder_amortization_years", "builder_interest_rate_type",
     "builder_gst_hst_included", "builder_gst_hst_percent_raw", "builder_cashback_requested",
     "builder_cashback_program", "builder_rate_buydown",
+    # Manual calculator keys
+    "calc_property_value_raw", "calc_first_mtg_raw", "calc_second_mtg_raw",
+    "calc_loan_requested_raw", "calc_other_debts",
 ]
 
 
@@ -993,6 +1012,12 @@ def refresh_all():
     st.session_state.switch_taxes_up_to_date = ""
     st.session_state.switch_insurance_provider = ""
     st.session_state.switch_insurance_good_standing = ""
+    # Reset calculator state
+    st.session_state.calc_property_value_raw = ""
+    st.session_state.calc_first_mtg_raw = ""
+    st.session_state.calc_second_mtg_raw = ""
+    st.session_state.calc_loan_requested_raw = ""
+    st.session_state.calc_other_debts = []
 
 
 def is_refinance():
@@ -5564,6 +5589,128 @@ def render_analysis():
         )
 
     st.divider()
+
+    # --- MANUAL REFINANCE CALCULATOR (standalone, does not affect app data) ---
+    with st.expander("🧮 Refinance Calculator (Manual)", expanded=False):
+        st.caption("Use this calculator to run what-if scenarios for a refinance. All calculations are independent of the main application data.")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            st.session_state.calc_property_value_raw = money_text_input(
+                "Property Value ($)", st.session_state.calc_property_value_raw,
+                key="calc_property_value_input", placeholder="e.g. 450,000",
+            )
+        with c2:
+            st.session_state.calc_first_mtg_raw = money_text_input(
+                "1st Mortgage Balance ($)", st.session_state.calc_first_mtg_raw,
+                key="calc_first_mtg_input", placeholder="e.g. 300,000",
+            )
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            st.session_state.calc_second_mtg_raw = money_text_input(
+                "2nd Mortgage Balance ($) (0 if none)", st.session_state.calc_second_mtg_raw,
+                key="calc_second_mtg_input", placeholder="e.g. 50,000",
+            )
+        with c2:
+            st.session_state.calc_loan_requested_raw = money_text_input(
+                "Loan Amount Requested ($)", st.session_state.calc_loan_requested_raw,
+                key="calc_loan_requested_input", placeholder="e.g. 350,000",
+            )
+        
+        st.markdown("**Other Debts to Pay Out** (optional)")
+        st.caption("Add any other debts you want to include in the payout calculation.")
+        
+        # Manage other debts list
+        other_debts = st.session_state.calc_other_debts
+        # Ensure we have a list of dicts with "description" and "balance"
+        if not isinstance(other_debts, list):
+            other_debts = []
+        
+        # Render existing other debts
+        to_remove = None
+        for idx, debt in enumerate(other_debts):
+            if not isinstance(debt, dict):
+                debt = {"description": "", "balance": ""}
+            col_desc, col_bal, col_btn = st.columns([3, 2, 1])
+            with col_desc:
+                debt["description"] = st.text_input(
+                    "Description", value=debt.get("description", ""),
+                    key=f"calc_od_desc_{idx}", label_visibility="collapsed",
+                    placeholder="e.g. Car loan, credit card",
+                )
+            with col_bal:
+                debt["balance"] = money_text_input(
+                    "Balance ($)", debt.get("balance", ""),
+                    key=f"calc_od_bal_{idx}", placeholder="$0.00",
+                    label_visibility="collapsed",
+                )
+            with col_btn:
+                if st.button("✕", key=f"calc_od_remove_{idx}", use_container_width=True):
+                    to_remove = idx
+            other_debts[idx] = debt
+        if to_remove is not None:
+            other_debts.pop(to_remove)
+            st.session_state.calc_other_debts = other_debts
+            st.rerun()
+        
+        # Add new debt row
+        col_desc, col_bal, col_btn = st.columns([3, 2, 1])
+        with col_desc:
+            new_desc = st.text_input(
+                "New debt description", key="calc_od_new_desc", label_visibility="collapsed",
+                placeholder="Add another debt...",
+            )
+        with col_bal:
+            new_bal = money_text_input(
+                "Balance ($)", "", key="calc_od_new_bal", placeholder="$0.00",
+                label_visibility="collapsed",
+            )
+        with col_btn:
+            if st.button("+ Add", key="calc_od_add_btn", use_container_width=True):
+                if new_desc.strip() and parse_money(new_bal) is not None:
+                    other_debts.append({"description": new_desc.strip(), "balance": new_bal})
+                    st.session_state.calc_other_debts = other_debts
+                    st.rerun()
+        
+        # --- Calculations ---
+        prop_val = parse_money(st.session_state.calc_property_value_raw) or 0.0
+        first_mtg = parse_money(st.session_state.calc_first_mtg_raw) or 0.0
+        second_mtg = parse_money(st.session_state.calc_second_mtg_raw) or 0.0
+        loan_req = parse_money(st.session_state.calc_loan_requested_raw) or 0.0
+        
+        total_mtg = first_mtg + second_mtg
+        
+        # Sum other debts
+        other_debt_total = 0.0
+        for debt in other_debts:
+            if isinstance(debt, dict):
+                other_debt_total += parse_money(debt.get("balance", "")) or 0.0
+        
+        total_liabilities = total_mtg + other_debt_total
+        cash_out = max(loan_req - total_liabilities, 0.0)
+        ltv = (loan_req / prop_val * 100) if prop_val > 0 else None
+        combined_ltv = ((total_mtg + other_debt_total) / prop_val * 100) if prop_val > 0 else None
+        
+        st.divider()
+        st.markdown("**Results**")
+        result_cols = st.columns(3)
+        with result_cols[0]:
+            st.metric("Total Existing Mortgages", fmt_money(total_mtg))
+        with result_cols[1]:
+            st.metric("Total Other Debts", fmt_money(other_debt_total))
+        with result_cols[2]:
+            st.metric("Total Liabilities", fmt_money(total_liabilities))
+        
+        result_cols = st.columns(3)
+        with result_cols[0]:
+            st.metric("Cash Out (approx.)", fmt_money(cash_out))
+        with result_cols[1]:
+            st.metric("LTV on Requested Loan", f"{ltv:.2f}%" if ltv is not None else "—")
+        with result_cols[2]:
+            st.metric("Combined LTV (All Debt)", f"{combined_ltv:.2f}%" if combined_ltv is not None else "—")
+        
+        st.caption("This calculator is for manual what-if analysis only and does not affect the application's GDS/TDS or qualification.")
 
     # --- Navigation ---
     back_col, docs_col = st.columns(2)
