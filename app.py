@@ -1397,6 +1397,17 @@ st.markdown(
         display: flex !important;
         align-items: flex-end !important;
     }
+    iframe {
+        margin: 0 !important;
+        display: block !important;
+    }
+    div:has(> iframe[height="0"]) {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        line-height: 0 !important;
+    }
     /* Tighter vertical rhythm inside expanders app-wide (Income sections, borrower
        groups, etc.) so repeated blocks don't leave excess space between fields. */
     [data-testid="stExpanderDetails"] [data-testid="stVerticalBlock"] {
@@ -1439,7 +1450,7 @@ st.markdown(
         overflow-y: visible !important;
         -webkit-overflow-scrolling: touch !important;
         scrollbar-width: thin !important;
-        padding: 14px 0 !important;
+        padding: 4px 0 !important;
     }
     div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
