@@ -1446,19 +1446,16 @@ st.markdown(
         color: #b0b6c0 !important;
     }
     div[class*="st-key-stepper_row"] {
-        overflow-x: auto !important;
-        overflow-y: visible !important;
-        -webkit-overflow-scrolling: touch !important;
-        scrollbar-width: thin !important;
+        overflow: visible !important;
         padding: 4px 0 !important;
     }
     div[class*="st-key-stepper_row"] > div[data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        min-width: max-content !important;
+        flex-wrap: wrap !important;
+        row-gap: 6px !important;
     }
     div[class*="st-key-stepper_row"] div[data-testid="column"] {
         min-width: 132px !important;
-        flex: 0 0 auto !important;
+        flex: 0 1 132px !important;
         width: 132px !important;
     }
     div[class*="st-key-stepper_row"] button {
@@ -1518,18 +1515,17 @@ st.markdown(
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
         min-width: 132px !important;
-        flex: 0 0 auto !important;
+        flex: 0 1 132px !important;
         width: 132px !important;
     }
     div[class*="st-key-stepper_help_row"] {
-        margin-top: -4px;
+        margin-top: -2px;
         margin-bottom: 6px;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
+        overflow: visible !important;
     }
     div[class*="st-key-stepper_help_row"] > div[data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        min-width: max-content !important;
+        flex-wrap: wrap !important;
+        row-gap: 0 !important;
     }
     div[class*="st-key-helpbtn_step_"] {
         display: flex;
