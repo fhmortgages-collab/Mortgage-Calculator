@@ -56,6 +56,9 @@ def get_osfi_minimum_qualifying_rate():
             result["buffer_pct"] = float(match.group(1))
             result["floor_pct"] = float(match.group(2))
             result["source_status"] = "Live OSFI guideline retrieved"
+
+
+        Add live OSFI stress test rate helper
         else:
             result["source_status"] = (
                 "OSFI page retrieved but could not parse rate wording; "
