@@ -1482,13 +1482,21 @@ st.markdown(
         font-weight: 700 !important;
     }
     @keyframes stepbtn-active-flash {
-        0%, 100% { outline-width: 2px; outline-offset: -2px; outline-color: rgba(239,68,68,0.5); }
-        50% { outline-width: 5px; outline-offset: -5px; outline-color: rgba(239,68,68,1); }
+        0%, 100% {
+            outline-width: 3px; outline-offset: -3px; outline-color: rgba(239,68,68,0.6);
+            background-color: #dc2626 !important;
+        }
+        50% {
+            outline-width: 6px; outline-offset: -6px; outline-color: rgba(255,255,255,1);
+            background-color: #ff2020 !important;
+        }
     }
     div[class*="st-key-stepbtn_"][class*="_active"] button {
-        outline: 2px solid #ef4444 !important;
-        outline-offset: -2px !important;
-        animation: stepbtn-active-flash 1.4s ease-in-out infinite !important;
+        outline: 3px solid #ef4444 !important;
+        outline-offset: -3px !important;
+        animation: stepbtn-active-flash 0.7s ease-in-out infinite !important;
+        color: white !important;
+        font-weight: 800 !important;
     }
     div[class*="st-key-stepper_help_row"] div[data-testid="column"] {
         min-width: 132px !important;
@@ -1744,6 +1752,11 @@ st.markdown(
         border-radius: 10px;
         padding: 10px 14px !important;
         margin: 0 0 8px !important;
+        min-height: 148px !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
     }
     div[class*="st-key-txntype_card_"] [data-testid="stMarkdownContainer"] p {
         margin-bottom: 1px !important;
