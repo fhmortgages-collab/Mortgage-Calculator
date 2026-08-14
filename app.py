@@ -274,7 +274,7 @@ def parse_money(raw):
         return None
 
 
-def money_text_input(label, value, key, placeholder=None):
+def money_text_input(label, value, key, placeholder=None, help=None):
     """
     A text_input for dollar amounts that displays the stored value reformatted
     as $X,XXX.XX (once it parses as a number) instead of a bare number string,
@@ -286,6 +286,8 @@ def money_text_input(label, value, key, placeholder=None):
     kwargs = {"key": key}
     if placeholder is not None:
         kwargs["placeholder"] = placeholder
+    if help is not None:
+        kwargs["help"] = help
     return st.text_input(label, value=display_value, **kwargs)
 
 
@@ -3024,21 +3026,15 @@ def render_property_details():
         ref_value = get_reference_property_value()
         av_c1, av_c2 = st.columns(2)
         with av_c1:
-            av_label_col, av_help_col = st.columns([5, 1])
-            with av_label_col:
-                st.session_state.property_appraisal_value_raw = money_text_input(
-                    "Appraisal Value ($)", st.session_state.property_appraisal_value_raw,
-                    key="property_appraisal_value_input", placeholder="Enter once the appraisal comes back",
-                )
-            with av_help_col:
-                st.markdown("<div style='min-height:1.9em;'></div>", unsafe_allow_html=True)
-                with st.container(key="helpbtn_help_ltv_calc"):
-                    with st.popover("?", key="help_ltv_calc"):
-                        st.caption(
-                            "For Refinance transactions, LTV is calculated using the Appraised Value. "
-                            "For Purchase transactions, LTV is calculated using the lower of the Purchase "
-                            "Price or Appraised Value."
-                        )
+            st.session_state.property_appraisal_value_raw = money_text_input(
+                "Appraisal Value ($)", st.session_state.property_appraisal_value_raw,
+                key="property_appraisal_value_input", placeholder="Enter once the appraisal comes back",
+                help=(
+                    "For Refinance transactions, LTV is calculated using the Appraised Value. "
+                    "For Purchase transactions, LTV is calculated using the lower of the Purchase "
+                    "Price or Appraised Value."
+                ),
+            )
             appraisal_val = parse_money(st.session_state.property_appraisal_value_raw)
             if appraisal_val is not None:
                 diff_caption = ""
@@ -3225,20 +3221,15 @@ def render_property_details():
             )
         with rc_b:
             if st.session_state.subject_has_rental_component == "Yes":
-                units_input_col, units_help_col = st.columns([5, 1])
-                with units_input_col:
-                    st.session_state.subject_num_units = st.text_input(
-                        "How many units does the property have?", value=st.session_state.subject_num_units,
-                        placeholder="e.g. 2", key="subject_num_units_input",
-                    )
-                with units_help_col:
-                    with st.container(key="helpbtn_help_num_units"):
-                        with st.popover("?", key="help_num_units"):
-                            st.caption(
-                                "Enter the number of rental units in addition to the primary residence "
-                                "(e.g., if the property has 1 rental unit, enter 1; if it has 2 rental "
-                                "units, enter 2)."
-                            )
+                st.session_state.subject_num_units = st.text_input(
+                    "How many units does the property have?", value=st.session_state.subject_num_units,
+                    placeholder="e.g. 2", key="subject_num_units_input",
+                    help=(
+                        "Enter the number of rental units in addition to the primary residence "
+                        "(e.g., if the property has 1 rental unit, enter 1; if it has 2 rental "
+                        "units, enter 2)."
+                    ),
+                )
         if st.session_state.subject_has_rental_component == "Yes":
             st.caption("For the rental income to be usable for qualification, the unit must be self-contained:")
             with st.container(key="sub_checkbox_rental"):
@@ -4151,9 +4142,7 @@ def render_income():
                             st.caption(":red[" + msg + "]")
 
     st.divider()
-    income_header_col, income_help_col = st.columns([5, 1])
-    with income_header_col:
-        st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
+    st.markdown("#### Total Combined Income: " + fmt_money(grand_total))
 
     calc_terms = []
     for idx in range(borrower_count):
@@ -4166,15 +4155,13 @@ def render_income():
             if src:
                 calc_terms.append((name + " — " + src["label"], val))
     if calc_terms:
-        with income_help_col:
-            with st.container(key="helpbtn_help_income_calc"):
-                with st.popover("?", key="help_income_calc"):
-                    st.caption(
-                        "Calculation: " + " + ".join(fmt_money(v) for _, v in calc_terms) + " = " + fmt_money(grand_total)
-                    )
-                    st.divider()
-                    for label, v in calc_terms:
-                        st.markdown("- " + label + ": **" + fmt_money(v) + "**")
+        with st.expander("ℹ️ Show calculation details"):
+            st.caption(
+                "Calculation: " + " + ".join(fmt_money(v) for _, v in calc_terms) + " = " + fmt_money(grand_total)
+            )
+            st.divider()
+            for label, v in calc_terms:
+                st.markdown("- " + label + ": **" + fmt_money(v) + "**")
     st.divider()
 
     income_missing_items = []
@@ -4919,39 +4906,34 @@ def render_analysis():
         st.markdown("#### Financing Terms")
 
         def field_row(label_widget_fn, help_text_fn, help_key):
-            with st.container(key="fieldrow_" + help_key):
-                c1, c2 = st.columns([5, 1])
-                with c1:
-                    label_widget_fn()
-                with c2:
-                    with st.container(key="helpbtn_" + help_key):
-                        with st.popover("?", key=help_key):
-                            st.caption(help_text_fn())
+            label_widget_fn(help_text_fn())
 
         fc1, fc2 = st.columns(2)
         with fc1:
             field_row(
-                lambda: st.session_state.__setitem__("contract_rate", st.number_input(
+                lambda help_text: st.session_state.__setitem__("contract_rate", st.number_input(
                     "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
                     value=st.session_state.contract_rate, step=0.05, key="analysis_contract_rate",
+                    help=help_text,
                 )),
                 lambda: help_contract_rate_text(st.session_state.contract_rate),
                 "help_contract_rate",
             )
             field_row(
-                lambda: st.session_state.__setitem__("mortgage_term", st.selectbox(
+                lambda help_text: st.session_state.__setitem__("mortgage_term", st.selectbox(
                     "Mortgage Term", MORTGAGE_TERM_OPTIONS,
                     index=MORTGAGE_TERM_OPTIONS.index(st.session_state.mortgage_term)
                     if st.session_state.mortgage_term in MORTGAGE_TERM_OPTIONS else 4,
-                    key="mortgage_term_select",
+                    key="mortgage_term_select", help=help_text,
                 )),
                 lambda: help_term_text(st.session_state.mortgage_term),
                 "help_term",
             )
             field_row(
-                lambda: st.session_state.__setitem__("benchmark_rate", st.number_input(
+                lambda help_text: st.session_state.__setitem__("benchmark_rate", st.number_input(
                     "Benchmark Qualifying Rate (%)", min_value=0.0, max_value=25.0,
                     value=st.session_state.benchmark_rate, step=0.05, key="benchmark_rate_input",
+                    help=help_text,
                 )),
                 lambda: help_benchmark_text(
                     st.session_state.contract_rate, st.session_state.benchmark_rate,
@@ -4961,19 +4943,20 @@ def render_analysis():
             )
         with fc2:
             field_row(
-                lambda: st.session_state.__setitem__("amortization_years", st.number_input(
+                lambda help_text: st.session_state.__setitem__("amortization_years", st.number_input(
                     "Amortization (years)", min_value=1, max_value=50,
                     value=st.session_state.amortization_years, step=1, key="analysis_amortization",
+                    help=help_text,
                 )),
                 lambda: help_amortization_text(st.session_state.amortization_years),
                 "help_amortization",
             )
             field_row(
-                lambda: st.session_state.__setitem__("rate_type", st.selectbox(
+                lambda help_text: st.session_state.__setitem__("rate_type", st.selectbox(
                     "Rate Type", RATE_TYPE_OPTIONS,
                     index=RATE_TYPE_OPTIONS.index(st.session_state.rate_type)
                     if st.session_state.rate_type in RATE_TYPE_OPTIONS else 0,
-                    key="rate_type_select",
+                    key="rate_type_select", help=help_text,
                 )),
                 lambda: help_rate_type_text(st.session_state.rate_type),
                 "help_rate_type",
@@ -5054,13 +5037,7 @@ def render_analysis():
             "property value and mortgage balance for each property under Debts & Liabilities to populate this."
         )
 
-    ltv_header_col, ltv_help_col = st.columns([5, 1])
-    with ltv_header_col:
-        st.markdown("**Combined LTV (Subject + Other Properties)**")
-    with ltv_help_col:
-        with st.container(key="helpbtn_help_combined_ltv"):
-            with st.popover("?", key="help_combined_ltv"):
-                st.caption(help_combined_ltv_text())
+    st.subheader("Combined LTV (Subject + Other Properties)", help=help_combined_ltv_text())
     st.markdown(
         "<div class='metric-row'>"
         "<div class='metric-card' style='max-width:calc(50% - 6px);'>"
@@ -5110,61 +5087,57 @@ def render_analysis():
         stressed_pi, taxes, heat, condo, other_debt_monthly, total_income
     )
 
-    gds_header_col, gds_help_col = st.columns([5, 1])
-    with gds_header_col:
-        st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
-    with gds_help_col:
-        with st.container(key="helpbtn_help_gds_tds"):
-            with st.popover("?", key="help_gds_tds"):
-                def mo_yr(monthly_val):
-                    return "**" + fmt_money(monthly_val) + "**/mo  ·  **" + fmt_money(monthly_val * 12) + "**/yr"
+    st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
+    with st.expander("ℹ️ Show calculation details"):
+        def mo_yr(monthly_val):
+            return "**" + fmt_money(monthly_val) + "**/mo  ·  **" + fmt_money(monthly_val * 12) + "**/yr"
 
-                st.markdown("**Housing costs (GDS numerator)**")
-                st.markdown("- Principal & Interest (contract, " + "{:.2f}%".format(st.session_state.contract_rate) + "): " + mo_yr(pi_payment))
-                st.markdown("- Principal & Interest (stressed, " + "{:.2f}%".format(qualifying_rate) + "): " + mo_yr(stressed_pi))
-                st.markdown("- Property Taxes: " + mo_yr(taxes))
-                st.markdown("- Heat: " + mo_yr(heat))
-                st.markdown("- Condo Fees (50% counted): " + mo_yr(condo * 0.5) + "  (full fee: " + mo_yr(condo) + ")")
-                st.divider()
-                st.markdown("**Other debts (added for TDS only)**")
-                any_debt_line = False
-                for instance_key in st.session_state.debt_selected:
-                    dt = get_debt_type(instance_key)
-                    if not dt:
-                        continue
-                    amounts = st.session_state.debt_amounts.get(instance_key, {})
-                    excluded = (
-                        st.session_state.debt_payout_selected.get(instance_key, False)
-                        or st.session_state.debt_paid_from_own_funds.get(instance_key, False)
-                    )
-                    if excluded:
-                        continue
-                    pay_val = compute_debt_payment(dt, amounts)
-                    label = debt_instance_label(dt, instance_key)
-                    lender = amounts.get("lender", "").strip()
-                    st.markdown("- " + label + (" (" + lender + ")" if lender else "") + ": " + mo_yr(pay_val))
-                    any_debt_line = True
-                for prop in st.session_state.properties:
-                    if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
-                        continue
-                    p_total, m, t, c, h = compute_property_total(prop)
-                    prop_label = "Other Property (" + (prop.get("address", "").strip() or "unnamed") + ")"
-                    st.markdown("- " + prop_label + " — total: " + mo_yr(p_total))
-                    st.markdown("&nbsp;&nbsp;&nbsp;mortgage " + mo_yr(m) + "  ·  taxes " + mo_yr(t) + "  ·  condo " + mo_yr(c) + "  ·  heat " + mo_yr(h))
-                    any_debt_line = True
-                if not any_debt_line:
-                    st.caption("No other debts counted toward TDS.")
-                st.divider()
-                st.markdown("**Totals**")
-                st.markdown("- Total Housing Costs (GDS, contract): " + mo_yr(annual_housing / 12))
-                st.markdown("- Total Housing Costs (GDS, stressed): " + mo_yr(stressed_annual_housing / 12))
-                st.markdown("- Total Debt Obligations (TDS, contract): " + mo_yr((annual_housing + annual_other_debt) / 12))
-                st.markdown("- Total Debt Obligations (TDS, stressed): " + mo_yr((stressed_annual_housing + stressed_annual_other_debt) / 12))
-                st.markdown("- Combined Gross Annual Income: **" + fmt_money(total_income) + "**/yr  ·  **" + fmt_money(total_income / 12) + "**/mo")
-                st.divider()
-                st.caption(help_gds_text(total_income, annual_housing, gds))
-                st.divider()
-                st.caption(help_tds_text(total_income, annual_housing, annual_other_debt, tds))
+        st.markdown("**Housing costs (GDS numerator)**")
+        st.markdown("- Principal & Interest (contract, " + "{:.2f}%".format(st.session_state.contract_rate) + "): " + mo_yr(pi_payment))
+        st.markdown("- Principal & Interest (stressed, " + "{:.2f}%".format(qualifying_rate) + "): " + mo_yr(stressed_pi))
+        st.markdown("- Property Taxes: " + mo_yr(taxes))
+        st.markdown("- Heat: " + mo_yr(heat))
+        st.markdown("- Condo Fees (50% counted): " + mo_yr(condo * 0.5) + "  (full fee: " + mo_yr(condo) + ")")
+        st.divider()
+        st.markdown("**Other debts (added for TDS only)**")
+        any_debt_line = False
+        for instance_key in st.session_state.debt_selected:
+            dt = get_debt_type(instance_key)
+            if not dt:
+                continue
+            amounts = st.session_state.debt_amounts.get(instance_key, {})
+            excluded = (
+                st.session_state.debt_payout_selected.get(instance_key, False)
+                or st.session_state.debt_paid_from_own_funds.get(instance_key, False)
+            )
+            if excluded:
+                continue
+            pay_val = compute_debt_payment(dt, amounts)
+            label = debt_instance_label(dt, instance_key)
+            lender = amounts.get("lender", "").strip()
+            st.markdown("- " + label + (" (" + lender + ")" if lender else "") + ": " + mo_yr(pay_val))
+            any_debt_line = True
+        for prop in st.session_state.properties:
+            if prop.get("status") == "Being Sold — Firm (Unconditional) Sale Agreement":
+                continue
+            p_total, m, t, c, h = compute_property_total(prop)
+            prop_label = "Other Property (" + (prop.get("address", "").strip() or "unnamed") + ")"
+            st.markdown("- " + prop_label + " — total: " + mo_yr(p_total))
+            st.markdown("&nbsp;&nbsp;&nbsp;mortgage " + mo_yr(m) + "  ·  taxes " + mo_yr(t) + "  ·  condo " + mo_yr(c) + "  ·  heat " + mo_yr(h))
+            any_debt_line = True
+        if not any_debt_line:
+            st.caption("No other debts counted toward TDS.")
+        st.divider()
+        st.markdown("**Totals**")
+        st.markdown("- Total Housing Costs (GDS, contract): " + mo_yr(annual_housing / 12))
+        st.markdown("- Total Housing Costs (GDS, stressed): " + mo_yr(stressed_annual_housing / 12))
+        st.markdown("- Total Debt Obligations (TDS, contract): " + mo_yr((annual_housing + annual_other_debt) / 12))
+        st.markdown("- Total Debt Obligations (TDS, stressed): " + mo_yr((stressed_annual_housing + stressed_annual_other_debt) / 12))
+        st.markdown("- Combined Gross Annual Income: **" + fmt_money(total_income) + "**/yr  ·  **" + fmt_money(total_income / 12) + "**/mo")
+        st.divider()
+        st.caption(help_gds_text(total_income, annual_housing, gds))
+        st.divider()
+        st.caption(help_tds_text(total_income, annual_housing, annual_other_debt, tds))
 
     gds_display = "{:.2f}%".format(gds) if gds is not None else "—"
     tds_display = "{:.2f}%".format(tds) if tds is not None else "—"
@@ -6578,22 +6551,16 @@ def render_notes():
     st.divider()
 
     # --- 3. Discrepancies ---
-    disc_header_col, disc_help_col = st.columns([5, 1])
-    with disc_header_col:
-        st.markdown("#### ⚠️ Discrepancies")
-    with disc_help_col:
-        with st.container(key="helpbtn_help_discrepancies"):
-            with st.popover("?", key="help_discrepancies"):
-                st.caption(
-                    "Compare the application data above against the Client Intake Notes. List anything that "
-                    "doesn't match — these are flagged as a risk for underwriting to review."
-                )
-                st.divider()
-                st.caption(
-                    "Auto-flagged below by matching dollar figures and keywords in the intake notes against "
-                    "the application data — this is pattern-matching, not AI (no live model is connected), "
-                    "so it only catches the phrasing it recognizes. Always review manually."
-                )
+    st.subheader(
+        "⚠️ Discrepancies",
+        help=(
+            "Compare the application data above against the Client Intake Notes. List anything that "
+            "doesn't match — these are flagged as a risk for underwriting to review.\n\n"
+            "Auto-flagged below by matching dollar figures and keywords in the intake notes against "
+            "the application data — this is pattern-matching, not AI (no live model is connected), "
+            "so it only catches the phrasing it recognizes. Always review manually."
+        ),
+    )
     auto_flags = detect_intake_discrepancies()
     existing_texts = {e["text"] for e in st.session_state.discrepancy_entries}
     for flag in auto_flags:
@@ -6637,20 +6604,14 @@ def render_notes():
     st.divider()
 
     # --- 4. Broker Notes ---
-    broker_header_col, broker_help_col = st.columns([5, 1])
-    with broker_header_col:
-        st.markdown("#### Broker Notes")
-    with broker_help_col:
-        with st.container(key="helpbtn_help_broker_notes"):
-            with st.popover("?", key="help_broker_notes"):
-                st.caption(
-                    "Add any context the system can't infer — client's story, how any discrepancies above "
-                    "were addressed, special circumstances, verbal explanations, etc."
-                )
     with st.container(key="notes_font_scope_broker"):
         st.session_state.broker_notes = st.text_area(
             "Broker Notes to Underwriter",
             value=st.session_state.broker_notes, height=180, key="broker_notes_input",
+            help=(
+                "Add any context the system can't infer — client's story, how any discrepancies above "
+                "were addressed, special circumstances, verbal explanations, etc."
+            ),
         )
 
     st.divider()
