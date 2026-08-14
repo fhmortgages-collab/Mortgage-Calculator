@@ -275,8 +275,7 @@ def parse_money(raw):
     except ValueError:
         return None
 
-
-def money_text_input(label, value, key, placeholder=None, help=None):
+def money_text_input(label, value, key, placeholder=None, help=None, label_visibility=None):
     """
     A text_input for dollar amounts that displays the stored value reformatted
     as $X,XXX.XX (once it parses as a number) instead of a bare number string,
@@ -290,6 +289,8 @@ def money_text_input(label, value, key, placeholder=None, help=None):
         kwargs["placeholder"] = placeholder
     if help is not None:
         kwargs["help"] = help
+    if label_visibility is not None:
+        kwargs["label_visibility"] = label_visibility
     return st.text_input(label, value=display_value, **kwargs)
 
 
