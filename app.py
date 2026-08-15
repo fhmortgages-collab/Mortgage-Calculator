@@ -1425,7 +1425,7 @@ def render_stepper(active_index):
                                 st.markdown("- " + m)
 
 
-st.set_page_config(page_title="AAAA FH.Mortgages Calculator", page_icon="🏠", layout="centered")
+st.set_page_config(page_title="FH Mortgages Calculator", page_icon="🏠", layout="centered")
 
 st.markdown(
     """
@@ -1960,7 +1960,7 @@ for _opt in TRANSACTION_TYPE_OPTIONS:
 
 st.markdown(
     "<div style='font-size:17.5px; font-weight:700; white-space:nowrap; overflow:hidden; "
-    "text-overflow:ellipsis; line-height:1.3;'>🏠 AAAAFH.Mortgages calculator" + _title_suffix + "</div>",
+    "text-overflow:ellipsis; line-height:1.3;'>🏠 FH Mortgages Calculator" + _title_suffix + "</div>",
     unsafe_allow_html=True,
 )
 st.caption("Residential Mortgage Application")
