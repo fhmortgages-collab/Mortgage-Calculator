@@ -2044,6 +2044,34 @@ st.markdown(
         width: max-content !important;
         min-width: 320px !important;
     }
+    /* Make every sidebar element (Timer, Stop Timer, Download, Upload,
+       Refresh, Calculator) the same width and consistent vertical spacing. */
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        gap: 0 !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {
+        margin-bottom: 14px !important;
+        padding: 0 !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stElementContainer"] {
+        margin-bottom: 14px !important;
+        padding: 0 !important;
+    }
+    [data-testid="stSidebar"] .stButton > button,
+    [data-testid="stSidebar"] .stDownloadButton > button,
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary {
+        width: 100% !important;
+        height: 46px !important;
+        box-sizing: border-box !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] {
+        width: 100% !important;
+        min-height: 46px !important;
+        height: 46px !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
