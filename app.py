@@ -2,6 +2,8 @@ import re
 import json
 import ast
 import time
+import smtplib
+from email.message import EmailMessage
 from datetime import date
 
 import streamlit as st
@@ -824,6 +826,63 @@ def serialize_application():
     if isinstance(data.get("sale_proceeds_closing_date"), date):
         data["sale_proceeds_closing_date"] = data["sale_proceeds_closing_date"].isoformat()
     return json.dumps(data, indent=2)
+
+
+def send_application_email():
+    """
+    Emails a summary of the application plus the full JSON export as an
+    attachment, using the Gmail address/app-password stored in
+    .streamlit/secrets.toml. Returns (success: bool, message: str).
+    """
+    try:
+        sender_email = st.secrets["EMAIL_ADDRESS"]
+        sender_password = st.secrets["EMAIL_APP_PASSWORD"]
+    except Exception:
+        return False, "Email credentials are not configured (missing secrets.toml)."
+
+    borrower_names = []
+    for b in st.session_state.get("borrowers", []):
+        name = (b.get("full_name") or "").strip()
+        if name:
+            borrower_names.append(name)
+    borrower_summary = ", ".join(borrower_names) if borrower_names else "Unnamed applicant"
+
+    total_income = compute_total_income()
+    transaction_label = ""
+    for opt in TRANSACTION_TYPE_OPTIONS:
+        if opt["key"] == st.session_state.get("transaction_type"):
+            transaction_label = opt["label"]
+            break
+
+    summary_text = (
+        "A mortgage application has been submitted.\n\n"
+        "Borrower(s): " + borrower_summary + "\n"
+        "Transaction Type: " + (transaction_label or "Not specified") + "\n"
+        "Total Qualifying Income: " + fmt_money(total_income) + "\n\n"
+        "The full application data is attached as a JSON file."
+    )
+
+    msg = EmailMessage()
+    msg["Subject"] = "Mortgage Application Submitted — " + borrower_summary
+    msg["From"] = sender_email
+    msg["To"] = sender_email
+    msg.set_content(summary_text)
+
+    json_data = serialize_application()
+    msg.add_attachment(
+        json_data.encode("utf-8"),
+        maintype="application",
+        subtype="json",
+        filename="mortgage_application.json",
+    )
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(sender_email, sender_password)
+            smtp.send_message(msg)
+        return True, "Application emailed successfully."
+    except Exception as e:
+        return False, "Failed to send email: " + str(e)
 
 
 def load_application(json_text):
@@ -6941,7 +7000,12 @@ def render_notes():
 
     submit_disabled = compute_total_income() <= 0
     if st.button("Submit Application", type="primary", use_container_width=True, key="p7_submit", disabled=submit_disabled):
-        st.success("Application submitted. (Connect this button to your backend to persist the data.)")
+        with st.spinner("Submitting application..."):
+            email_success, email_message = send_application_email()
+        if email_success:
+            st.success("Application submitted and emailed successfully.")
+        else:
+            st.error("Application could not be emailed: " + email_message)
 
 
 # ---------------------------------------------------------------------------
