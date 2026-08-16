@@ -1403,12 +1403,6 @@ def render_stepper(active_index):
                         st.session_state.step = i
                         st.rerun()
 
-    st.markdown(
-        "<div style='text-align:left; font-size:9px; color:#6b7280; margin-bottom:1px; line-height:1.2; padding-left:4px;'>"
-        "🟢 Complete &nbsp;•&nbsp; 🟡 Missing (tap ⚠) &nbsp;•&nbsp; ⚪ Not visited"
-        "</div>",
-        unsafe_allow_html=True,
-    )
     with st.container(key="stepper_help_row"):
         help_cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
@@ -1423,6 +1417,13 @@ def render_stepper(active_index):
                             st.markdown("**Still needed on this page:**")
                             for m in step_missing:
                                 st.markdown("- " + m)
+
+    st.markdown(
+        "<div style='text-align:left; font-size:13px; color:#9ca3af; margin-top:8px; margin-bottom:6px; line-height:1.4; padding-left:4px;'>"
+        "🟢 Complete &nbsp;&nbsp;•&nbsp;&nbsp; 🟡 Missing (tap ⚠) &nbsp;&nbsp;•&nbsp;&nbsp; ⚪ Not visited"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 st.set_page_config(page_title="FH Mortgages Calculator", page_icon="🏠", layout="centered", initial_sidebar_state="expanded")
