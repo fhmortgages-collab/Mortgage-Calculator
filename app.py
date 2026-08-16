@@ -4103,8 +4103,8 @@ def render_income_category_card(bidx, skey, source, amounts):
             )
             cur_status = amounts.get("status", "")
             amounts["status"] = st.selectbox(
-                "What's happening with this property?", PROPERTY_STATUS_OPTIONS,
-                index=PROPERTY_STATUS_OPTIONS.index(cur_status) if cur_status in PROPERTY_STATUS_OPTIONS else 0,
+                "What's happening with this property?", PROPERTY_DISPOSITION_OPTIONS,
+                index=PROPERTY_DISPOSITION_OPTIONS.index(cur_status) if cur_status in PROPERTY_DISPOSITION_OPTIONS else 0,
                 key=prefix + "status",
             )
         with c2:
@@ -4556,7 +4556,7 @@ def render_debts():
                         "Describe property type", value=prop.get("other_type_desc", ""), key="prop_other_" + str(pidx)
                     )
             with pt_c2:
-                # NEW: Use PROPERTY_DISPOSITION_OPTIONS instead of PROPERTY_STATUS_OPTIONS
+                # NEW: Use PROPERTY_DISPOSITION_OPTIONS instead of PROPERTY_DISPOSITION_OPTIONS, which is a more complete list of options.
                 prop["status"] = st.selectbox(
                     "Property Disposition", PROPERTY_DISPOSITION_OPTIONS,
                     index=PROPERTY_DISPOSITION_OPTIONS.index(prop.get("status", ""))
