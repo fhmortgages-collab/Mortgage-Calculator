@@ -5065,6 +5065,42 @@ def render_debts():
 STRESS_TEST_ADDON = 2.0  # commonly: contract rate + 2%, per public stress-test convention
 DEFAULT_BENCHMARK_RATE = 5.25  # a commonly cited public benchmark qualifying rate; editable below
 
+def render_osfi_box():
+    st.markdown(
+        """
+        <style>
+        @keyframes osfi_pulse {
+            0% { box-shadow: 0 0 0 0 rgba(200,30,30,0.55); }
+            70% { box-shadow: 0 0 0 10px rgba(200,30,30,0); }
+            100% { box-shadow: 0 0 0 0 rgba(200,30,30,0); }
+        }
+        .osfi-pulse-box {
+            animation: osfi_pulse 1.8s infinite;
+            border-radius: 8px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="osfi-pulse-box">', unsafe_allow_html=True)
+    with st.expander("🔴 OSFI Minimum Qualifying Rate — click to view current stress test details", expanded=False):
+        st.markdown(
+            "- **What it is:** The stress test requires borrowers to qualify at a higher "
+            "rate than their actual contract rate, to ensure they can handle financial shocks.\n"
+            "- **The buffer:** Currently set at **:red[" + "{:.2f}%".format(STRESS_TEST_ADDON) + "]**, "
+            "a safety margin showing borrowers can absorb some negative impact to their finances.\n"
+            "- **The floor:** Currently set at **:red[" + "{:.2f}%".format(DEFAULT_BENCHMARK_RATE) + "]**, "
+            "accounting for risks from changes in the broader economy.\n"
+            "- **The rule:** Borrowers must qualify at the *greater* of (contract rate + buffer) or the floor.\n"
+            "- **Source:** Rates are reviewed by OSFI at least annually — verify the current figures directly "
+            "on OSFI's official page linked below."
+        )
+        st.markdown(
+            "[Open OSFI's official Minimum Qualifying Rate page ↗]"
+            "(https://www.osfi-bsif.gc.ca/en/supervision/financial-institutions/banks/minimum-qualifying-rate-uninsured-mortgages)"
+        )
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
 def compute_gds_tds(pi_payment, taxes, heat, condo, other_debt_monthly, annual_income):
     annual_housing = (pi_payment + taxes + heat + condo * 0.5) * 12
@@ -5131,6 +5167,7 @@ def render_analysis():
     # --- Financing Terms (moved here from Property Details) ---
     with st.container(key="card_financing_terms"):
         st.markdown("#### Financing Terms")
+        render_osfi_box()
 
         def field_row(label_widget_fn, help_text_fn, help_key):
             label_widget_fn(help_text_fn())
@@ -5140,7 +5177,8 @@ def render_analysis():
             field_row(
                 lambda help_text: st.session_state.__setitem__("contract_rate", st.number_input(
                     "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
-                    value=st.session_state.contract_rate, step=0.05, key="analysis_contract_rate",
+                    value=st.session_state.contract_rate,
+                     step=0.05, key="analysis_contract_rate",
                     help=help_text,
                 )),
                 lambda: help_contract_rate_text(st.session_state.contract_rate),
