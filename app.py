@@ -876,6 +876,22 @@ def send_application_email():
         filename="mortgage_application.json",
     )
 
+    msg.add_attachment(
+        summary_text.encode("utf-8"),
+        maintype="text",
+        subtype="plain",
+        filename="application_summary.txt",
+    )
+
+    file_note_text = st.session_state.get("combined_notes", "").strip()
+    if file_note_text:
+        msg.add_attachment(
+            file_note_text.encode("utf-8"),
+            maintype="text",
+            subtype="plain",
+            filename="underwriter_file_note.txt",
+        )
+
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(sender_email, sender_password)
