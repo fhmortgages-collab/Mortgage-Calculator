@@ -1425,11 +1425,12 @@ def render_stepper(active_index):
                                 st.markdown("- " + m)
 
 
-st.set_page_config(page_title="FH Mortgages Calculator", page_icon="🏠", layout="centered")
-
+st.set_page_config(page_title="FH Mortgages Calculator", page_icon="🏠", layout="centered", initial_sidebar_state="expanded")
 st.markdown(
     """
     <style>
+    [data-testid="collapsedControl"] { display: none !important; }
+    [data-testid="stSidebarCollapseButton"] { display: none !important; }
     html, body, [class*="css"], .stApp,
     .stApp p, .stApp span:not([data-testid="stIconMaterial"]), .stApp li, .stApp label,
     .stApp textarea, .stApp input, .stApp div[data-baseweb="select"] {
