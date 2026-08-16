@@ -1966,45 +1966,6 @@ st.markdown(
 )
 st.caption("Residential Mortgage Application")
 
-components.html(
-    """
-    <script>
-      (function() {
-        var doc = window.parent.document;
-        function fieldId(el) {
-          if (!el) return null;
-          return el.getAttribute('aria-label') || el.id || null;
-        }
-        // Save which field had focus, right before a blur (e.g. Tab moving focus away)
-        // triggers Streamlit's rerun-the-whole-script cycle.
-        doc.addEventListener('focusout', function(e) {
-          var id = fieldId(e.target);
-          if (id) { window.parent.sessionStorage.setItem('fh_last_focus', id); }
-        }, true);
-        // After a rerun, Streamlit rebuilds the DOM — restore focus to whichever
-        // field's identity was last saved, once the corresponding element reappears.
-        var lastRestored = null;
-        function restoreFocus() {
-          var id = window.parent.sessionStorage.getItem('fh_last_focus');
-          if (!id || id === lastRestored) return;
-          var candidates = doc.querySelectorAll('input, textarea, select, [role="combobox"]');
-          for (var i = 0; i < candidates.length; i++) {
-            if (fieldId(candidates[i]) === id) {
-              candidates[i].focus({ preventScroll: true });
-              lastRestored = id;
-              break;
-            }
-          }
-        }
-        var observer = new MutationObserver(function() {
-          restoreFocus();
-        });
-        observer.observe(doc.body, { childList: true, subtree: true });
-      })();
-    </script>
-    """,
-    height=0,
-)
 
 stepper_placeholder = st.empty()
 
