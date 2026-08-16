@@ -1946,6 +1946,28 @@ st.markdown(
     .property-total {
         font-weight:600; font-size:14px; margin: 8px 0 4px; color:#f3f4f6;
     }
+    /* Widen dropdown option lists (the popup menu) without affecting the
+       visible input field's width, so longer option text isn't cut off. */
+    ul[data-testid="stSelectboxVirtualDropdown"] {
+        width: max-content !important;
+        min-width: 320px !important;
+        max-width: 560px !important;
+    }
+    ul[data-testid="stSelectboxVirtualDropdown"] li {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        height: auto !important;
+    }
+    ul[data-testid="stSelectboxVirtualDropdown"] li * {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
+    div[data-baseweb="popover"] {
+        width: max-content !important;
+        min-width: 320px !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -3610,9 +3632,9 @@ def render_property_details():
             field_foundation, field_sqft, field_storeys, field_land_size, field_parking,
             field_garage, field_heating, field_exterior, field_water, field_sewer,
         ]
-        for row_start in range(0, len(prop_char_fields), 5):
-            row_fields = prop_char_fields[row_start:row_start + 5]
-            grid_cols = st.columns(5)
+        for row_start in range(0, len(prop_char_fields), 2):
+            row_fields = prop_char_fields[row_start:row_start + 2]
+            grid_cols = st.columns(2)
             for field_fn, col in zip(row_fields, grid_cols):
                 with col:
                     field_fn()
