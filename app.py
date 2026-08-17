@@ -5186,39 +5186,36 @@ def render_osfi_box():
     st.markdown(
         """
         <style>
-        @keyframes osfi_pulse {
-            0% { box-shadow: 0 0 0 0 rgba(200,30,30,0.55); }
-            70% { box-shadow: 0 0 0 10px rgba(200,30,30,0); }
-            100% { box-shadow: 0 0 0 0 rgba(200,30,30,0); }
+       @keyframes osfi_pulse {
+            0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.85); }
+            50% { box-shadow: 0 0 0 10px rgba(220,38,38,0); }
+            100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
         }
-        .osfi-pulse-box {
-            animation: osfi_pulse 1.8s infinite;
-            border-radius: 8px;
+        div[class*="st-key-osfi_pulse_wrapper"] {
+            animation: osfi_pulse 0.9s infinite !important;
+            border: 3px solid #dc2626 !important;
+            border-radius: 8px !important;
+            padding: 2px !important;
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
-    st.markdown('<div class="osfi-pulse-box">', unsafe_allow_html=True)
-    with st.expander("🔴 OSFI Minimum Qualifying Rate — click to view current stress test details", expanded=False):
-        st.markdown(
-            "- **What it is:** The stress test requires borrowers to qualify at a higher "
-            "rate than their actual contract rate, to ensure they can handle financial shocks.\n"
-            "- **The buffer:** Currently set at **:red[" + "{:.2f}%".format(STRESS_TEST_ADDON) + "]**, "
-            "a safety margin showing borrowers can absorb some negative impact to their finances.\n"
-            "- **The floor:** Currently set at **:red[" + "{:.2f}%".format(DEFAULT_BENCHMARK_RATE) + "]**, "
-            "accounting for risks from changes in the broader economy.\n"
-            "- **The rule:** Borrowers must qualify at the *greater* of (contract rate + buffer) or the floor.\n"
-            "- **Source:** Rates are reviewed by OSFI at least annually — verify the current figures directly "
-            "on OSFI's official page linked below."
-        )
-        st.markdown(
-            "[Open OSFI's official Minimum Qualifying Rate page ↗]"
-            "(https://www.osfi-bsif.gc.ca/en/supervision/financial-institutions/banks/minimum-qualifying-rate-uninsured-mortgages)"
-        )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
+    with st.container(key="osfi_pulse_wrapper"):
+        with st.expander("🔴 OSFI Minimum Qualifying Rate — click to view current stress test details", expanded=False):
+            st.markdown(
+                "- **What it is:** The stress test requires borrowers to qualify at a higher "
+                "rate than their actual contract rate, to ensure they can handle financial shocks.\n"
+                "- **The buffer:** Currently set at **:red[" + "{:.2f}%".format(STRESS_TEST_ADDON) + "]**, "
+                "a safety margin showing borrowers can absorb some negative impact to their finances.\n"
+                "- **The floor:** Currently set at **:red[" + "{:.2f}%".format(DEFAULT_BENCHMARK_RATE) + "]**, "
+                "accounting for risks from changes in the broader economy.\n"
+                "- **The rule:** Borrowers must qualify at the *greater* of (contract rate + buffer) or the floor.\n"
+                "- **Source:** Rates are reviewed by OSFI at least annually — verify the current figures directly "
+                "on OSFI's official page linked below."
+            )
+            
+  
 def compute_gds_tds(pi_payment, taxes, heat, condo, other_debt_monthly, annual_income):
     annual_housing = (pi_payment + taxes + heat + condo * 0.5) * 12
     annual_other_debt = other_debt_monthly * 12
