@@ -2044,6 +2044,18 @@ st.markdown(
         width: max-content !important;
         min-width: 320px !important;
     }
+    /* Highlight income amount fields (base income, rental, variable-income years)
+       in green across every income category, and keep them the standard field size. */
+    div[class*="st-key-inc_"][class*="_amount"] input,
+    div[class*="st-key-inc_"][class*="gross_rental"] input,
+    div[class*="st-key-inc_"][class*="recent_year"] input,
+    div[class*="st-key-inc_"][class*="prior_year"] input {
+        border-color: #16a34a !important;
+        color: #16a34a !important;
+        font-weight: 600 !important;
+        min-height: 2.6em !important;
+        box-sizing: border-box !important;
+    }
     /* Make every sidebar element (Timer, Stop Timer, Download, Upload,
        Refresh, Calculator) the same width and consistent vertical spacing. */
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
@@ -4036,14 +4048,15 @@ def render_income_category_card(bidx, skey, source, amounts):
 
     if skey == "salaried":
         needs_24mo_check = True
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
-            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
-            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 06/2022", key=prefix + "start_date")
-        with c2:
             amounts["employer_address"] = st.text_input("Employer Address", value=amounts.get("employer_address", ""), key=prefix + "employer_address")
+        with c2:
+            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
             amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
+        with c3:
+            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 06/2022", key=prefix + "start_date")
         amounts["amount"] = money_text_input("Gross Annual Base Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "commission":
@@ -4371,18 +4384,7 @@ def render_income():
 
             selected = []
             for type_key in chosen_type_keys:
-                source = get_income_source(type_key)
-                count_key = "inc_count_" + bidx + "_" + type_key
                 count = st.session_state.income_counts.get(bidx, {}).get(type_key, 1)
-                if len(chosen_type_keys) >= 1:
-                    count_col, _spacer_col = st.columns([1, 3])
-                    with count_col:
-                        count = st.selectbox(
-                            "# of " + source["label"],
-                            [1, 2, 3, 4, 5],
-                            index=min(count, 5) - 1,
-                            key=count_key,
-                        )
                 if bidx not in st.session_state.income_counts:
                     st.session_state.income_counts[bidx] = {}
                 st.session_state.income_counts[bidx][type_key] = count
@@ -4401,6 +4403,7 @@ def render_income():
             st.session_state.income_selected[bidx] = selected
 
             # --- Phase 2: detail card for every selected instance, injected here, sequentially ---
+            seen_type_keys = set()
             for instance_key in selected:
                 type_key = base_income_key(instance_key)
                 source = get_income_source(type_key)
@@ -4409,6 +4412,17 @@ def render_income():
                 amounts = st.session_state.income_amounts[bidx][instance_key]
                 st.markdown("---")
                 total_instances_for_type = st.session_state.income_counts.get(bidx, {}).get(type_key, 1)
+                if type_key not in seen_type_keys:
+                    seen_type_keys.add(type_key)
+                    count_col, _spacer_col = st.columns([1, 3])
+                    with count_col:
+                        new_count = st.selectbox(
+                            "# of " + source["label"],
+                            [1, 2, 3, 4, 5],
+                            index=min(total_instances_for_type, 5) - 1,
+                            key="inc_count_" + bidx + "_" + type_key,
+                        )
+                    st.session_state.income_counts[bidx][type_key] = new_count
                 if total_instances_for_type > 1:
                     st.markdown(
                         "<div style='color:#2563eb; font-weight:400;'>"
