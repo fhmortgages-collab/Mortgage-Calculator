@@ -2051,9 +2051,11 @@ st.markdown(
     div[class*="st-key-inc_"][class*="recent_year"] input,
     div[class*="st-key-inc_"][class*="prior_year"] input {
         border-color: #16a34a !important;
+        border-width: 1px !important;
         color: #16a34a !important;
-        font-weight: 600 !important;
+        font-weight: 400 !important;
         min-height: 2.6em !important;
+        max-height: 2.6em !important;
         box-sizing: border-box !important;
     }
     /* Make every sidebar element (Timer, Stop Timer, Download, Upload,
@@ -4057,18 +4059,19 @@ def render_income_category_card(bidx, skey, source, amounts):
             amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
         with c3:
             amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 06/2022", key=prefix + "start_date")
-        amounts["amount"] = money_text_input("Gross Annual Base Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+            amounts["amount"] = money_text_input("Gross Annual Base Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "commission":
         needs_24mo_check = True
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
-            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
-            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 06/2022", key=prefix + "start_date")
-        with c2:
             amounts["employer_address"] = st.text_input("Employer Address", value=amounts.get("employer_address", ""), key=prefix + "employer_address")
+        with c2:
+            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
             amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
+        with c3:
+            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 06/2022", key=prefix + "start_date")
         render_two_year_income_fields(amounts, prefix, "Commission Income")
 
     elif skey == "hourly":
@@ -4095,14 +4098,15 @@ def render_income_category_card(bidx, skey, source, amounts):
 
     elif skey == "self_employed":
         needs_24mo_check = True
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["business_name"] = st.text_input("Business Name", value=amounts.get("business_name", ""), key=prefix + "business_name")
-            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
-            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 03/2019", key=prefix + "start_date")
-        with c2:
             amounts["business_address"] = st.text_input("Business Address", value=amounts.get("business_address", ""), key=prefix + "business_address")
+        with c2:
+            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
             amounts["title"] = st.text_input("Role / Title", value=amounts.get("title", ""), key=prefix + "title")
+        with c3:
+            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 03/2019", key=prefix + "start_date")
             amounts["ownership_pct"] = st.text_input("Ownership Percentage (%)", value=amounts.get("ownership_pct", ""), key=prefix + "ownership_pct")
         render_two_year_income_fields(amounts, prefix, "Net Business Income")
 
@@ -4123,21 +4127,23 @@ def render_income_category_card(bidx, skey, source, amounts):
 
     elif skey in ("self_employed_incorporated", "self_employed_professional"):
         needs_24mo_check = True
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["business_name"] = st.text_input("Business / Practice Name", value=amounts.get("business_name", ""), key=prefix + "business_name")
-            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
-            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 03/2019", key=prefix + "start_date")
-        with c2:
             amounts["business_address"] = st.text_input("Business Address", value=amounts.get("business_address", ""), key=prefix + "business_address")
+        with c2:
+            amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
             amounts["title"] = st.text_input("Role / Title", value=amounts.get("title", ""), key=prefix + "title")
+        with c3:
+            amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 03/2019", key=prefix + "start_date")
             amounts["ownership_pct"] = st.text_input("Ownership Percentage (%)", value=amounts.get("ownership_pct", ""), key=prefix + "ownership_pct")
         render_two_year_income_fields(amounts, prefix, "Net Income")
 
     elif skey == "disability":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["benefit_type"] = st.text_input("Benefit Type / Provider", value=amounts.get("benefit_type", ""), key=prefix + "benefit_type")
+        with c2:
             duration_options = ["", "Long-Term / Ongoing", "Temporary"]
             cur_d = amounts.get("duration_type", "")
             amounts["duration_type"] = st.selectbox(
@@ -4145,7 +4151,7 @@ def render_income_category_card(bidx, skey, source, amounts):
                 index=duration_options.index(cur_d) if cur_d in duration_options else 0,
                 key=prefix + "duration_type",
             )
-        with c2:
+        with c3:
             amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "ei_parental_benefits":
@@ -4180,15 +4186,16 @@ def render_income_category_card(bidx, skey, source, amounts):
             amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "investment":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["institution_name"] = st.text_input("Financial Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
-            amounts["account_number"] = st.text_input("Account Number", value=amounts.get("account_number", ""), key=prefix + "account_number")
         with c2:
+            amounts["account_number"] = st.text_input("Account Number", value=amounts.get("account_number", ""), key=prefix + "account_number")
+        with c3:
             amounts["amount"] = money_text_input("Average Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "rental_component_primary":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             default_address = st.session_state.subject_address.strip()
             amounts["property_address"] = st.text_input(
@@ -4196,15 +4203,16 @@ def render_income_category_card(bidx, skey, source, amounts):
                 placeholder="Defaults to the subject property address", key=prefix + "property_address",
             )
         with c2:
-            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""),
-                placeholder="Enter annual amount", key=prefix + "amount",
-            )
             cur_rate = amounts.get("inclusion_rate", "100%")
             amounts["inclusion_rate"] = st.selectbox(
                 "Rental Income Inclusion Rate",
                 RENTAL_INCLUSION_RATE_OPTIONS,
                 index=RENTAL_INCLUSION_RATE_OPTIONS.index(cur_rate) if cur_rate in RENTAL_INCLUSION_RATE_OPTIONS else 2,
                 key=prefix + "inclusion_rate",
+            )
+        with c3:
+            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""),
+                placeholder="Enter annual amount", key=prefix + "amount",
             )
         is_self_contained = (
             st.session_state.subject_has_rental_component == "Yes"
@@ -4228,7 +4236,7 @@ def render_income_category_card(bidx, skey, source, amounts):
             b = st.session_state.borrowers[borrower_idx_int]
             if b.get("residence_disposition") in rental_disposition_hints:
                 suggested_address = b.get("address", "").strip()
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["property_address"] = st.text_input(
                 "Property Address", value=amounts.get("property_address", "") or suggested_address,
@@ -4236,20 +4244,22 @@ def render_income_category_card(bidx, skey, source, amounts):
             )
             if suggested_address and not amounts.get("property_address", "").strip():
                 st.caption("Suggested from this borrower's current address on Client Details, based on their stated disposition — edit if this is a different property.")
+        with c2:
             cur_prop_type = amounts.get("prop_type", "")
             amounts["prop_type"] = st.selectbox(
                 "Property Type", PROPERTY_TYPES,
                 index=PROPERTY_TYPES.index(cur_prop_type) if cur_prop_type in PROPERTY_TYPES else 0,
                 key=prefix + "prop_type",
             )
+        with c3:
             cur_status = amounts.get("status", "")
             amounts["status"] = st.selectbox(
                 "What's happening with this property?", PROPERTY_DISPOSITION_OPTIONS,
                 index=PROPERTY_DISPOSITION_OPTIONS.index(cur_status) if cur_status in PROPERTY_DISPOSITION_OPTIONS else 0,
                 key=prefix + "status",
             )
-        with c2:
-            amounts["gross_rental"] = money_text_input("Gross Annual Rental Income ($)", amounts.get("gross_rental", ""), placeholder="Enter annual amount", key=prefix + "gross_rental")
+        rate_col, income_col, _spacer_col = st.columns(3)
+        with rate_col:
             cur_rate = amounts.get("inclusion_rate", "50%")
             amounts["inclusion_rate"] = st.selectbox(
                 "Rental Income Inclusion Rate",
@@ -4257,6 +4267,8 @@ def render_income_category_card(bidx, skey, source, amounts):
                 index=RENTAL_INCLUSION_RATE_OPTIONS.index(cur_rate) if cur_rate in RENTAL_INCLUSION_RATE_OPTIONS else 0,
                 key=prefix + "inclusion_rate",
             )
+        with income_col:
+            amounts["gross_rental"] = money_text_input("Gross Annual Rental Income ($)", amounts.get("gross_rental", ""), placeholder="Enter annual amount", key=prefix + "gross_rental")
         if amounts["status"].startswith("Being Sold"):
             st.caption(
                 "⚠️ This property is marked **" + amounts["status"] + "** — its rental income is excluded "
@@ -4296,12 +4308,13 @@ def render_income_category_card(bidx, skey, source, amounts):
         amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "trust_inheritance":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["institution_name"] = st.text_input("Trust / Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
-            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
         with c2:
             amounts["duration"] = st.text_input("Expected Duration of Continued Payments (Months/Years)", value=amounts.get("duration", ""), key=prefix + "duration")
+        with c3:
+            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     else:  # "other"
         c1, c2 = st.columns(2)
@@ -4717,40 +4730,40 @@ def render_debts():
             else:
                 st.caption("⚠️ Included in GDS/TDS — this property's carrying costs will be counted.")
 
-            c1, c2 = st.columns(2)
+            prop["property_value"] = money_text_input(
+                "Current Property Value ($)", prop.get("property_value", ""),
+                key="prop_value_" + str(pidx), placeholder="Enter estimated value",
+            )
+
+            c1, c2, c3, c4 = st.columns(4)
             with c1:
                 prop["mortgage_payment"] = money_text_input(
                     "Monthly Mortgage / Loan Payment ($)", prop["mortgage_payment"],
                     key="prop_mtg_" + str(pidx), placeholder="Enter monthly payment amount",
-                )
-                prop["condo_fees"] = money_text_input(
-                    "Monthly Condo / Strata Fees ($)", prop["condo_fees"],
-                    key="prop_condo_" + str(pidx), placeholder="Enter monthly fee amount (0 if none)",
                 )
             with c2:
                 prop["property_taxes"] = money_text_input(
                     "Monthly Property Taxes ($)", prop["property_taxes"],
                     key="prop_tax_" + str(pidx), placeholder="Enter monthly tax amount",
                 )
+            with c3:
+                prop["condo_fees"] = money_text_input(
+                    "Monthly Condo / Strata Fees ($)", prop["condo_fees"],
+                    key="prop_condo_" + str(pidx), placeholder="Enter monthly fee amount (0 if none)",
+                )
+            with c4:
                 prop["heating"] = money_text_input(
                     "Monthly Heating Costs ($)", prop["heating"],
                     key="prop_heat_" + str(pidx), placeholder="Enter monthly heating amount",
                 )
 
-            c3, c4 = st.columns(2)
-            with c3:
-                prop["property_value"] = money_text_input(
-                    "Current Property Value ($)", prop.get("property_value", ""),
-                    key="prop_value_" + str(pidx), placeholder="Enter estimated value",
-                )
-            with c4:
-                num_mtg_options = ["", "Free and Clear", "1", "2", "3", "4"]
-                current_num = prop.get("num_mortgages", "")
-                prop["num_mortgages"] = st.selectbox(
-                    "Number of Mortgages on this Property", num_mtg_options,
-                    index=num_mtg_options.index(current_num) if current_num in num_mtg_options else 0,
-                    key="prop_num_mtg_" + str(pidx),
-                )
+            num_mtg_options = ["", "Free and Clear", "1", "2", "3", "4"]
+            current_num = prop.get("num_mortgages", "")
+            prop["num_mortgages"] = st.selectbox(
+                "Number of Mortgages on this Property", num_mtg_options,
+                index=num_mtg_options.index(current_num) if current_num in num_mtg_options else 0,
+                key="prop_num_mtg_" + str(pidx),
+            )
 
             if prop["num_mortgages"] not in ("", "Free and Clear"):
                 num_mtg = int(prop["num_mortgages"])
@@ -4836,6 +4849,7 @@ def render_debts():
 
     st.divider()
 
+   
     with st.container(key="card_other_debts"):
         st.write("**Select Other Debt Types**")
         st.caption("If the client has more than one account of the same type (e.g. two credit cards), check the type once and set how many below.")
