@@ -1378,6 +1378,14 @@ def get_step_missing_fields(step_index):
                 if down_payment_val is not None and round(total_sources, 2) != round(down_payment_val, 2):
                     missing.append("Down payment source amounts (" + fmt_money(total_sources) + ") must sum to the down payment total (" + fmt_money(down_payment_val) + ")")
 
+            purchase_price_val = parse_money(st.session_state.purchase_price_raw)
+            appraisal_val = parse_money(st.session_state.get("property_appraisal_value_raw", ""))
+            if purchase_price_val is not None and appraisal_val is not None and appraisal_val < purchase_price_val:
+                missing.append(
+                    "Appraisal (" + fmt_money(appraisal_val) + ") came in below the purchase price ("
+                    + fmt_money(purchase_price_val) + ") — down payment needs to be reviewed against the lower lending value"
+                )
+
     elif step_index == 3:
         if not st.session_state.subject_address.strip():
             missing.append("Property address is required")
