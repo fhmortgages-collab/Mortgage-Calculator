@@ -3738,9 +3738,9 @@ def render_property_details():
             field_foundation, field_sqft, field_storeys, field_land_size, field_parking,
             field_garage, field_heating, field_exterior, field_water, field_sewer,
         ]
-        for row_start in range(0, len(prop_char_fields), 2):
-            row_fields = prop_char_fields[row_start:row_start + 2]
-            grid_cols = st.columns(2)
+        for row_start in range(0, len(prop_char_fields), 3):
+            row_fields = prop_char_fields[row_start:row_start + 3]
+            grid_cols = st.columns(3)
             for field_fn, col in zip(row_fields, grid_cols):
                 with col:
                     field_fn()
