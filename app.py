@@ -54,14 +54,14 @@ PHONE_RE = re.compile(r"^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$")
 
 GENDER_OPTIONS = ["", "Male", "Female", "Other", "Prefer not to say"]
 MARITAL_OPTIONS = ["", "Single", "Married", "Divorced", "Widowed", "Common-Law"]
-RESIDENCE_STATUS_OPTIONS = ["", "Owned", "Rented", "Living with Parents/Family", "Other"]
+RESIDENCE_STATUS_OPTIONS = ["", "Living with Parents/Family", "Owned", "Rented", "Other"]
 RESIDENCE_DISPOSITION_OPTIONS = [
-    "", "Sold — Firm Sale", "Sold — Conditional Sale", "Currently Listed for Sale", "To Be Listed / Sold",
-    "Keeping as Primary Residence", "Keeping as Primary Residence (with Rental Unit/Suite)",
-    "Converting to Rental Property", "Keeping as Secondary/Vacation Home",
+    "", "Bridge Financing Required", "Converting to Rental Property", "Currently Listed for Sale",
     "Currently Rented — Lease Continuing", "Currently Rented — Lease Ending",
-    "Rent-to-Own Arrangement", "Gifted / Transferred to Family",
-    "Bridge Financing Required", "Still Deciding", "Not Applicable", "Other",
+    "Gifted / Transferred to Family", "Keeping as Primary Residence",
+    "Keeping as Primary Residence (with Rental Unit/Suite)", "Keeping as Secondary/Vacation Home",
+    "Living with Parents/Family", "Rent-to-Own Arrangement", "Sold — Conditional Sale",
+    "Sold — Firm Sale", "Still Deciding", "To Be Listed / Sold", "Not Applicable", "Other",
 ]
 PROPERTY_TYPES = ["", "Primary Residence", "Secondary Home", "Investment Property", "Cottage / Vacation Home", "Other"]
 PROPERTY_STYLE_TYPES = [
