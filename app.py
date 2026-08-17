@@ -2960,20 +2960,22 @@ def render_down_payment():
                     unsafe_allow_html=True,
                 )
             else:
-                amount_raw = money_text_input(
-                    source["label"] + " Amount ($)",
-                    st.session_state.source_amounts.get(source["key"], ""),
-                    key="amt_" + source["key"],
-                    placeholder="Enter amount",
-                )
-                st.session_state.source_amounts[source["key"]] = amount_raw
-
-                st.session_state.source_details[source["key"]] = st.text_input(
-                    "Detail (optional)",
-                    value=st.session_state.source_details.get(source["key"], ""),
-                    key="detail_" + source["key"],
-                    placeholder="e.g. who, or which account/institution",
-                )
+                dp_amt_col, dp_detail_col = st.columns(2)
+                with dp_amt_col:
+                    amount_raw = money_text_input(
+                        source["label"] + " Amount ($)",
+                        st.session_state.source_amounts.get(source["key"], ""),
+                        key="amt_" + source["key"],
+                        placeholder="Enter amount",
+                    )
+                    st.session_state.source_amounts[source["key"]] = amount_raw
+                with dp_detail_col:
+                    st.session_state.source_details[source["key"]] = st.text_input(
+                        "Detail (optional)",
+                        value=st.session_state.source_details.get(source["key"], ""),
+                        key="detail_" + source["key"],
+                        placeholder="e.g. who, or which account/institution",
+                    )
 
                 if source["key"] == "other":
                     st.session_state.other_source_desc = st.text_input(
