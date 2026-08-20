@@ -1509,7 +1509,7 @@ def render_stepper(active_index):
     )
 
 
-st.set_page_config(page_title="FH Mortgages Calculator", page_icon="🏠", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="FH Mortgages Calculator", page_icon="🏠", layout="wide", initial_sidebar_state="expanded")
 st.markdown(
     """
     <style>
@@ -1574,10 +1574,22 @@ st.markdown(
     /* Uniform height for every single-line text input, number input, and dropdown
        app-wide — so fields sitting side by side (like the Income section) always
        present the same box size regardless of field type. */
-    .stTextInput input, .stNumberInput input,
+        .stTextInput input, .stNumberInput input,
     div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
         min-height: 2.6em !important;
         box-sizing: border-box !important;
+    }
+        /* Every field fills the full width of whatever column it's placed in —
+       so fields sharing a row (including custom elements like metric cards)
+       always line up flush on both edges, regardless of field type. */
+    [data-testid="stTextInput"], [data-testid="stNumberInput"],
+    [data-testid="stSelectbox"], [data-testid="stDateInput"],
+    [data-testid="stTextArea"] {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    .metric-row {
+        width: 100% !important;
     }
     div[data-baseweb="tag"] {
         min-height: 1.7em !important;
@@ -2727,34 +2739,13 @@ def render_client_details():
         errors = st.session_state.borrower_errors[idx] if idx < len(st.session_state.borrower_errors) else {}
 
         with st.expander("Borrower " + str(idx + 1), expanded=True):
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 borrower["full_name"] = st.text_input(
                     "Full Name", value=borrower["full_name"], key="name_" + str(idx)
                 )
                 if errors.get("full_name"):
                     st.caption(":red[" + errors["full_name"] + "]")
-
-                borrower["phone"] = st.text_input(
-                    "Phone Number", value=borrower["phone"], key="phone_" + str(idx)
-                )
-                if errors.get("phone"):
-                    st.caption(":red[" + errors["phone"] + "]")
-
-                borrower["gender"] = st.selectbox(
-                    "Gender", GENDER_OPTIONS,
-                    index=GENDER_OPTIONS.index(borrower["gender"]) if borrower["gender"] in GENDER_OPTIONS else 0,
-                    key="gender_" + str(idx),
-                )
-                if errors.get("gender"):
-                    st.caption(":red[" + errors["gender"] + "]")
-
-            with col2:
-                borrower["email"] = st.text_input(
-                    "Email Address", value=borrower["email"], key="email_" + str(idx)
-                )
-                if errors.get("email"):
-                    st.caption(":red[" + errors["email"] + "]")
 
                 borrower["dob"] = st.date_input(
                     "Date of Birth",
@@ -2765,6 +2756,28 @@ def render_client_details():
                 )
                 if errors.get("dob"):
                     st.caption(":red[" + errors["dob"] + "]")
+
+            with col2:
+                borrower["email"] = st.text_input(
+                    "Email Address", value=borrower["email"], key="email_" + str(idx)
+                )
+                if errors.get("email"):
+                    st.caption(":red[" + errors["email"] + "]")
+
+                borrower["gender"] = st.selectbox(
+                    "Gender", GENDER_OPTIONS,
+                    index=GENDER_OPTIONS.index(borrower["gender"]) if borrower["gender"] in GENDER_OPTIONS else 0,
+                    key="gender_" + str(idx),
+                )
+                if errors.get("gender"):
+                    st.caption(":red[" + errors["gender"] + "]")
+
+            with col3:
+                borrower["phone"] = st.text_input(
+                    "Phone Number", value=borrower["phone"], key="phone_" + str(idx)
+                )
+                if errors.get("phone"):
+                    st.caption(":red[" + errors["phone"] + "]")
 
                 borrower["marital_status"] = st.selectbox(
                     "Marital Status", MARITAL_OPTIONS,
@@ -2781,7 +2794,7 @@ def render_client_details():
             if errors.get("address"):
                 st.caption(":red[" + errors["address"] + "]")
 
-            rc1, rc2 = st.columns(2)
+            rc1, rc2, rc3 = st.columns(3)
             with rc1:
                 borrower["residence_status"] = st.selectbox(
                     "What is this property?", RESIDENCE_STATUS_OPTIONS,
@@ -2806,6 +2819,8 @@ def render_client_details():
                         "Please describe", value=borrower.get("residence_disposition_other", ""),
                         key="residence_disposition_other_" + str(idx),
                     )
+            with rc3:
+                st.write("")
 
         st.session_state.borrowers[idx] = borrower
 
@@ -3342,7 +3357,7 @@ def render_property_details():
     # --- Appraisal, Property Value & Purchase Channel (compacted into one section) ---
     with st.container(key="card_appraisal_channel"):
         st.markdown("#### Appraisal" + (" & Purchase Channel" if not is_refinance() else ""))
-        oa_c1, oa_c2 = st.columns(2)
+        oa_c1, oa_c2, oa_c3 = st.columns(3)
         with oa_c1:
             st.session_state.property_appraisal_type = st.selectbox(
                 "Order Appraisal", ["", "Appraisal", "Appraisal with Market Rent"],
@@ -3356,9 +3371,11 @@ def render_property_details():
                     st.session_state.property_appraisal_ordered = True
             if st.session_state.property_appraisal_ordered:
                 st.caption(":green[✓ Ordered (to be set up later).]")
+        with oa_c3:
+            st.write("")
 
         ref_value = get_reference_property_value()
-        av_c1, av_c2 = st.columns(2)
+        av_c1, av_c2, av_c3 = st.columns(3)
         with av_c1:
             st.session_state.property_appraisal_value_raw = money_text_input(
                 "Appraisal Value ($)", st.session_state.property_appraisal_value_raw,
@@ -4026,7 +4043,7 @@ def render_income_category_card(bidx, skey, source, amounts):
     needs_24mo_check = False
 
     def render_two_year_income_fields(amounts, field_prefix, label="Annual Income"):
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["recent_year"] = st.text_input(
                 "Most Recent Year — " + label + " ($)", value=amounts.get("recent_year", ""),
@@ -4037,6 +4054,8 @@ def render_income_category_card(bidx, skey, source, amounts):
                 "Prior Year — " + label + " ($)", value=amounts.get("prior_year", ""),
                 placeholder="Enter amount", key=field_prefix + "prior_year",
             )
+        with c3:
+            st.write("")
         recent_v = parse_money(amounts.get("recent_year", ""))
         prior_v = parse_money(amounts.get("prior_year", ""))
         if recent_v is not None and prior_v is not None:
@@ -4083,7 +4102,7 @@ def render_income_category_card(bidx, skey, source, amounts):
         render_two_year_income_fields(amounts, prefix, "Commission Income")
 
     elif skey == "hourly":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
         with c2:
@@ -4094,13 +4113,17 @@ def render_income_category_card(bidx, skey, source, amounts):
                 index=guaranteed_options.index(cur_g) if cur_g in guaranteed_options else 0,
                 key=prefix + "hours_type",
             )
+        with c3:
+            st.write("")
         render_two_year_income_fields(amounts, prefix, "Hourly Income")
 
     elif skey == "bonus_overtime":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["employer_name"] = st.text_input("Primary Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
         with c2:
+            st.write("")
+        with c3:
             st.write("")
         render_two_year_income_fields(amounts, prefix, "Bonus/Overtime Income")
 
@@ -4119,19 +4142,23 @@ def render_income_category_card(bidx, skey, source, amounts):
         render_two_year_income_fields(amounts, prefix, "Net Business Income")
 
     elif skey == "dividend":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["institution_name"] = st.text_input("Financial Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
         with c2:
             amounts["account_number"] = st.text_input("Account Number", value=amounts.get("account_number", ""), key=prefix + "account_number")
+        with c3:
+            st.write("")
         render_two_year_income_fields(amounts, prefix, "Dividend Income")
 
     elif skey == "parttime":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        with c3:
+            st.write("")
 
     elif skey in ("self_employed_incorporated", "self_employed_professional"):
         needs_24mo_check = True
@@ -4163,35 +4190,43 @@ def render_income_category_card(bidx, skey, source, amounts):
             amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "ei_parental_benefits":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["return_to_work_date"] = st.text_input("Expected Return-to-Work Date (MM/YYYY)", value=amounts.get("return_to_work_date", ""), key=prefix + "return_to_work_date")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Benefit Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        with c3:
+            st.write("")
         st.caption("Note: EI/maternity/parental benefits are usually weaker for qualification since they're temporary.")
 
     elif skey == "foreign_income":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["country"] = st.text_input("Country of Income Source", value=amounts.get("country", ""), key=prefix + "country")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Income ($, CAD equivalent)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        with c3:
+            st.write("")
         st.caption("Note: lenders are usually conservative with foreign income due to currency and jurisdiction risk.")
 
     elif skey == "capital_gains":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["description"] = st.text_input("Source / Description", value=amounts.get("description", ""), key=prefix + "description")
         with c2:
             amounts["amount"] = money_text_input("Amount ($, for reference only)", amounts.get("amount", ""), placeholder="Enter amount", key=prefix + "amount")
+        with c3:
+            st.write("")
         st.caption("⚠️ Capital gains are not recurring income — this amount is recorded for reference only and is excluded from GDS/TDS qualification.")
 
     elif skey == "board_director_fees":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["organization_name"] = st.text_input("Organization Name", value=amounts.get("organization_name", ""), key=prefix + "organization_name")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        with c3:
+            st.write("")
 
     elif skey == "investment":
         c1, c2, c3 = st.columns(3)
@@ -4295,18 +4330,22 @@ def render_income_category_card(bidx, skey, source, amounts):
         )
 
     elif skey == "pension":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["institution_name"] = st.text_input("Provider / Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        with c3:
+            st.write("")
 
     elif skey == "government_benefits":
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["benefit_type"] = st.text_input("Benefit Type", value=amounts.get("benefit_type", ""), key=prefix + "benefit_type")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        with c3:
+            st.write("")
 
     elif skey == "alimony":
         st.caption(
@@ -4325,11 +4364,13 @@ def render_income_category_card(bidx, skey, source, amounts):
             amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     else:  # "other"
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             amounts["source_desc"] = st.text_input("Source Description", value=amounts.get("source_desc", ""), key=prefix + "source_desc")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        with c3:
+            st.write("")
 
     # --- 24-month rule: salaried, commission, self-employed only ---
     if needs_24mo_check:
@@ -4340,14 +4381,15 @@ def render_income_category_card(bidx, skey, source, amounts):
                 "(less than 24 months at current)</div>",
                 unsafe_allow_html=True,
             )
-            pc1, pc2 = st.columns(2)
+            pc1, pc2, pc3 = st.columns(3)
             with pc1:
                 amounts["prev_employer_name"] = st.text_input("Employer Name", value=amounts.get("prev_employer_name", ""), key=prefix + "prev_employer_name")
-                amounts["prev_phone"] = st.text_input("Phone", value=amounts.get("prev_phone", ""), key=prefix + "prev_phone")
                 amounts["prev_start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("prev_start_date", ""), key=prefix + "prev_start_date")
             with pc2:
                 amounts["prev_employer_address"] = st.text_input("Address", value=amounts.get("prev_employer_address", ""), key=prefix + "prev_employer_address")
                 amounts["prev_title"] = st.text_input("Title", value=amounts.get("prev_title", ""), key=prefix + "prev_title")
+            with pc3:
+                amounts["prev_phone"] = st.text_input("Phone", value=amounts.get("prev_phone", ""), key=prefix + "prev_phone")
                 amounts["prev_end_date"] = st.text_input("End Date (MM/YYYY)", value=amounts.get("prev_end_date", ""), key=prefix + "prev_end_date")
 
     # --- Required documentation (unchanged from before) ---
@@ -5222,6 +5264,10 @@ def render_osfi_box():
                 "- **Source:** Rates are reviewed by OSFI at least annually — verify the current figures directly "
                 "on OSFI's official page linked below."
             )
+            st.markdown(
+                "[Open OSFI's official Minimum Qualifying Rate page ↗]"
+                "(https://www.osfi-bsif.gc.ca/en/supervision/financial-institutions/banks/minimum-qualifying-rate-uninsured-mortgages)"
+            )
             
   
 def compute_gds_tds(pi_payment, taxes, heat, condo, other_debt_monthly, annual_income):
@@ -5483,60 +5529,9 @@ def render_analysis():
     )
 
     st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
-    with st.expander("ℹ️ Show calculation details"):
-        def mo_yr(monthly_val):
-            return "**" + fmt_money(monthly_val) + "**/mo  ·  **" + fmt_money(monthly_val * 12) + "**/yr"
 
-        st.markdown("**Housing costs (GDS numerator)**")
-        st.markdown("- Principal & Interest (contract, " + "{:.2f}%".format(st.session_state.contract_rate) + "): " + mo_yr(pi_payment))
-        st.markdown("- Principal & Interest (stressed, " + "{:.2f}%".format(qualifying_rate) + "): " + mo_yr(stressed_pi))
-        st.markdown("- Property Taxes: " + mo_yr(taxes))
-        st.markdown("- Heat: " + mo_yr(heat))
-        st.markdown("- Condo Fees (50% counted): " + mo_yr(condo * 0.5) + "  (full fee: " + mo_yr(condo) + ")")
-        st.divider()
-        st.markdown("**Other debts (added for TDS only)**")
-        any_debt_line = False
-        for instance_key in st.session_state.debt_selected:
-            dt = get_debt_type(instance_key)
-            if not dt:
-                continue
-            amounts = st.session_state.debt_amounts.get(instance_key, {})
-            excluded = (
-                st.session_state.debt_payout_selected.get(instance_key, False)
-                or st.session_state.debt_paid_from_own_funds.get(instance_key, False)
-            )
-            if excluded:
-                continue
-            pay_val = compute_debt_payment(dt, amounts)
-            label = debt_instance_label(dt, instance_key)
-            lender = amounts.get("lender", "").strip()
-            st.markdown("- " + label + (" (" + lender + ")" if lender else "") + ": " + mo_yr(pay_val))
-            any_debt_line = True
-        for prop in st.session_state.properties:
-            exclude = prop["status"] in (
-                "Sold Firm (No debt / exclude from ratios)",
-                "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
-            )
-            if exclude:
-                continue
-            p_total, m, t, c, h = compute_property_total(prop)
-            prop_label = "Other Property (" + (prop.get("address", "").strip() or "unnamed") + ")"
-            st.markdown("- " + prop_label + " — total: " + mo_yr(p_total))
-            st.markdown("&nbsp;&nbsp;&nbsp;mortgage " + mo_yr(m) + "  ·  taxes " + mo_yr(t) + "  ·  condo " + mo_yr(c) + "  ·  heat " + mo_yr(h))
-            any_debt_line = True
-        if not any_debt_line:
-            st.caption("No other debts counted toward TDS.")
-        st.divider()
-        st.markdown("**Totals**")
-        st.markdown("- Total Housing Costs (GDS, contract): " + mo_yr(annual_housing / 12))
-        st.markdown("- Total Housing Costs (GDS, stressed): " + mo_yr(stressed_annual_housing / 12))
-        st.markdown("- Total Debt Obligations (TDS, contract): " + mo_yr((annual_housing + annual_other_debt) / 12))
-        st.markdown("- Total Debt Obligations (TDS, stressed): " + mo_yr((stressed_annual_housing + stressed_annual_other_debt) / 12))
-        st.markdown("- Combined Gross Annual Income: **" + fmt_money(total_income) + "**/yr  ·  **" + fmt_money(total_income / 12) + "**/mo")
-        st.divider()
-        st.caption(help_gds_text(total_income, annual_housing, gds))
-        st.divider()
-        st.caption(help_tds_text(total_income, annual_housing, annual_other_debt, tds))
+    def mo_yr(monthly_val):
+        return "**" + fmt_money(monthly_val) + "**/mo  ·  **" + fmt_money(monthly_val * 12) + "**/yr"
 
     gds_display = "{:.2f}%".format(gds) if gds is not None else "—"
     tds_display = "{:.2f}%".format(tds) if tds is not None else "—"
