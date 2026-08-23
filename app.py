@@ -36,6 +36,8 @@ from builder_rules import (
     calculate_gst_hst_adjusted_price,
     is_cashback_eligible,
     builder_document_requirements,
+    is_transaction_type_builder_eligible,
+    get_eligible_rate_types,
 )
 from refinance_rules import (
     equity_requirement_note,
@@ -3494,12 +3496,26 @@ def render_property_details():
                     else:
                         st.caption(msg)
                     if st.session_state.builder_mortgage_product == "Homeline Plan (Single Advance)":
-                        st.caption("Note: the qualifying amortization for a Homeline Plan is standardized at 30 years, regardless of the amortization entered above.")
+                        st.caption(
+                            "Note: the qualifying amortization for a Homeline Plan is standardized at 30 years, regardless of the amortization entered above."
+                        )
                 st.session_state.builder_interest_rate_type = st.selectbox(
                     "Interest Rate Type", INTEREST_RATE_TYPE_OPTIONS,
                     index=INTEREST_RATE_TYPE_OPTIONS.index(st.session_state.builder_interest_rate_type)
                     if st.session_state.builder_interest_rate_type in INTEREST_RATE_TYPE_OPTIONS else 0,
                 )
+                rate_types = get_eligible_rate_types("borrower")
+                if st.session_state.builder_interest_rate_type and st.session_state.builder_interest_rate_type in rate_types["ineligible"]:
+                    st.caption(
+                        ":red[Not eligible for a mortgage in the purchaser's name — eligible options are: "
+                        + ", ".join(rate_types["eligible"]) + ".]"
+                    )
+                rate_types = get_eligible_rate_types("borrower")
+                if st.session_state.builder_interest_rate_type and st.session_state.builder_interest_rate_type in rate_types["ineligible"]:
+                    st.caption(
+                        ":red[Not eligible for a mortgage in the purchaser's name — eligible options are: "
+                        + ", ".join(rate_types["eligible"]) + ".]"
+                    )
                 st.session_state.builder_rate_buydown = st.selectbox(
                     "Is a Builder Interest Rate Buydown being offered?", YES_NO_OPTIONS,
                     index=YES_NO_OPTIONS.index(st.session_state.builder_rate_buydown)
@@ -3530,6 +3546,10 @@ def render_property_details():
                 st.caption(
                     "Adjusted purchase price: " + fmt_money(adjusted_price) + ". " + gst_note
                 )
+
+            eligible, note = is_transaction_type_builder_eligible("Purchase (new only)")
+            if not eligible and note:
+                st.caption(":red[" + note + "]")
 
             st.markdown("**Cashback**")
             c1, c2 = st.columns(2)
