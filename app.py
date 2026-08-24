@@ -1400,6 +1400,20 @@ def get_step_missing_fields(step_index):
                     + fmt_money(purchase_price_val) + ") — down payment needs to be reviewed against the lower lending value"
                 )
 
+            if purchase_price_val is not None and purchase_price_val > 0 and st.session_state.mortgage_structure:
+                down_payment_val = parse_money(st.session_state.down_payment_raw)
+                min_down, _, is_insured_eligible = get_min_down_payment(purchase_price_val)
+                if st.session_state.mortgage_structure == "Insured (High-Ratio)" and not is_insured_eligible:
+                    missing.append(
+                        "Purchase price is $1,500,000 or more — not eligible for an insured mortgage; "
+                        "select Conventional and re-check the down payment"
+                    )
+                elif down_payment_val is not None and down_payment_val < min_down - 0.01:
+                    missing.append(
+                        "Down payment (" + fmt_money(down_payment_val) + ") is below the minimum required ("
+                        + fmt_money(min_down) + ") for this purchase price — adjust the down payment amount"
+                    )
+
     elif step_index == 3:
         if not st.session_state.subject_address.strip():
             missing.append("Property address is required")
