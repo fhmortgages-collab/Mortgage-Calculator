@@ -1621,6 +1621,13 @@ st.markdown(
         padding: 4px 8px !important;
         box-sizing: border-box !important;
     }
+    /* Help tooltip (?) icons app-wide, colored orange for visibility. */
+    [data-testid="stTooltipIcon"],
+    [data-testid="stTooltipIcon"] svg,
+    [data-testid="stTooltipIcon"] [data-testid="stIconMaterial"] {
+        color: #f97316 !important;
+        fill: #f97316 !important;
+    }
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
     div[class*="st-key-notes_font_scope"] span:not([data-testid="stIconMaterial"]),
@@ -3022,7 +3029,7 @@ def render_down_payment():
                 dp_amt_col, dp_detail_col = st.columns(2)
                 with dp_amt_col:
                     amount_raw = money_text_input(
-                        source["label"] + " Amount ($)",
+                        "Amount ($)",
                         st.session_state.source_amounts.get(source["key"], ""),
                         key="amt_" + source["key"],
                         placeholder="Enter amount",
