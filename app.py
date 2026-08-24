@@ -4977,13 +4977,15 @@ def render_debts():
                     + debt_type["label"] + "</div>",
                     unsafe_allow_html=True,
                 )
+                count_widget_key = "debt_count_" + dkey
+                if count_widget_key not in st.session_state:
+                    st.session_state[count_widget_key] = st.session_state.debt_counts.get(dkey, 1)
                 indent_spacer, indent_content = st.columns([0.4, 9.6])
                 with indent_content:
                     count = st.selectbox(
                         "How many separate " + debt_type["label"] + " accounts does the client have?",
                         [1, 2, 3, 4, 5],
-                        index=st.session_state.debt_counts.get(dkey, 1) - 1,
-                        key="debt_count_" + dkey,
+                        key=count_widget_key,
                     )
                 st.session_state.debt_counts[dkey] = count
             else:
