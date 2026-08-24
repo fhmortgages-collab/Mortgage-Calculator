@@ -1409,9 +1409,10 @@ def get_step_missing_fields(step_index):
                         "select Conventional and re-check the down payment"
                     )
                 elif down_payment_val is not None and down_payment_val < min_down - 0.01:
+                    shortfall = min_down - down_payment_val
                     missing.append(
                         "Down payment (" + fmt_money(down_payment_val) + ") is below the minimum required ("
-                        + fmt_money(min_down) + ") for this purchase price — adjust the down payment amount"
+                        + fmt_money(min_down) + ") — increase it by " + fmt_money(shortfall) + " to proceed"
                     )
 
     elif step_index == 3:
