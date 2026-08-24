@@ -2979,6 +2979,26 @@ def render_down_payment():
             "Down Payment Amount ($)", st.session_state.down_payment_raw, key="down_payment_input",
             placeholder="e.g., 100,000",
         )
+        _dp_purchase_price = parse_money(st.session_state.purchase_price_raw)
+        _dp_down_payment = parse_money(st.session_state.down_payment_raw)
+        if _dp_purchase_price is not None and _dp_purchase_price > 0:
+            _min_down, _max_ltv_for_price, _is_insured_eligible = get_min_down_payment(_dp_purchase_price)
+            if not _is_insured_eligible:
+                st.caption(
+                    "Required minimum down payment: " + fmt_money(_min_down)
+                    + " (20% — purchase price is $1,500,000 or more, conventional only)."
+                )
+            else:
+                st.caption(
+                    "Required minimum down payment: " + fmt_money(_min_down)
+                    + " (max. base LTV ~{:.2f}%, per Canadian purchase-price tiering).".format(_max_ltv_for_price)
+                )
+            if _dp_down_payment is not None and _dp_down_payment < _min_down - 0.01:
+                _shortfall = _min_down - _dp_down_payment
+                st.caption(
+                    ":red[Entered down payment is " + fmt_money(_shortfall) + " below the minimum required — "
+                    "increase it by that amount to proceed.]"
+                )
 
     st.session_state.mortgage_structure = st.selectbox(
         "Mortgage Structure", MORTGAGE_STRUCTURE_OPTIONS,
