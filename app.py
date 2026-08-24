@@ -2968,6 +2968,13 @@ def render_down_payment():
     st.write("Enter property price, down payment, and the sources funding it.")
     render_calculator_popover("downpayment")
 
+    st.session_state.mortgage_structure = st.selectbox(
+        "Mortgage Structure", MORTGAGE_STRUCTURE_OPTIONS,
+        index=MORTGAGE_STRUCTURE_OPTIONS.index(st.session_state.mortgage_structure)
+        if st.session_state.mortgage_structure in MORTGAGE_STRUCTURE_OPTIONS else 0,
+        key="mortgage_structure_input", help=help_mortgage_structure_text(),
+    )
+
     col1, col2 = st.columns(2)
     with col1:
         st.session_state.purchase_price_raw = money_text_input(
@@ -2979,62 +2986,44 @@ def render_down_payment():
             "Down Payment Amount ($)", st.session_state.down_payment_raw, key="down_payment_input",
             placeholder="e.g., 100,000",
         )
-        _dp_purchase_price = parse_money(st.session_state.purchase_price_raw)
-        _dp_down_payment = parse_money(st.session_state.down_payment_raw)
-        _dp_appraised = parse_money(st.session_state.get("property_appraisal_value_raw", ""))
-        if _dp_purchase_price is not None and _dp_purchase_price > 0:
-            if st.session_state.mortgage_structure:
-                # Structure is chosen — use the real lending-value-based calc (respects
-                # the appraisal and the Conventional 80% LTV cap, or the insured tiers).
-                _max_base_mortgage, _max_ltv_used, _min_down, _notes = get_max_base_mortgage(
-                    _dp_purchase_price, _dp_appraised, st.session_state.mortgage_structure,
-                )
-                _lending_value = get_lending_value(_dp_purchase_price, _dp_appraised)
-                st.caption(
-                    "Required minimum down payment: " + fmt_money(_min_down)
-                    + " — based on {} mortgage at max. {:.2f}% LTV against the lending value ({}).".format(
-                        st.session_state.mortgage_structure, _max_ltv_used, fmt_money(_lending_value)
-                    )
-                )
-                for _note in _notes:
-                    st.caption(":orange[" + _note + "]")
-            else:
-                # No structure picked yet — show the purchase-price tiering as a preview.
-                _min_down, _max_ltv_for_price, _is_insured_eligible = get_min_down_payment(_dp_purchase_price)
-                if not _is_insured_eligible:
-                    st.caption(
-                        "Estimated minimum down payment: " + fmt_money(_min_down)
-                        + " (20% — purchase price is $1,500,000 or more, conventional only)."
-                    )
-                else:
-                    st.caption(
-                        "Estimated minimum down payment: " + fmt_money(_min_down)
-                        + " (max. base LTV ~{:.2f}%, per Canadian purchase-price tiering — select a Mortgage "
-                        "Structure below for the exact figure).".format(_max_ltv_for_price)
-                    )
-            if _dp_down_payment is not None and _dp_down_payment < _min_down - 0.01:
-                _shortfall = _min_down - _dp_down_payment
-                st.caption(
-                    ":red[Entered down payment is " + fmt_money(_shortfall) + " below the minimum required — "
-                    "increase it by that amount to proceed.]"
-                )
 
-    st.session_state.mortgage_structure = st.selectbox(
-        "Mortgage Structure", MORTGAGE_STRUCTURE_OPTIONS,
-        index=MORTGAGE_STRUCTURE_OPTIONS.index(st.session_state.mortgage_structure)
-        if st.session_state.mortgage_structure in MORTGAGE_STRUCTURE_OPTIONS else 0,
-        key="mortgage_structure_input", help=help_mortgage_structure_text(),
-    )
-    if st.session_state.mortgage_structure:
-        purchase_price_for_ltv = parse_money(st.session_state.purchase_price_raw) or 0.0
-        appraised_for_ltv = parse_money(st.session_state.get("property_appraisal_value_raw", ""))
-        down_payment_for_ltv = parse_money(st.session_state.down_payment_raw)
-        st.caption(
-            explain_insured_vs_conventional(
-                purchase_price_for_ltv, appraised_for_ltv, down_payment_for_ltv,
-                st.session_state.mortgage_structure,
+    _dp_purchase_price = parse_money(st.session_state.purchase_price_raw)
+    _dp_down_payment = parse_money(st.session_state.down_payment_raw)
+    _dp_appraised = parse_money(st.session_state.get("property_appraisal_value_raw", ""))
+    if _dp_purchase_price is not None and _dp_purchase_price > 0:
+        if st.session_state.mortgage_structure:
+            _max_base_mortgage, _max_ltv_used, _min_down, _notes = get_max_base_mortgage(
+                _dp_purchase_price, _dp_appraised, st.session_state.mortgage_structure,
             )
-        )
+            _lending_value = get_lending_value(_dp_purchase_price, _dp_appraised)
+            st.caption(
+                "Required minimum down payment: " + fmt_money_md(_min_down)
+                + " — based on " + st.session_state.mortgage_structure
+                + " mortgage at max. {:.2f}% LTV against the lending value ({}).".format(
+                    _max_ltv_used, fmt_money_md(_lending_value)
+                )
+            )
+            for _note in _notes:
+                st.caption(":orange[" + _note + "]")
+        else:
+            _min_down, _max_ltv_for_price, _is_insured_eligible = get_min_down_payment(_dp_purchase_price)
+            if not _is_insured_eligible:
+                st.caption(
+                    "Estimated minimum down payment: " + fmt_money_md(_min_down)
+                    + " (20% — purchase price is \\$1,500,000 or more, conventional only)."
+                )
+            else:
+                st.caption(
+                    "Estimated minimum down payment: " + fmt_money_md(_min_down)
+                    + " (max. base LTV ~{:.2f}%, per Canadian purchase-price tiering — select a Mortgage "
+                    "Structure above for the exact figure).".format(_max_ltv_for_price)
+                )
+        if _dp_down_payment is not None and _dp_down_payment < _min_down - 0.01:
+            _shortfall = _min_down - _dp_down_payment
+            st.caption(
+                ":red[Entered down payment is " + fmt_money_md(_shortfall) + " below the minimum required — "
+                "increase it by that amount to proceed.]"
+            )
 
     purchase_price = parse_money(st.session_state.purchase_price_raw)
     down_payment = parse_money(st.session_state.down_payment_raw)
