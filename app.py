@@ -1602,27 +1602,24 @@ st.markdown(
     }
     /* Dropdowns and multiselects get a subtle amber/gold accent app-wide so
        they're visually distinguishable from free-text fields. */
-    [data-testid="stSelectbox"] [data-rac] {
-        border-color: #d4a017 !important;
+    [data-testid="stSelectbox"] [data-rac]:focus,
+    [data-testid="stSelectbox"] [data-rac]:focus-within,
+    [data-testid="stSelectbox"] [data-rac][data-focused] {
+        border-color: #a8823a !important;
         border-width: 1px !important;
         border-style: solid !important;
         border-radius: 8px !important;
-        background-color: rgba(212, 160, 23, 0.08) !important;
+        background-color: rgba(212, 160, 23, 0.04) !important;
+        outline: none !important;
+        box-shadow: none !important;
     }
-    [data-testid="stSelectbox"] svg {
-        fill: #fbbf24 !important;
-        color: #fbbf24 !important;
-    }
-    [data-testid="stMultiSelect"] {
-        border: 1px solid #d4a017 !important;
+    [data-testid="stMultiSelect"]:focus,
+    [data-testid="stMultiSelect"]:focus-within {
+        border: 1px solid #a8823a !important;
         border-radius: 8px !important;
-        background-color: rgba(212, 160, 23, 0.08) !important;
+        background-color: rgba(212, 160, 23, 0.04) !important;
         padding: 4px 8px !important;
         box-sizing: border-box !important;
-    }
-    [data-testid="stMultiSelect"] svg {
-        fill: #fbbf24 !important;
-        color: #fbbf24 !important;
     }
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
@@ -2131,21 +2128,7 @@ st.markdown(
         padding: 0 !important;
         box-sizing: border-box !important;
         overflow: hidden !important;
-    }     [data-testid="stSelectbox"] [data-rac] {
-        border-color: #a855f7 !important;
-        border-width: 1.5px !important;
-        border-style: solid !important;
-        border-radius: 8px !important;
-        background-color: rgba(168, 85, 247, 0.10) !important;
-    }
-    [data-testid="stSelectbox"] input {
-        color: #d8b4fe !important;
-    }
-    [data-testid="stSelectbox"] svg {
-        fill: #a855f7 !important;
-        color: #a855f7 !important;
-    }
-    </style>
+    }</style>
     """,
     unsafe_allow_html=True,
 )

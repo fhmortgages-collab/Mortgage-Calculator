@@ -135,3 +135,108 @@ def builder_document_requirements():
             "warranty_pending": "Builder's warranty registration confirmation once the home has been enrolled",
         },
     }
+# ---------------------------------------------------------------------------
+# New Home Construction - Builder Program (FPHE24) — policy reference data
+# Added Nov 2025. Source: RBC Policy & Procedure Library, FPHE24-1-EN.
+# ---------------------------------------------------------------------------
+
+BUILDER_ELIGIBLE_TRANSACTION_TYPES = [
+    "Purchase (new only)", "Construction", "Assumption (from mortgages in the name of the builder)",
+]
+BUILDER_INELIGIBLE_TRANSACTION_TYPES = [
+    "Switch", "Refinance", "Built-in add-on", "Assumption (from mortgages in the name of the client)",
+]
+
+BUILDER_ELIGIBLE_PRODUCTS = [
+    "Conventional Mortgage", "RBC Homeline Plan (single advance in the name of borrower only)",
+    "Default Insured Mortgage", "RBC Homeline Plan (progress advances in the name of borrower)",
+]
+BUILDER_INELIGIBLE_PRODUCTS = ["Secured Royal Credit Line"]
+
+BUILDER_ELIGIBLE_PROGRAMS = [
+    "Temporary Residents on Work Permit (single advance builder mortgages only)",
+    "Investor Properties", "Seasonal Cottage Properties", "Residential Mortgages on Leasehold Land",
+    "Leasehold Lending on First Nations Land", "Factory Constructed Homes (Permanently Affixed)",
+    "Self Employed Stated Income", "Wealth Accumulator Equity",
+    "Newcomer (Equity, High Net Worth and Standard)", "Foreign Income (US and All Other Countries)",
+]
+BUILDER_INELIGIBLE_PROGRAMS = [
+    "Temporary Residents on Work Permit (construction draw mortgages)", "Rural Estates",
+    "Collateral Mortgages on Leasehold Land", "First Nation On Reserve Housing Loan Program",
+    "First Nations Ministerial Loan Guarantee (MLG)", "Factory Constructed Homes (not permanently affixed)",
+]
+
+BUILDER_CASHBACK_CAN_COMBINE = [
+    "Investor Properties", "Seasonal Cottage Properties", "Residential Mortgages on Leasehold Land",
+    "Leasehold Lending on First Nations Land", "Factory Constructed Homes (Permanently Affixed)",
+]
+BUILDER_CASHBACK_CANNOT_COMBINE = [
+    "Self Employed Stated Income", "Wealth Accumulator Equity",
+    "Newcomer (Equity, High Net Worth and Standard)", "Foreign Income (US and All Other Countries)",
+]
+
+# Eligible/ineligible interest rate types differ depending on whether the
+# mortgage is in the name of the purchaser(s) or in the name of the builder.
+BUILDER_RATE_TYPES_BORROWER_NAME = {
+    "eligible": ["Fixed rate closed (up to a maximum of 5-year term)", "Variable rate closed"],
+    "ineligible": ["Fixed rate closed (over 5-year term)", "Fixed rate open", "Variable rate open"],
+}
+BUILDER_RATE_TYPES_BUILDER_NAME = {
+    "eligible": ["Variable rate closed or open (not available through CMHC)", "6 month open term"],
+    "ineligible": ["Fixed rate closed", "Fixed rate open"],
+}
+
+# Amortization by program (Green Home Mortgage Program table)
+GREEN_HOME_AMORTIZATION = {
+    "uninsured": {"min": 5, "max": 35, "note": "31-35 years only for specific approved builder codes; TDS/GDS capped at 44%/39%."},
+    "default_insured": {"min": 5, "max": 25, "note": "30 years eligible for buyers purchasing a newly built home."},
+}
+STANDARD_BUILDER_AMORTIZATION_MAX_DEFAULT_INSURED = 30  # newly built home, effective Dec 15 2024
+STANDARD_BUILDER_AMORTIZATION_MAX_UNINSURED_GREEN = 35  # Green Home Mortgage Program only
+
+# Standard builder commitment periods
+BUILDER_COMMITMENT_PERIODS_FIXED = [6, 12]  # months; >12 not permitted, even on exception
+BUILDER_COMMITMENT_PERIODS_VARIABLE = [6, 12, 24, 36]  # months; >36 needs special approval
+
+
+def is_transaction_type_builder_eligible(transaction_type_label):
+    """Returns (eligible: bool, note: str) for a given transaction type label."""
+    if transaction_type_label in BUILDER_ELIGIBLE_TRANSACTION_TYPES:
+        return True, ""
+    if transaction_type_label in BUILDER_INELIGIBLE_TRANSACTION_TYPES:
+        return False, transaction_type_label + " is not eligible under the New Home Construction - Builder Program."
+    return None, "Not a recognized builder-program transaction type."
+
+
+def is_program_cashback_eligible(program_label):
+    """Returns True/False/None (None = program not found in either list)."""
+    if program_label in BUILDER_CASHBACK_CAN_COMBINE:
+        return True
+    if program_label in BUILDER_CASHBACK_CANNOT_COMBINE:
+        return False
+    return None
+
+
+def get_eligible_rate_types(mortgage_in_name_of):
+    """mortgage_in_name_of: 'borrower' or 'builder'. Returns dict with eligible/ineligible lists."""
+    if mortgage_in_name_of == "builder":
+        return BUILDER_RATE_TYPES_BUILDER_NAME
+    return BUILDER_RATE_TYPES_BORROWER_NAME
+
+
+def gst_hst_adjusted_price_from_offer(purchase_price, gst_hst_included, exact_percentage=None):
+    """
+    Wraps existing calculate_gst_hst_adjusted_price() logic per the APS review checklist:
+    if the offer indicates GST/HST is NOT included and gives an exact percentage, add it;
+    otherwise flag that documentation from the builder/lawyer/notary is required to confirm
+    the percentage before it can be added.
+    """
+    if gst_hst_included:
+        return purchase_price, "Purchase price already includes GST/HST — use as entered."
+    if exact_percentage is not None:
+        adjusted = purchase_price * (1 + exact_percentage)
+        return adjusted, "Added {:.2f}% GST/HST per the offer to purchase.".format(exact_percentage * 100)
+    return purchase_price, (
+        "Offer does not indicate the exact GST/HST percentage — obtain documentation from the "
+        "builder, lawyer, or notary confirming the percentage before adding it to the purchase price."
+    )
