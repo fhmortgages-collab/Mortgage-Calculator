@@ -46,6 +46,15 @@ from refinance_rules import (
     change_of_borrower_note,
     high_risk_review_note,
 )
+from insured_conventional_rules import (
+    MORTGAGE_STRUCTURE_OPTIONS,
+    help_mortgage_structure_text,
+    get_lending_value,
+    get_min_down_payment,
+    get_max_base_mortgage,
+    calculate_insurance_premium,
+    explain_insured_vs_conventional,
+)
 
 # ---------------------------------------------------------------------------
 # Shared config
@@ -485,6 +494,8 @@ def init_state():
         st.session_state.borrower_errors = [{}]
     if "purchase_price_raw" not in st.session_state:
         st.session_state.purchase_price_raw = ""
+    if "mortgage_structure" not in st.session_state:
+        st.session_state.mortgage_structure = ""
     if "down_payment_raw" not in st.session_state:
         st.session_state.down_payment_raw = ""
     if "refinance_balance_raw" not in st.session_state:
@@ -757,7 +768,7 @@ def init_state():
 
 SAVE_STATE_KEYS = [
     "step", "transaction_type", "borrower_count", "borrowers", "consent", "borrower_errors",
-    "purchase_price_raw", "down_payment_raw", "selected_sources", "source_amounts", "source_details",
+    "purchase_price_raw", "down_payment_raw", "mortgage_structure", "selected_sources", "source_amounts", "source_details",
     "other_source_desc", "dp_errors",
     "sale_proceeds_address", "sale_proceeds_closing_date", "sale_proceeds_sale_price_raw",
     "sale_proceeds_deposit_raw", "sale_proceeds_mortgage_raw", "sale_proceeds_legal_fees_raw",
@@ -969,6 +980,7 @@ def refresh_all():
     st.session_state.consent = False
     st.session_state.purchase_price_raw = ""
     st.session_state.down_payment_raw = ""
+    st.session_state.mortgage_structure = ""
     st.session_state.refinance_balance_raw = ""
     st.session_state.refinance_remaining_amortization = ""
     st.session_state.subject_property_value_raw = ""
@@ -2324,6 +2336,7 @@ def clear_transaction_type_specific_fields():
     st.session_state.mls_autofilled_fields = []
     st.session_state.purchase_price_raw = ""
     st.session_state.down_payment_raw = ""
+    st.session_state.mortgage_structure = ""
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
     st.session_state.sale_proceeds_address = ""
@@ -2950,6 +2963,23 @@ def render_down_payment():
         st.session_state.down_payment_raw = money_text_input(
             "Down Payment Amount ($)", st.session_state.down_payment_raw, key="down_payment_input",
             placeholder="e.g., 100,000",
+        )
+
+    st.session_state.mortgage_structure = st.selectbox(
+        "Mortgage Structure", MORTGAGE_STRUCTURE_OPTIONS,
+        index=MORTGAGE_STRUCTURE_OPTIONS.index(st.session_state.mortgage_structure)
+        if st.session_state.mortgage_structure in MORTGAGE_STRUCTURE_OPTIONS else 0,
+        key="mortgage_structure_input", help=help_mortgage_structure_text(),
+    )
+    if st.session_state.mortgage_structure:
+        purchase_price_for_ltv = parse_money(st.session_state.purchase_price_raw) or 0.0
+        appraised_for_ltv = parse_money(st.session_state.get("property_appraisal_value_raw", ""))
+        down_payment_for_ltv = parse_money(st.session_state.down_payment_raw)
+        st.caption(
+            explain_insured_vs_conventional(
+                purchase_price_for_ltv, appraised_for_ltv, down_payment_for_ltv,
+                st.session_state.mortgage_structure,
+            )
         )
 
     purchase_price = parse_money(st.session_state.purchase_price_raw)
