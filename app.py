@@ -2804,13 +2804,36 @@ def render_client_details():
                 if errors.get("full_name"):
                     st.caption(":red[" + errors["full_name"] + "]")
 
-                borrower["dob"] = st.date_input(
-                    "Date of Birth",
-                    value=borrower["dob"],
-                    min_value=date(1900, 1, 1),
-                    max_value=date.today(),
-                    key="dob_" + str(idx),
-                )
+                dob_col1, dob_col2, dob_col3 = st.columns(3)
+                _current_dob = borrower.get("dob")
+                _dob_years = ["Year"] + [str(y) for y in range(date.today().year, 1899, -1)]
+                _dob_months = ["Month"] + [str(m) for m in range(1, 13)]
+                _dob_days = ["Day"] + [str(d) for d in range(1, 32)]
+                with dob_col1:
+                    _picked_year = st.selectbox(
+                        "Year", _dob_years,
+                        index=_dob_years.index(str(_current_dob.year)) if _current_dob else 0,
+                        key="dob_year_" + str(idx),
+                    )
+                with dob_col2:
+                    _picked_month = st.selectbox(
+                        "Month", _dob_months,
+                        index=_dob_months.index(str(_current_dob.month)) if _current_dob else 0,
+                        key="dob_month_" + str(idx),
+                    )
+                with dob_col3:
+                    _picked_day = st.selectbox(
+                        "Day", _dob_days,
+                        index=_dob_days.index(str(_current_dob.day)) if _current_dob else 0,
+                        key="dob_day_" + str(idx),
+                    )
+                if _picked_year != "Year" and _picked_month != "Month" and _picked_day != "Day":
+                    try:
+                        borrower["dob"] = date(int(_picked_year), int(_picked_month), int(_picked_day))
+                    except ValueError:
+                        borrower["dob"] = None
+                else:
+                    borrower["dob"] = None
                 if errors.get("dob"):
                     st.caption(":red[" + errors["dob"] + "]")
 
@@ -7216,12 +7239,18 @@ if st.session_state.get("last_rendered_step") != st.session_state.step:
         """
         <script>
           (function() {
-            var doc = window.parent.document;
-            doc.documentElement.scrollTop = 0;
-            doc.body.scrollTop = 0;
-            var main = doc.querySelector('section.main');
-            if (main) { main.scrollTop = 0; }
-            window.parent.scrollTo(0, 0);
+            function scrollToTop() {
+              var doc = window.parent.document;
+              doc.documentElement.scrollTop = 0;
+              doc.body.scrollTop = 0;
+              var main = doc.querySelector('section.main');
+              if (main) { main.scrollTop = 0; }
+              window.parent.scrollTo(0, 0);
+            }
+            scrollToTop();
+            setTimeout(scrollToTop, 100);
+            setTimeout(scrollToTop, 300);
+            setTimeout(scrollToTop, 600);
           })();
         </script>
         """,
