@@ -3944,9 +3944,10 @@ def render_property_details():
             if (
                 st.session_state.subject_prop_type
                 and st.session_state.subject_prop_type != "Condo / Apartment"
-                and st.session_state.subject_condo_raw.strip() == ""
+                and st.session_state.get("subject_condo_input", "").strip() == ""
             ):
                 st.session_state.subject_condo_raw = "0"
+                st.session_state["subject_condo_input"] = "0"
             st.session_state.subject_condo_raw = money_text_input(
                 "Monthly Condo / Strata Fees ($)", st.session_state.subject_condo_raw,
                 key="subject_condo_input", placeholder="Enter monthly fee amount (0 if none)",
