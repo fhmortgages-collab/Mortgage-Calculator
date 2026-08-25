@@ -3941,17 +3941,17 @@ def render_property_details():
                 key="subject_taxes_input", placeholder="Enter monthly tax amount",
             )
         with c2:
-            if (
-                st.session_state.subject_prop_type
-                and st.session_state.subject_prop_type != "Condo / Apartment"
-                and st.session_state.get("subject_condo_input", "").strip() == ""
-            ):
+            condo_fee_applicable_types = ("Condo / Apartment", "Townhouse / Row House")
+            if st.session_state.subject_prop_type in condo_fee_applicable_types:
+                st.session_state.subject_condo_raw = money_text_input(
+                    "Monthly Condo / Strata Fees ($)", st.session_state.subject_condo_raw,
+                    key="subject_condo_input", placeholder="Enter monthly fee amount (0 if none)",
+                )
+            else:
                 st.session_state.subject_condo_raw = "0"
                 st.session_state["subject_condo_input"] = "0"
-            st.session_state.subject_condo_raw = money_text_input(
-                "Monthly Condo / Strata Fees ($)", st.session_state.subject_condo_raw,
-                key="subject_condo_input", placeholder="Enter monthly fee amount (0 if none)",
-            )
+                st.markdown("Monthly Condo / Strata Fees ($)")
+                st.caption("Not applicable for this property type.")
         with c3:
             st.session_state.subject_heat_raw = money_text_input(
                 "Monthly Heating Costs ($)", st.session_state.subject_heat_raw,
