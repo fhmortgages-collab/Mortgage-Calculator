@@ -1659,22 +1659,22 @@ st.markdown(
         border-radius: 8px !important;
     }
         [data-testid="stMultiSelect"] {
-        border: 2px solid #dc2626 !important;
-        border-radius: 8px !important;
-        background-color: transparent !important;
-        padding: 4px 8px !important;
-        box-sizing: border-box !important;
-    }
-    [data-testid="stMultiSelect"]:focus,
-    [data-testid="stMultiSelect"]:focus-within {
-        border: 2px solid #dc2626 !important;
-        border-radius: 8px !important;
-        background-color: transparent !important;
-        padding: 4px 8px !important;
-        box-sizing: border-box !important;
-        outline: none !important;
-        box-shadow: none !important;
-    }
+    border: 1px solid transparent !important;
+    border-radius: 8px !important;
+    background-color: transparent !important;
+    padding: 4px 8px !important;
+    box-sizing: border-box !important;
+}
+[data-testid="stMultiSelect"]:focus,
+[data-testid="stMultiSelect"]:focus-within {
+    border: 1px solid #dc2626 !important;
+    border-radius: 8px !important;
+    background-color: transparent !important;
+    padding: 4px 8px !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
     /* The expanded multiselect options list ("Select all", etc.) gets the same
        bold red border while open. */
     div[data-baseweb="popover"] ul[role="listbox"] {
