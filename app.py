@@ -1658,13 +1658,28 @@ st.markdown(
         border: 0.5px solid #dc2626 !important;
         border-radius: 8px !important;
     }
-    [data-testid="stMultiSelect"]:focus,
-    [data-testid="stMultiSelect"]:focus-within {
-        border: 1px solid #a8823a !important;
+        [data-testid="stMultiSelect"] {
+        border: 2px solid #dc2626 !important;
         border-radius: 8px !important;
-        background-color: rgba(212, 160, 23, 0.04) !important;
+        background-color: transparent !important;
         padding: 4px 8px !important;
         box-sizing: border-box !important;
+    }
+    [data-testid="stMultiSelect"]:focus,
+    [data-testid="stMultiSelect"]:focus-within {
+        border: 2px solid #dc2626 !important;
+        border-radius: 8px !important;
+        background-color: transparent !important;
+        padding: 4px 8px !important;
+        box-sizing: border-box !important;
+        outline: none !important;
+        box-shadow: none !important;
+    }
+    /* The expanded multiselect options list ("Select all", etc.) gets the same
+       bold red border while open. */
+    div[data-baseweb="popover"] ul[role="listbox"] {
+        border: 2px solid #dc2626 !important;
+        border-radius: 8px !important;
     }
     /* Help tooltip (?) icons app-wide, colored orange for visibility. */
     [data-testid="stTooltipIcon"],
