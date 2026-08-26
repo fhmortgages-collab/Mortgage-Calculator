@@ -2217,7 +2217,10 @@ with st.sidebar:
     if st.button("Refresh", use_container_width=True, key="sidebar_refresh"):
         st.session_state["sidebar_show_refresh_confirm"] = True
     if st.session_state.get("sidebar_show_refresh_confirm"):
-            st.divider()
+        st.warning("Clear all data? Cannot be undone.")
+        rc1, rc2 = st.columns(2)
+
+    st.divider()
     st.markdown("#### Policy Rules Inputs")
     st.session_state.subject_region = st.selectbox(
         "Region (for LTV tiers)",
@@ -2258,8 +2261,6 @@ with st.sidebar:
         placeholder="e.g., 5000",
         help="Cashback, fee waivers, etc. deducted for LTV."
     )
-        st.warning("Clear all data? Cannot be undone.")
-        rc1, rc2 = st.columns(2)
         with rc1:
             if st.button("Confirm", type="primary", use_container_width=True, key="sidebar_confirm_refresh"):
                 refresh_all()
