@@ -1762,6 +1762,14 @@ st.markdown(
         flex: 0 1 132px !important;
         width: 132px !important;
     }
+    div[class*="st-key-sticky_nav_wrapper"] {
+    position: sticky !important;
+    top: 3.75rem !important;
+    z-index: 999 !important;
+    background-color: #ffffff !important;
+    padding-bottom: 6px !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
+}
     div[class*="st-key-stepper_row"] button {
         font-size: 12px !important;
         white-space: nowrap !important;
@@ -2260,7 +2268,7 @@ st.markdown(
 st.caption("Residential Mortgage Application")
 
 
-stepper_placeholder = st.empty()
+stepper_placeholder = st.container(key="sticky_nav_wrapper")
 
 with st.sidebar:
     timer_placeholder = st.empty()
