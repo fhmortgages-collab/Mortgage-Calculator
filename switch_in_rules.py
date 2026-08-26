@@ -160,3 +160,9 @@ def switch_in_document_requirements():
             "Financial Institution (FRFI)",
         ],
     }
+# =============================================================================
+# Additional switch-in policy notes (from FPHE1, pp. 5-6)
+# =============================================================================
+# For non‑conforming mortgages, the maximum LTV is 65% (or 80% for existing‑debt‑only
+# consolidations). These caps are defined in insured_conventional_rules.py as
+# NON_CONFORMING_MAX_LTV and NON_CONFORMING_EXCEPTION_LTV.

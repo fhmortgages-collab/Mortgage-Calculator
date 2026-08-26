@@ -157,3 +157,11 @@ DOWN_PAYMENT_SOURCES = [
         "notes": "Use this option for a source not listed above.",
     },
 ]
+# =============================================================================
+# Additional down payment policy notes (from FPHE1, p. 24)
+# =============================================================================
+# For conventional and Homeline applications from existing clients with a clean
+# repayment history of at least 1 year, up to 10% of the down payment can be
+# verified solely by the deposit on the Offer to Purchase.
+# See the constant DOWN_PAYMENT_VERIFICATION_EXCEPTION_PCT in
+# insured_conventional_rules.py for the numeric value.

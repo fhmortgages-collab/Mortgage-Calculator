@@ -39,9 +39,7 @@ from builder_rules import (
     is_transaction_type_builder_eligible,
     get_eligible_rate_types,
 )
-from refinance_rules import (from income_sources import CCB_MAX_PERCENT, FOSTER_CARE_MAX_INCOME_PERCENT, MAX_APPRAISED_RENT_PER_UNIT, is_high_vacancy_location
-from insured_conventional_rules import is_non_conforming, can_waive_survey, adjust_purchase_price_for_incentives, max_ltv_for_property, get_max_ltv_tier
-from refinance_rules import is_variable_tds_allowed)
+from refinance_rules import (
     equity_requirement_note,
     ltv_calculation_note,
     determine_amortization_increase,
@@ -56,11 +54,6 @@ from insured_conventional_rules import (
     get_max_base_mortgage,
     calculate_insurance_premium,
     explain_insured_vs_conventional,
-    is_non_conforming,
-    can_waive_survey,
-    adjust_purchase_price_for_incentives,
-    max_ltv_for_property,
-    get_max_ltv_tier
 )
 
 # ---------------------------------------------------------------------------
