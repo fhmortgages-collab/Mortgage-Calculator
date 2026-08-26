@@ -2261,6 +2261,9 @@ with st.sidebar:
         placeholder="e.g., 5000",
         help="Cashback, fee waivers, etc. deducted for LTV."
     )
+    if st.session_state.get("sidebar_show_refresh_confirm"):
+        st.warning("Clear all data? Cannot be undone.")
+        rc1, rc2 = st.columns(2)
         with rc1:
             if st.button("Confirm", type="primary", use_container_width=True, key="sidebar_confirm_refresh"):
                 refresh_all()
