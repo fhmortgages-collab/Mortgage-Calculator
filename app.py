@@ -1688,6 +1688,19 @@ st.markdown(
         color: #f97316 !important;
         fill: #f97316 !important;
     }
+    [data-testid="stTooltipContent"] {
+    background-color: #fff3e0 !important;
+    color: #1a1a1a !important;
+    border: 1px solid #f97316 !important;
+    border-radius: 8px !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    max-width: 90vw !important;
+    z-index: 9999 !important;
+    padding: 12px 16px !important;
+}
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
     div[class*="st-key-notes_font_scope"] span:not([data-testid="stIconMaterial"]),
