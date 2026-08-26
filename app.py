@@ -1688,7 +1688,7 @@ st.markdown(
         color: #f97316 !important;
         fill: #f97316 !important;
     }
-    data-testid="stTooltipContent"] {
+    [data-testid="stTooltipContent"] {
     background-color: #fff7ed !important;
     color: #1a1a1a !important;
     border: 1px solid #f97316 !important;
@@ -1698,7 +1698,22 @@ st.markdown(
     left: 50% !important;
     transform: translate(-50%, -50%) !important;
     width: 480px !important;
+    min-width: 480px !important;
     max-width: 90vw !important;
+    height: auto !important;
+    display: block !important;
+    flex: none !important;
+    z-index: 9999 !important;
+    padding: 16px 20px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25) !important;
+    white-space: normal !important;
+    box-sizing: border-box !important;
+}
+[data-testid="stTooltipContent"] * {
+    white-space: normal !important;
+    width: auto !important;
+    max-width: 100% !important;
+}
     height: auto !important;
     z-index: 9999 !important;
     padding: 16px 20px !important;
