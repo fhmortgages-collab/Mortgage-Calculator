@@ -2220,47 +2220,7 @@ with st.sidebar:
         st.warning("Clear all data? Cannot be undone.")
         rc1, rc2 = st.columns(2)
 
-    st.divider()
-    st.markdown("#### Policy Rules Inputs")
-    st.session_state.subject_region = st.selectbox(
-        "Region (for LTV tiers)",
-        ["", "Greater Toronto Area", "Greater Vancouver Area", "Calgary", "Edmonton",
-         "Montreal", "Ottawa", "Halifax", "Rest of Ontario", "Rest of British Columbia",
-         "Rest of Alberta", "Rest of Quebec", "Rest of Canada"],
-        index=0,
-        key="sidebar_region",
-        help="Select the property region to apply LTV tier limits."
-    )
-    st.session_state.credit_score = st.selectbox(
-        "Credit Score (if known)",
-        ["", "A", "B", "C", "D", "E", "0"],
-        index=0,
-        key="sidebar_credit_score",
-        help="Used for non‑conforming mortgage check."
-    )
-    st.session_state.mortgage_program = st.selectbox(
-        "Mortgage Program",
-        ["", "Self Employed Stated Income", "Wealth Accumulator", "Newcomer and Foreign Income",
-         "Newcomer Standard", "Second Homes", "Rural Estates", "Investment Properties",
-         "New Home Construction - Builder Program", "Seasonal Cottages", "Factory Constructed Homes",
-         "First Nations Ministerial Loan Program"],
-        index=0,
-        key="sidebar_program",
-        help="Used for variable TDS and non‑conforming checks."
-    )
-    st.session_state.is_existing_mortgage = st.checkbox(
-        "Is this an existing mortgage?",
-        value=st.session_state.is_existing_mortgage,
-        key="sidebar_existing_mtg",
-        help="Check if the property already has a mortgage (for survey waiver)."
-    )
-    st.session_state.total_incentives_raw = money_text_input(
-        "Non‑value‑adding incentives ($)",
-        st.session_state.total_incentives_raw,
-        key="sidebar_incentives",
-        placeholder="e.g., 5000",
-        help="Cashback, fee waivers, etc. deducted for LTV."
-    )
+
     if st.session_state.get("sidebar_show_refresh_confirm"):
         st.warning("Clear all data? Cannot be undone.")
         rc1, rc2 = st.columns(2)

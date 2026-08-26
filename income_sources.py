@@ -273,25 +273,6 @@ INCOME_SOURCES = [
         "special": "ccb_qfa",
     },
     {
-        "key": "foster_care",
-        "label": "Foster Care Income",
-        "documents": [
-            "Current pay statement from the foster care agency",
-            "Letter from the ministry confirming tenure, current status, and the last 2 years of income earned",
-        ],
-        "notes": "Maximum 6 children (including own), income cannot exceed 50% of total application income. Must be calculated using the 2-year average (or lesser of most recent year). Not eligible for gross‑up. Outside advisor's Delegated Lending Authority – requires underwriting review.",
-        "special": "foster_care",
-    },
-    {
-        "key": "ccb_qfa",
-        "label": "Canada Child Benefit / Quebec Family Allowance",
-        "documents": [
-            "Most recent annual notice from the CRA or Revenu Québec confirming the benefit amount",
-        ],
-        "notes": "Only for children 12 years or younger. Cannot exceed 15% of total application income (excluding rental income). Not eligible for gross‑up. Outside advisor's Delegated Lending Authority – requires underwriting review.",
-        "special": "ccb_qfa",
-    },
-    {
         "key": "other",
         "label": "Other",
         "documents": [
