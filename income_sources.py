@@ -254,6 +254,44 @@ INCOME_SOURCES = [
         "special": None,
     },
     {
+        "key": "foster_care",
+        "label": "Foster Care Income",
+        "documents": [
+            "Current pay statement from the foster care agency",
+            "Letter from the ministry confirming tenure, current status, and the last 2 years of income earned",
+        ],
+        "notes": "Maximum 6 children (including own), income cannot exceed 50% of total application income. Must be calculated using the 2-year average (or lesser of most recent year). Not eligible for gross‑up. Outside advisor's Delegated Lending Authority – requires underwriting review.",
+        "special": "foster_care",
+    },
+    {
+        "key": "ccb_qfa",
+        "label": "Canada Child Benefit / Quebec Family Allowance",
+        "documents": [
+            "Most recent annual notice from the CRA or Revenu Québec confirming the benefit amount",
+        ],
+        "notes": "Only for children 12 years or younger. Cannot exceed 15% of total application income (excluding rental income). Not eligible for gross‑up. Outside advisor's Delegated Lending Authority – requires underwriting review.",
+        "special": "ccb_qfa",
+    },
+    {
+        "key": "foster_care",
+        "label": "Foster Care Income",
+        "documents": [
+            "Current pay statement from the foster care agency",
+            "Letter from the ministry confirming tenure, current status, and the last 2 years of income earned",
+        ],
+        "notes": "Maximum 6 children (including own), income cannot exceed 50% of total application income. Must be calculated using the 2-year average (or lesser of most recent year). Not eligible for gross‑up. Outside advisor's Delegated Lending Authority – requires underwriting review.",
+        "special": "foster_care",
+    },
+    {
+        "key": "ccb_qfa",
+        "label": "Canada Child Benefit / Quebec Family Allowance",
+        "documents": [
+            "Most recent annual notice from the CRA or Revenu Québec confirming the benefit amount",
+        ],
+        "notes": "Only for children 12 years or younger. Cannot exceed 15% of total application income (excluding rental income). Not eligible for gross‑up. Outside advisor's Delegated Lending Authority – requires underwriting review.",
+        "special": "ccb_qfa",
+    },
+    {
         "key": "other",
         "label": "Other",
         "documents": [
@@ -263,3 +301,62 @@ INCOME_SOURCES = [
         "special": None,
     },
 ]
+
+# =============================================================================
+# Additional income policy rules – from FPHE1
+# =============================================================================
+
+# --- Canada Child Benefit (CCB) and Quebec Family Allowance (QFA) (FPHE1, pp. 24-25) ---
+CCB_MAX_CHILD_AGE = 12                      # children must be 12 or younger
+CCB_MAX_PERCENT_OF_TOTAL_INCOME = 15.0      # cannot exceed 15% of total income (excluding rental)
+CCB_QFA_GROSS_UP_INELIGIBLE = True          # not eligible for gross‑up
+CCB_QFA_OUTSIDE_DLA = True                  # outside advisor's Delegated Lending Authority
+
+# --- Foster Care Income (FPHE1, p. 25) ---
+FOSTER_CARE_MAX_CHILDREN = 6                # including own children
+FOSTER_CARE_MAX_INCOME_PERCENT = 50.0       # cannot exceed 50% of total income (excluding rental)
+FOSTER_CARE_CALCULATION_RULE = "two_year_average_or_lesser"  # use lesser of 2‑year average or most recent year
+FOSTER_CARE_OUTSIDE_DLA = True
+
+# --- Foreign Income AML Risk Ratings (FPHE1, p. 7-8) ---
+AML_ACCEPTABLE_RATINGS = ["Standard", "Medium", "High 1", "High 2"]
+AML_HIGH2_EXCEPTIONS = ["China", "India"]   # High 2 is only accepted for China or India
+
+def is_foreign_income_acceptable(country_code, aml_risk_rating):
+    """
+    Returns True if foreign income from a given country is acceptable.
+    """
+    if aml_risk_rating not in AML_ACCEPTABLE_RATINGS:
+        return False
+    if aml_risk_rating == "High 2":
+        return country_code in AML_HIGH2_EXCEPTIONS
+    return True
+
+# --- Appraised Market Rent (FPHE1, pp. 25-27) ---
+OWNER_OCCUPIED_RENT_INCLUSION_RATE = 0.80   # use 80% of lowest appraised market rent
+MAX_APPRAISED_RENT_PER_UNIT = 6_000         # $6,000 per month per unit max
+
+# High‑vacancy locations requiring 6 months of liquid assets to cover rental income used
+HIGH_VACANCY_LOCATIONS = [
+    "Wood Buffalo, AB (Fort McMurray)",
+    "Fort St. John, BC",
+    "Hanover, MB",
+    "Gravenhurst, ON",
+    "South Huron, ON",
+    "Brockville, ON",
+    "Estevan, SK",
+    "Prince Albert, SK",
+    "Swift Current, SK",
+]
+# Rural properties with postal code ending in '0' are also considered high‑vacancy.
+
+def is_high_vacancy_location(city, province, postal_code):
+    """
+    Returns True if the location qualifies as high‑vacancy.
+    """
+    location_key = f"{city}, {province}".strip()
+    if location_key in HIGH_VACANCY_LOCATIONS:
+        return True
+    if postal_code and postal_code.strip().endswith("0"):
+        return True
+    return False

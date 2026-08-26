@@ -158,3 +158,53 @@ def is_guarantor_eligible(guarantor_type, is_immediate_family=True):
     if guarantor_type == "non_spousal":
         return is_immediate_family
     return False
+# =============================================================================
+# Additional policy rules – from FPHE1 and personal credit policy
+# =============================================================================
+
+MAX_PROPERTIES_OWNED = 9
+MAX_INVESTMENT_PROPERTIES = 5
+MIN_MORTGAGE_AMOUNT = 25_000
+MIN_RCL_SEGMENT = 5_000
+SELF_EMPLOYED_GROSS_UP = 1.15
+
+VARIABLE_TDS_ELIGIBLE_PROGRAMS = [
+    "Newcomer Standard",
+    "Second Homes",
+    "Mortgage Assistance Program",
+    "Rural Estates",
+    "Investment Properties",
+    "New Home Construction - Builder Program",
+    "Construction Mortgages",
+    "First Nations Ministerial Loan Program",
+    "First Nations on Reserve Housing Loan Program",
+]
+
+VARIABLE_TDS_INELIGIBLE_PROGRAMS = [
+    "US Foreign Income",
+    "Foreign Income (all other eligible countries)",
+    "Newcomer Default Insured",
+    "Newcomer High Net Worth",
+    "Self Employed Stated Income (Conventional and Default Insured)",
+    "Wealth Accumulator Conforming and Non-Conforming",
+    "Temporary Resident on Work Permit (Conventional and Default Insured)",
+    "Seasonal Cottages",
+    "Factory Constructed Homes",
+    "Residential and Collateral Mortgages on Leasehold Land",
+    "Leasehold Lending on First Nations Lands",
+    "Risk Based Pricing",
+]
+
+def is_variable_tds_allowed(program_label):
+    if program_label in VARIABLE_TDS_ELIGIBLE_PROGRAMS:
+        return True
+    if program_label in VARIABLE_TDS_INELIGIBLE_PROGRAMS:
+        return False
+    return False
+
+def is_guarantor_eligible(guarantor_type, is_immediate_family=True):
+    if guarantor_type == "spousal":
+        return True
+    if guarantor_type == "non_spousal":
+        return is_immediate_family
+    return False

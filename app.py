@@ -39,7 +39,9 @@ from builder_rules import (
     is_transaction_type_builder_eligible,
     get_eligible_rate_types,
 )
-from refinance_rules import (
+from refinance_rules import (from income_sources import CCB_MAX_PERCENT, FOSTER_CARE_MAX_INCOME_PERCENT, MAX_APPRAISED_RENT_PER_UNIT, is_high_vacancy_location
+from insured_conventional_rules import is_non_conforming, can_waive_survey, adjust_purchase_price_for_incentives, max_ltv_for_property, get_max_ltv_tier
+from refinance_rules import is_variable_tds_allowed)
     equity_requirement_note,
     ltv_calculation_note,
     determine_amortization_increase,
@@ -645,6 +647,16 @@ def init_state():
     if "subject_sewer_other" not in st.session_state:
         st.session_state.subject_sewer_other = ""
     if "subject_water_other" not in st.session_state:
+            if "subject_region" not in st.session_state:
+        st.session_state.subject_region = ""
+    if "credit_score" not in st.session_state:
+        st.session_state.credit_score = ""
+    if "mortgage_program" not in st.session_state:
+        st.session_state.mortgage_program = ""
+    if "is_existing_mortgage" not in st.session_state:
+        st.session_state.is_existing_mortgage = False
+    if "total_incentives_raw" not in st.session_state:
+        st.session_state.total_incentives_raw = ""
         st.session_state.subject_water_other = ""
     # --- Switch-in (Refinance - New Lender) fields ---
     if "switch_ofi_name" not in st.session_state:
@@ -2207,6 +2219,47 @@ with st.sidebar:
     if st.button("Refresh", use_container_width=True, key="sidebar_refresh"):
         st.session_state["sidebar_show_refresh_confirm"] = True
     if st.session_state.get("sidebar_show_refresh_confirm"):
+            st.divider()
+    st.markdown("#### Policy Rules Inputs")
+    st.session_state.subject_region = st.selectbox(
+        "Region (for LTV tiers)",
+        ["", "Greater Toronto Area", "Greater Vancouver Area", "Calgary", "Edmonton",
+         "Montreal", "Ottawa", "Halifax", "Rest of Ontario", "Rest of British Columbia",
+         "Rest of Alberta", "Rest of Quebec", "Rest of Canada"],
+        index=0,
+        key="sidebar_region",
+        help="Select the property region to apply LTV tier limits."
+    )
+    st.session_state.credit_score = st.selectbox(
+        "Credit Score (if known)",
+        ["", "A", "B", "C", "D", "E", "0"],
+        index=0,
+        key="sidebar_credit_score",
+        help="Used for non‑conforming mortgage check."
+    )
+    st.session_state.mortgage_program = st.selectbox(
+        "Mortgage Program",
+        ["", "Self Employed Stated Income", "Wealth Accumulator", "Newcomer and Foreign Income",
+         "Newcomer Standard", "Second Homes", "Rural Estates", "Investment Properties",
+         "New Home Construction - Builder Program", "Seasonal Cottages", "Factory Constructed Homes",
+         "First Nations Ministerial Loan Program"],
+        index=0,
+        key="sidebar_program",
+        help="Used for variable TDS and non‑conforming checks."
+    )
+    st.session_state.is_existing_mortgage = st.checkbox(
+        "Is this an existing mortgage?",
+        value=st.session_state.is_existing_mortgage,
+        key="sidebar_existing_mtg",
+        help="Check if the property already has a mortgage (for survey waiver)."
+    )
+    st.session_state.total_incentives_raw = money_text_input(
+        "Non‑value‑adding incentives ($)",
+        st.session_state.total_incentives_raw,
+        key="sidebar_incentives",
+        placeholder="e.g., 5000",
+        help="Cashback, fee waivers, etc. deducted for LTV."
+    )
         st.warning("Clear all data? Cannot be undone.")
         rc1, rc2 = st.columns(2)
         with rc1:
@@ -3398,6 +3451,11 @@ def refresh_property_details():
     st.session_state.subject_heating_type_other = ""
     st.session_state.subject_sewer_other = ""
     st.session_state.subject_water_other = ""
+    st.session_state.subject_region = ""
+    st.session_state.credit_score = ""
+    st.session_state.mortgage_program = ""
+    st.session_state.is_existing_mortgage = False
+    st.session_state.total_incentives_raw = ""
 
 
 def get_subject_property_costs():
@@ -4076,7 +4134,6 @@ def compute_qualifying_variable_income(amounts):
 
 
 def compute_income_source_value(key, amounts):
-    """Qualifying value for one income source's amounts dict, per its calc rule."""
     base_key = base_income_key(key)
     if base_key in EXCLUDED_INCOME_KEYS:
         return 0.0
@@ -4086,12 +4143,20 @@ def compute_income_source_value(key, amounts):
         gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "50%")
         rate = rental_inclusion_rate_value(rate_label)
-        return gross_rental * rate
+        qualifying = gross_rental * rate
+        max_annual = MAX_APPRAISED_RENT_PER_UNIT * 12
+        if qualifying > max_annual:
+            qualifying = max_annual
+        return qualifying
     elif base_key == "rental_component_primary":
         gross_amount = parse_money(amounts.get("amount", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "100%")
         rate = rental_inclusion_rate_value(rate_label)
-        return gross_amount * rate
+        qualifying = gross_amount * rate
+        max_annual = MAX_APPRAISED_RENT_PER_UNIT * 12
+        if qualifying > max_annual:
+            qualifying = max_annual
+        return qualifying
     elif base_key in VARIABLE_INCOME_KEYS:
         return compute_qualifying_variable_income(amounts)
     else:
@@ -4171,11 +4236,38 @@ def compute_borrower_income(borrower_idx):
 
 
 def compute_total_income():
-    grand_total = 0.0
+    # First, compute raw income for each borrower
+    raw_total = 0.0
+    all_breakdown = {}
     for idx in range(st.session_state.borrower_count):
-        total, _ = compute_borrower_income(idx)
-        grand_total += total
-    return grand_total
+        bidx = str(idx)
+        total, breakdown = compute_borrower_income(idx)
+        raw_total += total
+        all_breakdown[bidx] = breakdown
+
+    regular_income = 0.0
+    ccb_total = 0.0
+    foster_total = 0.0
+    for bidx, breakdown in all_breakdown.items():
+        for key, value in breakdown.items():
+            base = base_income_key(key)
+            if base == "ccb_qfa":
+                ccb_total += value
+            elif base == "foster_care":
+                foster_total += value
+            else:
+                regular_income += value
+
+    total_excluding_rental = regular_income + ccb_total + foster_total
+    if total_excluding_rental > 0:
+        max_ccb = total_excluding_rental * (CCB_MAX_PERCENT / 100.0)
+        if ccb_total > max_ccb:
+            ccb_total = max_ccb
+        max_foster = total_excluding_rental * (FOSTER_CARE_MAX_INCOME_PERCENT / 100.0)
+        if foster_total > max_foster:
+            foster_total = max_foster
+
+    return regular_income + ccb_total + foster_total
 
 
 def render_income_category_card(bidx, skey, source, amounts):
@@ -5904,7 +5996,68 @@ def render_analysis():
 
     st.divider()
 
+    # ----------------------------------------------------------------------
+    # Policy rule checks (read from sidebar inputs)
+    # ----------------------------------------------------------------------
+    st.divider()
+    st.markdown("#### Policy Rule Checks")
 
+    # 1. Geographic LTV tier check
+    region = st.session_state.get("subject_region", "")
+    if region and st.session_state.subject_prop_type:
+        prop_type_key = "single_family" if st.session_state.subject_prop_type in ("Detached", "Semi-Detached", "Townhouse") else "condo"
+        if st.session_state.transaction_type in ("purchase", "builder_purchase"):
+            base_price = parse_money(st.session_state.purchase_price_raw) or 0.0
+        else:
+            base_price = parse_money(st.session_state.subject_property_value_raw) or 0.0
+        if base_price > 0:
+            max_loan, effective_ltv = max_ltv_for_property(base_price, region, prop_type_key)
+            st.caption(
+                f"**LTV tier limit:** Region: {region}, type: {st.session_state.subject_prop_type} → "
+                f"max loan = {fmt_money(max_loan)} (effective LTV: {effective_ltv:.1f}%)."
+            )
+            if loan_amount > max_loan:
+                st.error(f"❌ Loan amount ({fmt_money(loan_amount)}) exceeds the tier limit. Consider larger down payment.")
+
+    # 2. Non‑conforming check
+    score = st.session_state.get("credit_score", "")
+    program = st.session_state.get("mortgage_program", "")
+    if score or program:
+        is_non_conf, max_ltv_allowed = is_non_conforming(score, program, is_existing_debt_only=False)
+        if is_non_conf:
+            st.warning(f"⚠️ Non‑conforming mortgage – max LTV = {max_ltv_allowed:.0f}%.")
+            if ltv and ltv > max_ltv_allowed:
+                st.error(f"❌ Current LTV ({ltv:.1f}%) exceeds the non‑conforming limit.")
+
+    # 3. Variable TDS eligibility
+    if st.session_state.get("mortgage_program"):
+        if is_variable_tds_allowed(st.session_state.mortgage_program):
+            st.caption("✅ This program is eligible for Variable TDS (up to 52% TDS / 39% GDS).")
+        else:
+            st.caption("ℹ️ This program is not eligible for Variable TDS – standard limits apply.")
+
+    # 4. Survey waiver check
+    mortgage_type = st.session_state.get("mortgage_structure", "")
+    ltv_val = ltv or 0
+    existing = st.session_state.get("is_existing_mortgage", False)
+    if mortgage_type:
+        can_waive, reason = can_waive_survey(mortgage_type, ltv_val, existing)
+        if can_waive:
+            st.caption("✅ Survey/title insurance can be waived.")
+        else:
+            st.caption(f"ℹ️ {reason}")
+
+    # 5. Rental income cap warning (if any)
+    for idx in range(st.session_state.borrower_count):
+        bidx = str(idx)
+        for key in st.session_state.income_selected.get(bidx, []):
+            if base_income_key(key) in ("rental", "rental_component_primary"):
+                amounts = st.session_state.income_amounts.get(bidx, {}).get(key, {})
+                raw_amount = parse_money(amounts.get("gross_rental") or amounts.get("amount", "")) or 0.0
+                capped = compute_income_source_value(key, amounts)
+                if raw_amount > 0 and capped < raw_amount:
+                    st.caption(f"ℹ️ Rental income from {key} was capped at ${MAX_APPRAISED_RENT_PER_UNIT:,.0f}/month (annual cap).")
+                break  # only show once per borrower
 
     # --- Navigation ---
     back_col, docs_col = st.columns(2)
