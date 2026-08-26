@@ -91,3 +91,70 @@ def high_risk_review_note():
         "debts secured by the residential property are paid out by Operations, while other-financial-institution "
         "debt secured by the property is paid through the title insurer."
     )
+# =============================================================================
+# Additional policy rules – from FPHE1 and personal credit policy
+# =============================================================================
+
+# --- Portfolio & Lending Minimums (FPHE1, p. 30, p. 34) ---
+MAX_PROPERTIES_OWNED = 9
+MAX_INVESTMENT_PROPERTIES = 5
+MIN_MORTGAGE_AMOUNT = 25_000           # $25,000 for a residential mortgage or Homeline Plan
+MIN_RCL_SEGMENT = 5_000                # each RCL segment within a Homeline Plan
+
+# --- Self-Employed Income Gross-up (Personal Credit policy) ---
+SELF_EMPLOYED_GROSS_UP = 1.15          # net income can be grossed up by 15%
+
+# --- Variable TDS/GDS Program Eligibility (FPHE1, pp. 51-52) ---
+# Programs that are eligible for variable TDS (up to 52% TDS / 39% GDS)
+VARIABLE_TDS_ELIGIBLE_PROGRAMS = [
+    "Newcomer Standard",
+    "Second Homes",
+    "Mortgage Assistance Program",
+    "Rural Estates",
+    "Investment Properties",
+    "New Home Construction - Builder Program",
+    "Construction Mortgages",
+    "First Nations Ministerial Loan Program",
+    "First Nations on Reserve Housing Loan Program",
+]
+
+# Programs that are specifically ineligible for variable TDS
+VARIABLE_TDS_INELIGIBLE_PROGRAMS = [
+    "US Foreign Income",
+    "Foreign Income (all other eligible countries)",
+    "Newcomer Default Insured",
+    "Newcomer High Net Worth",
+    "Self Employed Stated Income (Conventional and Default Insured)",
+    "Wealth Accumulator Conforming and Non-Conforming",
+    "Temporary Resident on Work Permit (Conventional and Default Insured)",
+    "Seasonal Cottages",
+    "Factory Constructed Homes",
+    "Residential and Collateral Mortgages on Leasehold Land",
+    "Leasehold Lending on First Nations Lands",
+    "Risk Based Pricing",
+]
+
+def is_variable_tds_allowed(program_label):
+    """
+    Returns True if the given program is eligible for variable TDS/GDS.
+    If the program is not in either list, returns False as a safe default.
+    """
+    if program_label in VARIABLE_TDS_ELIGIBLE_PROGRAMS:
+        return True
+    if program_label in VARIABLE_TDS_INELIGIBLE_PROGRAMS:
+        return False
+    return False  # safe default
+
+# --- Guarantor Rules (FPHE1, pp. 13-14) ---
+# Non-spousal guarantors must be immediate family and qualify on their own.
+# This is a validation helper; use it in business logic if needed.
+def is_guarantor_eligible(guarantor_type, is_immediate_family=True):
+    """
+    guarantor_type: 'spousal' or 'non_spousal'
+    Returns True if eligible.
+    """
+    if guarantor_type == "spousal":
+        return True
+    if guarantor_type == "non_spousal":
+        return is_immediate_family
+    return False

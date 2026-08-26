@@ -369,3 +369,73 @@ def is_eligible_property_type(property_type, has_commercial=False):
     if property_type in INELIGIBLE_PROPERTY_TYPES:
         return False, f"Property type '{property_type}' is ineligible."
     return True, "Eligible"
+# =============================================================================
+# Additional policy rules – from FPHE1
+# =============================================================================
+
+# --- Non-Conforming Mortgages (FPHE1, pp. 5-6) ---
+NON_CONFORMING_MAX_LTV = 65.0          # standard cap for non‑conforming
+NON_CONFORMING_EXCEPTION_LTV = 80.0    # allowed when consolidating only existing debt
+
+def is_non_conforming(credit_score, program, is_existing_debt_only=False):
+    """
+    Determines if an application is non‑conforming based on credit score and program.
+    Returns (is_non_conforming, max_ltv_allowed).
+    """
+    # Low credit score (0 or E) – common trigger
+    if credit_score in (0, "E", "0", "e"):
+        # Exception: existing debt consolidation
+        if is_existing_debt_only:
+            return True, NON_CONFORMING_EXCEPTION_LTV
+        return True, NON_CONFORMING_MAX_LTV
+    # Add other triggers: stated income programs, special property types
+    if program in ("Self Employed Stated Income", "Wealth Accumulator", "Newcomer and Foreign Income"):
+        return True, NON_CONFORMING_MAX_LTV
+    return False, None
+
+# --- Down Payment Verification Exception (FPHE1, p. 24) ---
+DOWN_PAYMENT_VERIFICATION_EXCEPTION_PCT = 10.0   # up to 10% of down payment can be confirmed by deposit
+DOWN_PAYMENT_CLEAN_HISTORY_MIN_YEARS = 1         # must have clean repayment history for ≥1 year
+
+# --- Student Housing & Condo-Hotel (FPHE1, pp. 37-39) ---
+STUDENT_HOUSING_INSURED_INELIGIBLE = True
+CONDO_HOTEL_ALLOWED_CITIES = [
+    "Greater Toronto Area",
+    "Greater Vancouver Area",
+    "Calgary",
+    "Montreal",
+]
+CONDO_HOTEL_REQUIREMENTS = {
+    "must_be_high_rise": True,
+    "must_have_separate_strata": True,
+    "no_rental_pool": True,
+}
+# Note: No exceptions outside CONDO_HOTEL_ALLOWED_CITIES.
+
+# --- Survey / Title Insurance Waivers (FPHE1, pp. 29-30) ---
+SURVEY_WAIVER_LTV_CAP = 50.0   # LTV must be <50% to waive survey/title insurance
+SURVEY_WAIVER_EXISTING_ONLY = True   # only allowed for existing mortgages
+
+def can_waive_survey(mortgage_type, ltv_percent, is_existing_mortgage):
+    """
+    Returns (can_waive, reason).
+    Survey cannot be waived for default insured, LTV > 50%, or if not an existing mortgage.
+    """
+    if mortgage_type == "Default Insured":
+        return False, "Survey waiver not permitted for default insured mortgages."
+    if ltv_percent > SURVEY_WAIVER_LTV_CAP:
+        return False, f"LTV {ltv_percent:.1f}% exceeds the {SURVEY_WAIVER_LTV_CAP}% waiver cap."
+    if not is_existing_mortgage:
+        return False, "Survey waiver only allowed for existing mortgages."
+    return True, "Survey waiver is permitted."
+
+# --- Purchase Incentives (FPHE1, pp. 49-50) ---
+def adjust_purchase_price_for_incentives(purchase_price, incentives):
+    """
+    Subtract the value of any non‑value‑adding incentives (cashback, fee waivers,
+    interest buydowns) from the purchase price for LTV calculation.
+    incentives: list of incentive amounts that do NOT contribute to the property's value.
+    Returns adjusted_price.
+    """
+    total_incentive = sum(amt for amt in incentives if amt > 0)
+    return max(purchase_price - total_incentive, 0)
