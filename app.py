@@ -1642,11 +1642,11 @@ st.markdown(
     }
     /* Dropdowns and multiselects get a subtle amber/gold accent app-wide so
        they're visually distinguishable from free-text fields. */
-    [data-testid="stSelectbox"] [data-rac]:focus,
+        [data-testid="stSelectbox"] [data-rac]:focus,
     [data-testid="stSelectbox"] [data-rac]:focus-within,
     [data-testid="stSelectbox"] [data-rac][data-focused] {
         border-color: #dc2626 !important;
-        border-width: 1px !important;
+        border-width: 0.5px !important;
         border-style: solid !important;
         border-radius: 8px !important;
         background-color: transparent !important;
@@ -1655,7 +1655,7 @@ st.markdown(
     }
     /* The expanded dropdown options list gets the same thin red border while open. */
     ul[data-testid="stSelectboxVirtualDropdown"] {
-        border: 1px solid #dc2626 !important;
+        border: 0.5px solid #dc2626 !important;
         border-radius: 8px !important;
     }
     [data-testid="stMultiSelect"]:focus,
