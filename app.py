@@ -1645,13 +1645,18 @@ st.markdown(
     [data-testid="stSelectbox"] [data-rac]:focus,
     [data-testid="stSelectbox"] [data-rac]:focus-within,
     [data-testid="stSelectbox"] [data-rac][data-focused] {
-        border-color: #a8823a !important;
+        border-color: #dc2626 !important;
         border-width: 1px !important;
         border-style: solid !important;
         border-radius: 8px !important;
-        background-color: rgba(212, 160, 23, 0.04) !important;
+        background-color: transparent !important;
         outline: none !important;
         box-shadow: none !important;
+    }
+    /* The expanded dropdown options list gets the same thin red border while open. */
+    ul[data-testid="stSelectboxVirtualDropdown"] {
+        border: 1px solid #dc2626 !important;
+        border-radius: 8px !important;
     }
     [data-testid="stMultiSelect"]:focus,
     [data-testid="stMultiSelect"]:focus-within {
