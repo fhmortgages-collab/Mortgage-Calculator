@@ -645,7 +645,8 @@ def init_state():
     if "subject_sewer_other" not in st.session_state:
         st.session_state.subject_sewer_other = ""
     if "subject_water_other" not in st.session_state:
-            if "subject_region" not in st.session_state:
+        st.session_state.subject_water_other = ""
+    if "subject_region" not in st.session_state:
         st.session_state.subject_region = ""
     if "credit_score" not in st.session_state:
         st.session_state.credit_score = ""
@@ -655,7 +656,6 @@ def init_state():
         st.session_state.is_existing_mortgage = False
     if "total_incentives_raw" not in st.session_state:
         st.session_state.total_incentives_raw = ""
-        st.session_state.subject_water_other = ""
     # --- Switch-in (Refinance - New Lender) fields ---
     if "switch_ofi_name" not in st.session_state:
         st.session_state.switch_ofi_name = ""
