@@ -203,3 +203,169 @@ def explain_insured_vs_conventional(purchase_price, appraised_value, down_paymen
             lines.append("Entered down payment (" + _fmt(down_payment) + ") meets the minimum requirement.")
 
     return " ".join(lines)
+# =============================================================================
+# Geographic LTV Tiers (from FPHE1, pages 32-34)
+# =============================================================================
+
+GEOGRAPHIC_LTV_TIERS = {
+    # British Columbia
+    "Abbotsford": {"single_family": 2_000_000, "condo": 750_000},
+    "Central Saanich": {"single_family": 1_800_000, "condo": 750_000},
+    "Chilliwack": {"single_family": 1_500_000, "condo": 750_000},
+    "Coldstream": {"single_family": 1_500_000, "condo": 750_000},
+    "Delta (Ladner/Tsawwassen)": {"single_family": 2_000_000, "condo": 1_250_000},
+    "Greater Vancouver Area": {"single_family": 3_000_000, "condo": 1_500_000},
+    "Kelowna": {"single_family": 1_800_000, "condo": 1_000_000},
+    "Lake Country": {"single_family": 1_800_000, "condo": 750_000},
+    "Langley": {"single_family": 2_500_000, "condo": 1_000_000},
+    "Maple Ridge": {"single_family": 1_800_000, "condo": 750_000},
+    "Mission": {"single_family": 1_800_000, "condo": 750_000},
+    "Pitt Meadows": {"single_family": 1_800_000, "condo": 750_000},
+    "Sidney": {"single_family": 1_800_000, "condo": 750_000},
+    "Squamish": {"single_family": 2_000_000, "condo": 750_000},
+    "Sunshine Coast": {"single_family": 1_500_000, "condo": 750_000},
+    "Victoria (incl. Esquimalt)": {"single_family": 1_800_000, "condo": 1_250_000},
+    "Whistler": {"single_family": 1_800_000, "condo": 1_000_000},
+    "Vernon": {"single_family": 1_500_000, "condo": 750_000},
+    "Rest of British Columbia": {"single_family": 1_400_000, "condo": 750_000},
+    # Alberta
+    "Calgary": {"single_family": 1_250_000, "condo": 750_000},
+    "Edmonton": {"single_family": 1_000_000, "condo": 500_000},
+    "Canmore": {"single_family": 1_500_000, "condo": 750_000},
+    "Fort McMurray": {"single_family": 750_000, "condo": 500_000},
+    "Airdrie": {"single_family": 900_000, "condo": 500_000},
+    "Cochrane": {"single_family": 1_000_000, "condo": 500_000},
+    "Okotoks": {"single_family": 1_250_000, "condo": 500_000},
+    "Rest of Alberta": {"single_family": 900_000, "condo": 500_000},
+    # Saskatchewan
+    "Regina": {"single_family": 750_000, "condo": 500_000},
+    "Saskatoon": {"single_family": 750_000, "condo": 500_000},
+    "Rest of Saskatchewan": {"single_family": 600_000, "condo": 500_000},
+    # Manitoba
+    "Winnipeg": {"single_family": 750_000, "condo": 500_000},
+    "Rest of Manitoba": {"single_family": 600_000, "condo": 500_000},
+    # Ontario (full list)
+    "Ajax": {"single_family": 1_500_000, "condo": 750_000},
+    "Aurora": {"single_family": 2_400_000, "condo": 750_000},
+    "Bradford West Gwillimbury": {"single_family": 1_500_000, "condo": 750_000},
+    "Brampton": {"single_family": 1_800_000, "condo": 800_000},
+    "Burlington": {"single_family": 2_000_000, "condo": 1_000_000},
+    "Caledon": {"single_family": 2_000_000, "condo": 750_000},
+    "East Gwillimbury": {"single_family": 1_800_000, "condo": 750_000},
+    "Greater Toronto Area": {"single_family": 2_700_000, "condo": 1_250_000},
+    "Halton Hills": {"single_family": 1_800_000, "condo": 750_000},
+    "Hamilton": {"single_family": 1_500_000, "condo": 750_000},
+    "King Township": {"single_family": 2_500_000, "condo": 750_000},
+    "Kitchener/Waterloo": {"single_family": 1_400_000, "condo": 750_000},
+    "Kleinburg": {"single_family": 2_500_000, "condo": 750_000},
+    "Milton": {"single_family": 1_500_000, "condo": 800_000},
+    "Newmarket": {"single_family": 1_800_000, "condo": 750_000},
+    "Ottawa": {"single_family": 1_250_000, "condo": 750_000},
+    "Pickering": {"single_family": 1_800_000, "condo": 750_000},
+    "Springwater": {"single_family": 1_500_000, "condo": 750_000},
+    "Whitby": {"single_family": 1_500_000, "condo": 750_000},
+    "Rest of Ontario": {"single_family": 1_250_000, "condo": 750_000},
+    # Quebec
+    "Montreal (incl. West Island)": {"single_family": 1_700_000, "condo": 1_000_000},
+    "Quebec City": {"single_family": 750_000, "condo": 550_000},
+    "Montreal South Shore and North": {"single_family": 1_250_000, "condo": 750_000},
+    "Hudson - Saint Lazare": {"single_family": 1_000_000, "condo": 500_000},
+    "Saint-Jean-sur-Richelieu": {"single_family": 850_000, "condo": 500_000},
+    "Gatineau-Hull": {"single_family": 750_000, "condo": 500_000},
+    "Rest of Quebec": {"single_family": 750_000, "condo": 500_000},
+    # Atlantic Canada
+    "New Brunswick (All)": {"single_family": 600_000, "condo": 500_000},
+    "Halifax": {"single_family": 900_000, "condo": 750_000},
+    "Rest of Nova Scotia": {"single_family": 650_000, "condo": 400_000},
+    "Prince Edward Island (All)": {"single_family": 700_000, "condo": 500_000},
+    "St. John's": {"single_family": 600_000, "condo": 500_000},
+    "Rest of Newfoundland": {"single_family": 450_000, "condo": 400_000},
+    # Territories
+    "Whitehorse": {"single_family": 750_000, "condo": 500_000},
+    "Rest of Yukon": {"single_family": 500_000, "condo": 500_000},
+    "Yellowknife": {"single_family": 750_000, "condo": 500_000},
+    "Rest of NWT": {"single_family": 500_000, "condo": 500_000},
+    "Nunavut (All)": {"single_family": 500_000, "condo": 500_000},
+}
+
+def get_max_ltv_tier(region, property_type):
+    """
+    Return the LTV tier value (the amount up to which 80% LTV is allowed)
+    for a given region and property type ('single_family' or 'condo').
+    Falls back to the nearest 'Rest of' region if the exact region isn't found.
+    """
+    region_key = region.strip()
+    if region_key not in GEOGRAPHIC_LTV_TIERS:
+        # Try to match a "Rest of" key
+        for key in GEOGRAPHIC_LTV_TIERS:
+            if key.startswith("Rest of") and region_key.endswith(key.replace("Rest of", "").strip()):
+                region_key = key
+                break
+    tiers = GEOGRAPHIC_LTV_TIERS.get(region_key, {})
+    if property_type.lower() in ("single_family", "townhouse", "detached", "semi-detached"):
+        return tiers.get("single_family", 1_000_000)
+    elif property_type.lower() in ("condo", "apartment", "condominium"):
+        return tiers.get("condo", 500_000)
+    return tiers.get("single_family", 1_000_000)
+
+def max_ltv_for_property(purchase_price, region, property_type):
+    """
+    Calculate the maximum loan amount based on the LTV tiering formula:
+    80% of tier value + 50% of the amount exceeding the tier value.
+    Returns (max_loan_amount, effective_ltv_percent).
+    """
+    tier_value = get_max_ltv_tier(region, property_type)
+    if purchase_price <= tier_value:
+        max_loan = purchase_price * 0.80
+    else:
+        max_loan = tier_value * 0.80 + (purchase_price - tier_value) * 0.50
+    effective_ltv = (max_loan / purchase_price) * 100 if purchase_price > 0 else 0
+    return max_loan, effective_ltv
+
+# =============================================================================
+# Property Eligibility (from FPHE1, pages 34-37)
+# =============================================================================
+
+ELIGIBLE_HOUSING_TYPES = [
+    "owner occupied single family detached",
+    "owner occupied single family detached with laneway home",
+    "owner occupied semi-detached",
+    "owner occupied semi-detached with laneway home",
+    "owner occupied condominium units",
+    "owner occupied stacked townhouse",
+    "owner occupied townhouse",
+    "owner occupied townhouse with laneway home",
+    "owner occupied duplex",
+    "owner occupied triplex",
+    "owner occupied fourplex",
+]
+
+INELIGIBLE_PROPERTY_TYPES = [
+    "zoned as commercial",
+    "residential properties containing any type of commercial activity",
+    "resort properties",
+    "rental pool properties",
+    "bed and breakfast",
+    "buildings containing more than 6 units",
+    "units in co-ownership projects and undivided co-ownership",
+    "units in co-operative projects (co-ops)",
+    "not-for-profit homes",
+    "fractional interest",
+    "illegal grow-ops",
+    "time shares",
+    "rooming houses",
+    "hotel-condos outside of designated markets",
+]
+
+STANDARD_ZONING = ["residential", "rural residential", "country residential", "agricultural"]
+
+def is_eligible_property_type(property_type, has_commercial=False):
+    """
+    Check if a property type is eligible.
+    Returns (eligible, reason).
+    """
+    if has_commercial:
+        return False, "Properties containing commercial activity are ineligible."
+    if property_type in INELIGIBLE_PROPERTY_TYPES:
+        return False, f"Property type '{property_type}' is ineligible."
+    return True, "Eligible"

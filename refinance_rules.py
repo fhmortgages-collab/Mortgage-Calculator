@@ -1,3 +1,12 @@
+# =============================================================================
+# Portfolio limits and variable TDS thresholds (from FPHE1 and personal credit)
+# =============================================================================
+
+MAX_PROPERTIES_OWNED = 9
+MAX_INVESTMENT_PROPERTIES = 5
+
+VARIABLE_TDS_MAX = 52.0
+VARIABLE_GDS_MAX = 39.0
 """
 Internal Refinance (Refinance - Existing Lender) rules configuration.
 
