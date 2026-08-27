@@ -55,7 +55,6 @@ from insured_conventional_rules import (
     calculate_insurance_premium,
     explain_insured_vs_conventional,
 )
-
 # ---------------------------------------------------------------------------
 # Shared config
 # ---------------------------------------------------------------------------
