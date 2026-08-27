@@ -1687,6 +1687,7 @@ st.markdown(
         color: #f97316 !important;
         fill: #f97316 !important;
     }
+    
     [data-testid="stTooltipContent"] {
     background-color: #fff7ed !important;
     color: #1a1a1a !important;
