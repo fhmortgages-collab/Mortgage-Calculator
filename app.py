@@ -2,13 +2,9 @@ import re
 import json
 import ast
 import time
-import smtplib
-from email.message import EmailMessage
 from datetime import date
 
 import streamlit as st
-
-
 import streamlit.components.v1 as components
 
 from downpayment_sources import DOWN_PAYMENT_SOURCES
@@ -36,8 +32,6 @@ from builder_rules import (
     calculate_gst_hst_adjusted_price,
     is_cashback_eligible,
     builder_document_requirements,
-    is_transaction_type_builder_eligible,
-    get_eligible_rate_types,
 )
 from refinance_rules import (
     equity_requirement_note,
@@ -46,15 +40,7 @@ from refinance_rules import (
     change_of_borrower_note,
     high_risk_review_note,
 )
-from insured_conventional_rules import (
-    MORTGAGE_STRUCTURE_OPTIONS,
-    help_mortgage_structure_text,
-    get_lending_value,
-    get_min_down_payment,
-    get_max_base_mortgage,
-    calculate_insurance_premium,
-    explain_insured_vs_conventional,
-)
+
 # ---------------------------------------------------------------------------
 # Shared config
 # ---------------------------------------------------------------------------
@@ -64,40 +50,49 @@ PHONE_RE = re.compile(r"^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$")
 
 GENDER_OPTIONS = ["", "Male", "Female", "Other", "Prefer not to say"]
 MARITAL_OPTIONS = ["", "Single", "Married", "Divorced", "Widowed", "Common-Law"]
-RESIDENCE_STATUS_OPTIONS = ["", "Living with Parents/Family", "Owned", "Rented", "Other"]
+RESIDENCE_STATUS_OPTIONS = ["", "Owned", "Rented", "Living with Parents/Family", "Other"]
 RESIDENCE_DISPOSITION_OPTIONS = [
-    "", "Bridge Financing Required", "Converting to Rental Property", "Currently Listed for Sale",
+    "", "Sold — Firm Sale", "Sold — Conditional Sale", "Currently Listed for Sale", "To Be Listed / Sold",
+    "Keeping as Primary Residence", "Keeping as Primary Residence (with Rental Unit/Suite)",
+    "Converting to Rental Property", "Keeping as Secondary/Vacation Home",
     "Currently Rented — Lease Continuing", "Currently Rented — Lease Ending",
-    "Gifted / Transferred to Family", "Keeping as Primary Residence",
-    "Keeping as Primary Residence (with Rental Unit/Suite)", "Keeping as Secondary/Vacation Home",
-    "Living with Parents/Family", "Rent-to-Own Arrangement", "Sold — Conditional Sale",
-    "Sold — Firm Sale", "Still Deciding", "To Be Listed / Sold", "Not Applicable", "Other",
+    "Rent-to-Own Arrangement", "Gifted / Transferred to Family",
+    "Bridge Financing Required", "Still Deciding", "Not Applicable", "Other",
 ]
 PROPERTY_TYPES = ["", "Primary Residence", "Secondary Home", "Investment Property", "Cottage / Vacation Home", "Other"]
 PROPERTY_STYLE_TYPES = [
-    "", "Condo / Apartment", "Detached", "Duplex", "Mobile / Manufactured Home",
-    "Semi-Detached", "Townhouse / Row House", "Triplex / Fourplex", "Other",
+    "", "Detached", "Semi-Detached", "Townhouse / Row House", "Condo / Apartment",
+    "Duplex", "Triplex / Fourplex", "Mobile / Manufactured Home", "Other",
 ]
-PROPERTY_PURPOSE_OPTIONS = [
-    "", "Investment Property (Non-Owner-Occupied / Rental)",
-    "Owner-Occupied (Primary Residence)", "Second Home / Vacation Home",
-]
-RURAL_URBAN_OPTIONS = ["", "Agricultural", "Rural", "Suburban", "Urban"]
-HEATING_TYPE_OPTIONS = ["", "Baseboard (Electric)", "Forced Air (Electric)", "Forced Air (Natural Gas)", "Heat Pump", "Oil", "Propane", "Radiant", "Other"]
-COOLING_OPTIONS = ["", "Central Air Conditioning", "Heat Pump", "None", "Window/Wall Unit(s)"]
+PROPERTY_PURPOSE_OPTIONS = ["", "Owner-Occupied (Primary Residence)", "Second Home", "Investment / Rental Property"]
+RURAL_URBAN_OPTIONS = ["", "Urban", "Suburban", "Rural", "Agricultural"]
+HEATING_TYPE_OPTIONS = ["", "Forced Air (Natural Gas)", "Forced Air (Electric)", "Baseboard (Electric)", "Heat Pump", "Radiant", "Oil", "Propane", "Other"]
+COOLING_OPTIONS = ["", "Central Air Conditioning", "Heat Pump", "Window/Wall Unit(s)", "None"]
 SEWER_OPTIONS = ["", "Sanitary Sewer (Municipal)", "Septic System", "Other"]
 WATER_OPTIONS = ["", "Municipal Water", "Well", "Other"]
-TITLE_TYPE_OPTIONS = ["", "Condominium", "Freehold", "Leasehold", "Other"]
+TITLE_TYPE_OPTIONS = ["", "Freehold", "Condominium", "Leasehold", "Other"]
 FOUNDATION_TYPE_OPTIONS = [
-    "", "Concrete Block", "Crawl Space", "Pier & Post", "Poured Concrete",
-    "Preserved Wood (PWF)", "Slab-on-Grade", "Stone", "Other",
+    "", "Poured Concrete", "Concrete Block", "Stone", "Preserved Wood (PWF)",
+    "Slab-on-Grade", "Crawl Space", "Pier & Post", "Other",
 ]
 EXTERIOR_FINISH_OPTIONS = [
-    "", "Aluminum/Steel Siding", "Brick", "Brick Veneer", "Fiber Cement (Hardie Board)",
-    "Stone", "Stone Veneer", "Stucco", "Vinyl Siding", "Wood Siding", "Other",
+    "", "Brick", "Brick Veneer", "Vinyl Siding", "Stucco", "Stone", "Stone Veneer",
+    "Wood Siding", "Aluminum/Steel Siding", "Fiber Cement (Hardie Board)", "Other",
 ]
-GARAGE_OPTIONS = ["", "Attached", "Carport", "Detached", "None", "Underground Parking", "Other"]
-# NEW: Property Disposition options for Debts tab
+GARAGE_OPTIONS = ["", "None", "Attached", "Detached", "Carport", "Underground Parking", "Other"]
+PROPERTY_STATUS_OPTIONS = [
+    "", "Keeping — Primary Residence", "Keeping — Primary Residence with Rental Unit (Secondary Suite)",
+    "Keeping — Second Home / Cottage", "Keeping — Investment Property",
+    "Converting — Owner-Occupied (Primary) to Rental", "Converting — Second Home / Cottage to Rental",
+    "Converting — Investment Property to Owner-Occupied", "Converting — Investment Property to Second Home / Cottage",
+    "Being Sold — Firm (Unconditional) Sale Agreement", "Being Sold — Not Yet Firm / Listed Only",
+]
+
+# Dedicated to the Debts & Liabilities "Properties Owned" disposition dropdown only — kept
+# separate from PROPERTY_STATUS_OPTIONS above, which is still used by the Income tab's rental
+# income disposition field (and matched there via .startswith("Being Sold")). Reusing one shared
+# list for both would silently break that unrelated Income-tab check the moment its option
+# strings changed here.
 PROPERTY_DISPOSITION_OPTIONS = [
     "",
     "Sold Firm (No debt / exclude from ratios)",
@@ -106,6 +101,57 @@ PROPERTY_DISPOSITION_OPTIONS = [
     "Retaining - Owner Occupied / Second Home (Include full mortgage + taxes + heat in TDS)",
     "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)",
 ]
+
+# Migrates any property record still holding an old PROPERTY_STATUS_OPTIONS-style value (from
+# before this dropdown existed, or from a previously saved/downloaded application file) to its
+# closest equivalent in PROPERTY_DISPOSITION_OPTIONS, so existing data doesn't silently go blank
+# — which would be worse than a wrong-but-visible value, since a blank disposition means excluded
+# nowhere and included everywhere by default.
+OLD_STATUS_TO_DISPOSITION_MAP = {
+    "Keeping — Primary Residence": "Retaining - Owner Occupied / Second Home (Include full mortgage + taxes + heat in TDS)",
+    "Keeping — Primary Residence with Rental Unit (Secondary Suite)": "Retaining as Rental (Include rental offset/rules in GDS/TDS)",
+    "Keeping — Second Home / Cottage": "Retaining - Owner Occupied / Second Home (Include full mortgage + taxes + heat in TDS)",
+    "Keeping — Investment Property": "Retaining as Rental (Include rental offset/rules in GDS/TDS)",
+    "Converting — Owner-Occupied (Primary) to Rental": "Retaining as Rental (Include rental offset/rules in GDS/TDS)",
+    "Converting — Second Home / Cottage to Rental": "Retaining as Rental (Include rental offset/rules in GDS/TDS)",
+    "Converting — Investment Property to Owner-Occupied": "Retaining - Owner Occupied / Second Home (Include full mortgage + taxes + heat in TDS)",
+    "Converting — Investment Property to Second Home / Cottage": "Retaining - Owner Occupied / Second Home (Include full mortgage + taxes + heat in TDS)",
+    "Being Sold — Firm (Unconditional) Sale Agreement": "Sold Firm (No debt / exclude from ratios)",
+    "Being Sold — Not Yet Firm / Listed Only": "Selling (Subject to sale / bridge / exclude if firm before closing)",
+}
+
+
+def normalize_property_disposition(prop):
+    """
+    Ensures prop['status'] holds a value from PROPERTY_DISPOSITION_OPTIONS. If it currently holds
+    an old PROPERTY_STATUS_OPTIONS-style value (pre-existing session data, or loaded from a save
+    file made before this dropdown existed), translates it via OLD_STATUS_TO_DISPOSITION_MAP and
+    writes the translated value back — so every other part of the app that reads prop['status']
+    (GDS/TDS exclusion, notes, document checklist) sees a consistent, current-format value.
+    Mutates prop in place and also returns it, for convenience at call sites.
+    """
+    current = prop.get("status", "")
+    if current and current not in PROPERTY_DISPOSITION_OPTIONS:
+        prop["status"] = OLD_STATUS_TO_DISPOSITION_MAP.get(current, "")
+    return prop
+
+
+def property_excluded_from_ratios(prop):
+    """
+    Single source of truth for whether a property's mortgage/tax/condo/heat should be excluded
+    from GDS/TDS debt-servicing calculations, based on its disposition. Excluded when the
+    property is Sold Firm or has had the debt formally removed via Title Transfer — both mean the
+    debt is no longer (or will no longer be) this borrower's ongoing obligation. "Selling" (not
+    yet firm) stays included, since the sale isn't guaranteed to close. Every place in the app
+    that needs this exclusion check calls through here, rather than each independently comparing
+    against a status string, so there is exactly one place this policy is ever encoded.
+    """
+    normalize_property_disposition(prop)
+    disposition = prop.get("status", "")
+    return disposition in (
+        "Sold Firm (No debt / exclude from ratios)",
+        "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)",
+    )
 
 STEPS = ["Deal", "Client", "Down Payment", "Property", "Income", "Debts", "Analysis", "Docs", "Notes"]
 
@@ -292,7 +338,8 @@ def parse_money(raw):
     except ValueError:
         return None
 
-def money_text_input(label, value, key, placeholder=None, help=None, label_visibility=None):
+
+def money_text_input(label, value, key, placeholder=None, help=None):
     """
     A text_input for dollar amounts that displays the stored value reformatted
     as $X,XXX.XX (once it parses as a number) instead of a bare number string,
@@ -306,8 +353,6 @@ def money_text_input(label, value, key, placeholder=None, help=None, label_visib
         kwargs["placeholder"] = placeholder
     if help is not None:
         kwargs["help"] = help
-    if label_visibility is not None:
-        kwargs["label_visibility"] = label_visibility
     return st.text_input(label, value=display_value, **kwargs)
 
 
@@ -438,7 +483,7 @@ def empty_property():
         "property_taxes": "",
         "condo_fees": "",
         "heating": "",
-        "status": "",  # will hold the new disposition value
+        "status": "",
         "property_value": "",
         "num_mortgages": "",
         "mortgages": [],
@@ -496,8 +541,6 @@ def init_state():
         st.session_state.borrower_errors = [{}]
     if "purchase_price_raw" not in st.session_state:
         st.session_state.purchase_price_raw = ""
-    if "mortgage_structure" not in st.session_state:
-        st.session_state.mortgage_structure = ""
     if "down_payment_raw" not in st.session_state:
         st.session_state.down_payment_raw = ""
     if "refinance_balance_raw" not in st.session_state:
@@ -524,7 +567,8 @@ def init_state():
         st.session_state.sale_proceeds_mortgage_raw = ""
     if "sale_proceeds_legal_fees_raw" not in st.session_state:
         st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
-    # NEW: remove other_debts_raw, we no longer use it
+    if "sale_proceeds_other_debts_raw" not in st.session_state:
+        st.session_state.sale_proceeds_other_debts_raw = ""
     if "sale_proceeds_address_synced" not in st.session_state:
         st.session_state.sale_proceeds_address_synced = False
     if "sale_proceeds_mortgage_synced" not in st.session_state:
@@ -645,16 +689,6 @@ def init_state():
         st.session_state.subject_sewer_other = ""
     if "subject_water_other" not in st.session_state:
         st.session_state.subject_water_other = ""
-    if "subject_region" not in st.session_state:
-        st.session_state.subject_region = ""
-    if "credit_score" not in st.session_state:
-        st.session_state.credit_score = ""
-    if "mortgage_program" not in st.session_state:
-        st.session_state.mortgage_program = ""
-    if "is_existing_mortgage" not in st.session_state:
-        st.session_state.is_existing_mortgage = False
-    if "total_incentives_raw" not in st.session_state:
-        st.session_state.total_incentives_raw = ""
     # --- Switch-in (Refinance - New Lender) fields ---
     if "switch_ofi_name" not in st.session_state:
         st.session_state.switch_ofi_name = ""
@@ -761,31 +795,14 @@ def init_state():
     if "builder_rate_buydown" not in st.session_state:
         st.session_state.builder_rate_buydown = ""
 
-    # --- Manual Refinance Calculator (standalone, does not affect app data) ---
-    if "calc_property_value_raw" not in st.session_state:
-        st.session_state.calc_property_value_raw = ""
-    if "calc_first_mtg_raw" not in st.session_state:
-        st.session_state.calc_first_mtg_raw = ""
-    if "calc_second_mtg_raw" not in st.session_state:
-        st.session_state.calc_second_mtg_raw = ""
-    if "calc_loan_requested_raw" not in st.session_state:
-        st.session_state.calc_loan_requested_raw = ""
-    if "calc_other_debts" not in st.session_state:
-        st.session_state.calc_other_debts = []  # list of {"description": "", "balance": ""}
-    if "calc_other_debt_descriptions" not in st.session_state:
-        st.session_state.calc_other_debt_descriptions = []
-    if "calc_other_debt_balances" not in st.session_state:
-        st.session_state.calc_other_debt_balances = []
-
 
 SAVE_STATE_KEYS = [
     "step", "transaction_type", "borrower_count", "borrowers", "consent", "borrower_errors",
-    "purchase_price_raw", "down_payment_raw", "mortgage_structure", "selected_sources", "source_amounts", "source_details",
+    "purchase_price_raw", "down_payment_raw", "selected_sources", "source_amounts", "source_details",
     "other_source_desc", "dp_errors",
     "sale_proceeds_address", "sale_proceeds_closing_date", "sale_proceeds_sale_price_raw",
     "sale_proceeds_deposit_raw", "sale_proceeds_mortgage_raw", "sale_proceeds_legal_fees_raw",
-    # removed sale_proceeds_other_debts_raw
-    "sale_proceeds_address_synced", "sale_proceeds_mortgage_synced",
+    "sale_proceeds_other_debts_raw", "sale_proceeds_address_synced", "sale_proceeds_mortgage_synced",
     "sale_proceeds_synced_net_amount",
     "income_selected", "income_counts", "income_amounts", "income_special", "income_other_desc", "income_errors",
     "properties", "debt_selected", "debt_amounts", "debt_other_desc", "debt_errors",
@@ -828,9 +845,6 @@ SAVE_STATE_KEYS = [
     "builder_mortgage_product", "builder_amortization_years", "builder_interest_rate_type",
     "builder_gst_hst_included", "builder_gst_hst_percent_raw", "builder_cashback_requested",
     "builder_cashback_program", "builder_rate_buydown",
-    # Manual calculator keys
-    "calc_property_value_raw", "calc_first_mtg_raw", "calc_second_mtg_raw",
-    "calc_loan_requested_raw", "calc_other_debts",
 ]
 
 
@@ -851,79 +865,6 @@ def serialize_application():
     if isinstance(data.get("sale_proceeds_closing_date"), date):
         data["sale_proceeds_closing_date"] = data["sale_proceeds_closing_date"].isoformat()
     return json.dumps(data, indent=2)
-
-
-def send_application_email():
-    """
-    Emails a summary of the application plus the full JSON export as an
-    attachment, using the Gmail address/app-password stored in
-    .streamlit/secrets.toml. Returns (success: bool, message: str).
-    """
-    try:
-        sender_email = st.secrets["EMAIL_ADDRESS"]
-        sender_password = st.secrets["EMAIL_APP_PASSWORD"]
-    except Exception:
-        return False, "Email credentials are not configured (missing secrets.toml)."
-
-    borrower_names = []
-    for b in st.session_state.get("borrowers", []):
-        name = (b.get("full_name") or "").strip()
-        if name:
-            borrower_names.append(name)
-    borrower_summary = ", ".join(borrower_names) if borrower_names else "Unnamed applicant"
-
-    total_income = compute_total_income()
-    transaction_label = ""
-    for opt in TRANSACTION_TYPE_OPTIONS:
-        if opt["key"] == st.session_state.get("transaction_type"):
-            transaction_label = opt["label"]
-            break
-
-    summary_text = (
-        "A mortgage application has been submitted.\n\n"
-        "Borrower(s): " + borrower_summary + "\n"
-        "Transaction Type: " + (transaction_label or "Not specified") + "\n"
-        "Total Qualifying Income: " + fmt_money(total_income) + "\n\n"
-        "The full application data is attached as a JSON file."
-    )
-
-    msg = EmailMessage()
-    msg["Subject"] = "Mortgage Application Submitted — " + borrower_summary
-    msg["From"] = sender_email
-    msg["To"] = sender_email
-    msg.set_content(summary_text)
-
-    json_data = serialize_application()
-    msg.add_attachment(
-        json_data.encode("utf-8"),
-        maintype="application",
-        subtype="json",
-        filename="mortgage_application.json",
-    )
-
-    msg.add_attachment(
-        summary_text.encode("utf-8"),
-        maintype="text",
-        subtype="plain",
-        filename="application_summary.txt",
-    )
-
-    file_note_text = st.session_state.get("combined_notes", "").strip()
-    if file_note_text:
-        msg.add_attachment(
-            file_note_text.encode("utf-8"),
-            maintype="text",
-            subtype="plain",
-            filename="underwriter_file_note.txt",
-        )
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(sender_email, sender_password)
-            smtp.send_message(msg)
-        return True, "Application emailed successfully."
-    except Exception as e:
-        return False, "Failed to send email: " + str(e)
 
 
 def load_application(json_text):
@@ -992,7 +933,6 @@ def refresh_all():
     st.session_state.consent = False
     st.session_state.purchase_price_raw = ""
     st.session_state.down_payment_raw = ""
-    st.session_state.mortgage_structure = ""
     st.session_state.refinance_balance_raw = ""
     st.session_state.refinance_remaining_amortization = ""
     st.session_state.subject_property_value_raw = ""
@@ -1005,6 +945,7 @@ def refresh_all():
     st.session_state.sale_proceeds_deposit_raw = ""
     st.session_state.sale_proceeds_mortgage_raw = ""
     st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
+    st.session_state.sale_proceeds_other_debts_raw = ""
     st.session_state.sale_proceeds_address_synced = False
     st.session_state.sale_proceeds_mortgage_synced = False
     st.session_state.sale_proceeds_synced_net_amount = None
@@ -1116,12 +1057,6 @@ def refresh_all():
     st.session_state.switch_taxes_up_to_date = ""
     st.session_state.switch_insurance_provider = ""
     st.session_state.switch_insurance_good_standing = ""
-    # Reset calculator state
-    st.session_state.calc_property_value_raw = ""
-    st.session_state.calc_first_mtg_raw = ""
-    st.session_state.calc_second_mtg_raw = ""
-    st.session_state.calc_loan_requested_raw = ""
-    st.session_state.calc_other_debts = []
 
 
 def is_refinance():
@@ -1404,29 +1339,6 @@ def get_step_missing_fields(step_index):
                 if down_payment_val is not None and round(total_sources, 2) != round(down_payment_val, 2):
                     missing.append("Down payment source amounts (" + fmt_money(total_sources) + ") must sum to the down payment total (" + fmt_money(down_payment_val) + ")")
 
-            purchase_price_val = parse_money(st.session_state.purchase_price_raw)
-            appraisal_val = parse_money(st.session_state.get("property_appraisal_value_raw", ""))
-            if purchase_price_val is not None and appraisal_val is not None and appraisal_val < purchase_price_val:
-                missing.append(
-                    "Appraisal (" + fmt_money(appraisal_val) + ") came in below the purchase price ("
-                    + fmt_money(purchase_price_val) + ") — down payment needs to be reviewed against the lower lending value"
-                )
-
-            if purchase_price_val is not None and purchase_price_val > 0 and st.session_state.mortgage_structure:
-                down_payment_val = parse_money(st.session_state.down_payment_raw)
-                min_down, _, is_insured_eligible = get_min_down_payment(purchase_price_val)
-                if st.session_state.mortgage_structure == "Insured (High-Ratio)" and not is_insured_eligible:
-                    missing.append(
-                        "Purchase price is $1,500,000 or more — not eligible for an insured mortgage; "
-                        "select Conventional and re-check the down payment"
-                    )
-                elif down_payment_val is not None and down_payment_val < min_down - 0.01:
-                    shortfall = min_down - down_payment_val
-                    missing.append(
-                        "Down payment (" + fmt_money(down_payment_val) + ") is below the minimum required ("
-                        + fmt_money(min_down) + ") — increase it by " + fmt_money(shortfall) + " to proceed"
-                    )
-
     elif step_index == 3:
         if not st.session_state.subject_address.strip():
             missing.append("Property address is required")
@@ -1527,6 +1439,12 @@ def render_stepper(active_index):
                         st.session_state.step = i
                         st.rerun()
 
+    st.markdown(
+        "<div style='text-align:left; font-size:9px; color:#6b7280; margin-bottom:1px; line-height:1.2; padding-left:4px;'>"
+        "🟢 Complete &nbsp;•&nbsp; 🟡 Missing (tap ⚠) &nbsp;•&nbsp; ⚪ Not visited"
+        "</div>",
+        unsafe_allow_html=True,
+    )
     with st.container(key="stepper_help_row"):
         help_cols = st.columns(len(STEPS), gap="small")
         for i, label in enumerate(STEPS):
@@ -1542,20 +1460,12 @@ def render_stepper(active_index):
                             for m in step_missing:
                                 st.markdown("- " + m)
 
-    st.markdown(
-        "<div style='text-align:left; font-size:13px; color:#9ca3af; margin-top:8px; margin-bottom:6px; line-height:1.4; padding-left:4px;'>"
-        "🟢 Complete &nbsp;&nbsp;•&nbsp;&nbsp; 🟡 Missing (tap ⚠) &nbsp;&nbsp;•&nbsp;&nbsp; ⚪ Not visited"
-        "</div>",
-        unsafe_allow_html=True,
-    )
 
+st.set_page_config(page_title="FH.Mortgages Calculator", page_icon="🏠", layout="centered")
 
-st.set_page_config(page_title="FH Mortgages Calculator", page_icon="🏠", layout="wide", initial_sidebar_state="expanded")
 st.markdown(
     """
     <style>
-    [data-testid="collapsedControl"] { display: none !important; }
-    [data-testid="stSidebarCollapseButton"] { display: none !important; }
     html, body, [class*="css"], .stApp,
     .stApp p, .stApp span:not([data-testid="stIconMaterial"]), .stApp li, .stApp label,
     .stApp textarea, .stApp input, .stApp div[data-baseweb="select"] {
@@ -1615,123 +1525,18 @@ st.markdown(
     /* Uniform height for every single-line text input, number input, and dropdown
        app-wide — so fields sitting side by side (like the Income section) always
        present the same box size regardless of field type. */
-        .stTextInput input, .stNumberInput input,
+    .stTextInput input, .stNumberInput input,
     div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
         min-height: 2.6em !important;
         box-sizing: border-box !important;
     }
-        /* Every field fills the full width of whatever column it's placed in —
-       so fields sharing a row (including custom elements like metric cards)
-       always line up flush on both edges, regardless of field type. */
-    [data-testid="stTextInput"], [data-testid="stNumberInput"],
-    [data-testid="stSelectbox"], [data-testid="stDateInput"],
-    [data-testid="stTextArea"] {
-        max-width: 100% !important;
-        width: 100% !important;
-    }
-    .metric-row {
-        width: 100% !important;
-    }
-       div[data-baseweb="tag"] {
+    div[data-baseweb="tag"] {
         min-height: 1.7em !important;
         margin: 2px !important;
     }
     div[data-baseweb="select"] {
         gap: 4px !important;
     }
-    /* Dropdowns and multiselects get a subtle amber/gold accent app-wide so
-       they're visually distinguishable from free-text fields. */
-        [data-testid="stSelectbox"] [data-rac]:focus,
-    [data-testid="stSelectbox"] [data-rac]:focus-within,
-    [data-testid="stSelectbox"] [data-rac][data-focused] {
-        border-color: #dc2626 !important;
-        border-width: 0.5px !important;
-        border-style: solid !important;
-        border-radius: 8px !important;
-        background-color: transparent !important;
-        outline: none !important;
-        box-shadow: none !important;
-    }
-    /* The expanded dropdown options list gets the same thin red border while open. */
-    ul[data-testid="stSelectboxVirtualDropdown"] {
-        border: 0.5px solid #dc2626 !important;
-        border-radius: 8px !important;
-    }
-        [data-testid="stMultiSelect"] {
-    border: 1px solid transparent !important;
-    border-radius: 8px !important;
-    background-color: transparent !important;
-    padding: 4px 8px !important;
-    box-sizing: border-box !important;
-}
-[data-testid="stMultiSelect"]:focus,
-[data-testid="stMultiSelect"]:focus-within {
-    border: 1px solid #dc2626 !important;
-    border-radius: 8px !important;
-    background-color: transparent !important;
-    padding: 4px 8px !important;
-    box-sizing: border-box !important;
-    outline: none !important;
-    box-shadow: none !important;
-}
-    /* The expanded multiselect options list ("Select all", etc.) gets the same
-       bold red border while open. */
-    div[data-baseweb="popover"] ul[role="listbox"] {
-        border: 2px solid #dc2626 !important;
-        border-radius: 8px !important;
-    }
-    /* Help tooltip (?) icons app-wide, colored orange for visibility. */
-    [data-testid="stTooltipIcon"],
-    [data-testid="stTooltipIcon"] svg,
-    [data-testid="stTooltipIcon"] [data-testid="stIconMaterial"] {
-        color: #f97316 !important;
-        fill: #f97316 !important;
-    }
-    
-    [data-testid="stTooltipContent"] {
-    background-color: #fff7ed !important;
-    color: #1a1a1a !important;
-    border: 1px solid #f97316 !important;
-    border-radius: 8px !important;
-    position: fixed !important;
-    top: 50% !important;
-    left: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    width: 480px !important;
-    min-width: 480px !important;
-    max-width: 90vw !important;
-    height: auto !important;
-    display: block !important;
-    flex: none !important;
-    z-index: 9999 !important;
-    padding: 16px 20px !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25) !important;
-    white-space: normal !important;
-    box-sizing: border-box !important;
-}
-[data-testid="stTooltipContent"] * {
-    white-space: normal !important;
-    width: auto !important;
-    max-width: 100% !important;
-}
-    height: auto !important;
-    z-index: 9999 !important;
-    padding: 16px 20px !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25) !important;
-}
-    [data-testid="stTooltipContent"] {
-    background-color: #fff3e0 !important;
-    color: #1a1a1a !important;
-    border: 1px solid #f97316 !important;
-    border-radius: 8px !important;
-    position: fixed !important;
-    top: 50% !important;
-    left: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    max-width: 90vw !important;
-    z-index: 9999 !important;
-    padding: 12px 16px !important;
-}
     div[class*="st-key-notes_font_scope"],
     div[class*="st-key-notes_font_scope"] p,
     div[class*="st-key-notes_font_scope"] span:not([data-testid="stIconMaterial"]),
@@ -1762,14 +1567,6 @@ st.markdown(
         flex: 0 1 132px !important;
         width: 132px !important;
     }
-    div[class*="st-key-sticky_nav_wrapper"] {
-    position: sticky !important;
-    top: 3.75rem !important;
-    z-index: 999 !important;
-    background-color: #ffffff !important;
-    padding-bottom: 6px !important;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
-}
     div[class*="st-key-stepper_row"] button {
         font-size: 12px !important;
         white-space: nowrap !important;
@@ -1858,9 +1655,7 @@ st.markdown(
         background: transparent !important;
         box-shadow: none !important;
         border-radius: 0 !important;
-        color: #6b7280 !important;
-    }
-    div[class*="st-key-helpbtn_step_"] svg,
+        color: #ef4444 !important;
     div[class*="st-key-helpbtn_step_"] [data-testid="stIconMaterial"],
     div[class*="st-key-helpbtn_step_"] [data-testid*="Icon"] {
         display: none !important;
@@ -2184,70 +1979,7 @@ st.markdown(
     .property-total {
         font-weight:600; font-size:14px; margin: 8px 0 4px; color:#f3f4f6;
     }
-    /* Widen dropdown option lists (the popup menu) without affecting the
-       visible input field's width, so longer option text isn't cut off. */
-    ul[data-testid="stSelectboxVirtualDropdown"] {
-        width: max-content !important;
-        min-width: 320px !important;
-        max-width: 560px !important;
-    }
-    ul[data-testid="stSelectboxVirtualDropdown"] li {
-        white-space: normal !important;
-        overflow: visible !important;
-        text-overflow: unset !important;
-        height: auto !important;
-    }
-    ul[data-testid="stSelectboxVirtualDropdown"] li * {
-        white-space: normal !important;
-        overflow: visible !important;
-        text-overflow: unset !important;
-    }
-    div[data-baseweb="popover"] {
-        width: max-content !important;
-        min-width: 320px !important;
-    }
-    /* Highlight income amount fields (base income, rental, variable-income years)
-       in green across every income category, and keep them the standard field size. */
-    div[class*="st-key-inc_"][class*="_amount"] input,
-    div[class*="st-key-inc_"][class*="gross_rental"] input,
-    div[class*="st-key-inc_"][class*="recent_year"] input,
-    div[class*="st-key-inc_"][class*="prior_year"] input {
-        border-color: #16a34a !important;
-        border-width: 1px !important;
-        color: #16a34a !important;
-        font-weight: 400 !important;
-        min-height: 2.6em !important;
-        max-height: 2.6em !important;
-        box-sizing: border-box !important;
-    }
-    /* Make every sidebar element (Timer, Stop Timer, Download, Upload,
-       Refresh, Calculator) the same width and consistent vertical spacing. */
-    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-        gap: 0 !important;
-    }
-    [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {
-        margin-bottom: 14px !important;
-        padding: 0 !important;
-    }
-    [data-testid="stSidebar"] [data-testid="stElementContainer"] {
-        margin-bottom: 14px !important;
-        padding: 0 !important;
-    }
-    [data-testid="stSidebar"] .stButton > button,
-    [data-testid="stSidebar"] .stDownloadButton > button,
-    [data-testid="stSidebar"] [data-testid="stExpander"] summary {
-        width: 100% !important;
-        height: 46px !important;
-        box-sizing: border-box !important;
-    }
-    [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] {
-        width: 100% !important;
-        min-height: 46px !important;
-        height: 46px !important;
-        padding: 0 !important;
-        box-sizing: border-box !important;
-        overflow: hidden !important;
-    }</style>
+    </style>
     """,
     unsafe_allow_html=True,
 )
@@ -2262,13 +1994,52 @@ for _opt in TRANSACTION_TYPE_OPTIONS:
 
 st.markdown(
     "<div style='font-size:17.5px; font-weight:700; white-space:nowrap; overflow:hidden; "
-    "text-overflow:ellipsis; line-height:1.3;'>🏠 FH Mortgages Calculator" + _title_suffix + "</div>",
+    "text-overflow:ellipsis; line-height:1.3;'>🏠 FH.Mortgages Calculator" + _title_suffix + "</div>",
     unsafe_allow_html=True,
 )
 st.caption("Residential Mortgage Application")
 
+components.html(
+    """
+    <script>
+      (function() {
+        var doc = window.parent.document;
+        function fieldId(el) {
+          if (!el) return null;
+          return el.getAttribute('aria-label') || el.id || null;
+        }
+        // Save which field had focus, right before a blur (e.g. Tab moving focus away)
+        // triggers Streamlit's rerun-the-whole-script cycle.
+        doc.addEventListener('focusout', function(e) {
+          var id = fieldId(e.target);
+          if (id) { window.parent.sessionStorage.setItem('fh_last_focus', id); }
+        }, true);
+        // After a rerun, Streamlit rebuilds the DOM — restore focus to whichever
+        // field's identity was last saved, once the corresponding element reappears.
+        var lastRestored = null;
+        function restoreFocus() {
+          var id = window.parent.sessionStorage.getItem('fh_last_focus');
+          if (!id || id === lastRestored) return;
+          var candidates = doc.querySelectorAll('input, textarea, select, [role="combobox"]');
+          for (var i = 0; i < candidates.length; i++) {
+            if (fieldId(candidates[i]) === id) {
+              candidates[i].focus({ preventScroll: true });
+              lastRestored = id;
+              break;
+            }
+          }
+        }
+        var observer = new MutationObserver(function() {
+          restoreFocus();
+        });
+        observer.observe(doc.body, { childList: true, subtree: true });
+      })();
+    </script>
+    """,
+    height=0,
+)
 
-stepper_placeholder = st.container(key="sticky_nav_wrapper")
+stepper_placeholder = st.empty()
 
 with st.sidebar:
     timer_placeholder = st.empty()
@@ -2288,11 +2059,6 @@ with st.sidebar:
 
     if st.button("Refresh", use_container_width=True, key="sidebar_refresh"):
         st.session_state["sidebar_show_refresh_confirm"] = True
-    if st.session_state.get("sidebar_show_refresh_confirm"):
-        st.warning("Clear all data? Cannot be undone.")
-        rc1, rc2 = st.columns(2)
-
-
     if st.session_state.get("sidebar_show_refresh_confirm"):
         st.warning("Clear all data? Cannot be undone.")
         rc1, rc2 = st.columns(2)
@@ -2441,7 +2207,6 @@ def clear_transaction_type_specific_fields():
     st.session_state.mls_autofilled_fields = []
     st.session_state.purchase_price_raw = ""
     st.session_state.down_payment_raw = ""
-    st.session_state.mortgage_structure = ""
     st.session_state.selected_sources = []
     st.session_state.source_amounts = {}
     st.session_state.sale_proceeds_address = ""
@@ -2450,6 +2215,7 @@ def clear_transaction_type_specific_fields():
     st.session_state.sale_proceeds_deposit_raw = ""
     st.session_state.sale_proceeds_mortgage_raw = ""
     st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
+    st.session_state.sale_proceeds_other_debts_raw = ""
     st.session_state.sale_proceeds_address_synced = False
     st.session_state.sale_proceeds_mortgage_synced = False
     st.session_state.sale_proceeds_synced_net_amount = None
@@ -2886,7 +2652,7 @@ def render_client_details():
         errors = st.session_state.borrower_errors[idx] if idx < len(st.session_state.borrower_errors) else {}
 
         with st.expander("Borrower " + str(idx + 1), expanded=True):
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             with col1:
                 borrower["full_name"] = st.text_input(
                     "Full Name", value=borrower["full_name"], key="name_" + str(idx)
@@ -2894,45 +2660,11 @@ def render_client_details():
                 if errors.get("full_name"):
                     st.caption(":red[" + errors["full_name"] + "]")
 
-                dob_col1, dob_col2, dob_col3 = st.columns(3)
-                _current_dob = borrower.get("dob")
-                _dob_years = ["Year"] + [str(y) for y in range(date.today().year, 1899, -1)]
-                _dob_months = ["Month"] + [str(m) for m in range(1, 13)]
-                _dob_days = ["Day"] + [str(d) for d in range(1, 32)]
-                with dob_col1:
-                    _picked_year = st.selectbox(
-                        "Year", _dob_years,
-                        index=_dob_years.index(str(_current_dob.year)) if _current_dob else 0,
-                        key="dob_year_" + str(idx),
-                    )
-                with dob_col2:
-                    _picked_month = st.selectbox(
-                        "Month", _dob_months,
-                        index=_dob_months.index(str(_current_dob.month)) if _current_dob else 0,
-                        key="dob_month_" + str(idx),
-                    )
-                with dob_col3:
-                    _picked_day = st.selectbox(
-                        "Day", _dob_days,
-                        index=_dob_days.index(str(_current_dob.day)) if _current_dob else 0,
-                        key="dob_day_" + str(idx),
-                    )
-                if _picked_year != "Year" and _picked_month != "Month" and _picked_day != "Day":
-                    try:
-                        borrower["dob"] = date(int(_picked_year), int(_picked_month), int(_picked_day))
-                    except ValueError:
-                        borrower["dob"] = None
-                else:
-                    borrower["dob"] = None
-                if errors.get("dob"):
-                    st.caption(":red[" + errors["dob"] + "]")
-
-            with col2:
-                borrower["email"] = st.text_input(
-                    "Email Address", value=borrower["email"], key="email_" + str(idx)
+                borrower["phone"] = st.text_input(
+                    "Phone Number", value=borrower["phone"], key="phone_" + str(idx)
                 )
-                if errors.get("email"):
-                    st.caption(":red[" + errors["email"] + "]")
+                if errors.get("phone"):
+                    st.caption(":red[" + errors["phone"] + "]")
 
                 borrower["gender"] = st.selectbox(
                     "Gender", GENDER_OPTIONS,
@@ -2942,12 +2674,22 @@ def render_client_details():
                 if errors.get("gender"):
                     st.caption(":red[" + errors["gender"] + "]")
 
-            with col3:
-                borrower["phone"] = st.text_input(
-                    "Phone Number", value=borrower["phone"], key="phone_" + str(idx)
+            with col2:
+                borrower["email"] = st.text_input(
+                    "Email Address", value=borrower["email"], key="email_" + str(idx)
                 )
-                if errors.get("phone"):
-                    st.caption(":red[" + errors["phone"] + "]")
+                if errors.get("email"):
+                    st.caption(":red[" + errors["email"] + "]")
+
+                borrower["dob"] = st.date_input(
+                    "Date of Birth",
+                    value=borrower["dob"],
+                    min_value=date(1900, 1, 1),
+                    max_value=date.today(),
+                    key="dob_" + str(idx),
+                )
+                if errors.get("dob"):
+                    st.caption(":red[" + errors["dob"] + "]")
 
                 borrower["marital_status"] = st.selectbox(
                     "Marital Status", MARITAL_OPTIONS,
@@ -2964,7 +2706,7 @@ def render_client_details():
             if errors.get("address"):
                 st.caption(":red[" + errors["address"] + "]")
 
-            rc1, rc2, rc3 = st.columns(3)
+            rc1, rc2 = st.columns(2)
             with rc1:
                 borrower["residence_status"] = st.selectbox(
                     "What is this property?", RESIDENCE_STATUS_OPTIONS,
@@ -2989,8 +2731,6 @@ def render_client_details():
                         "Please describe", value=borrower.get("residence_disposition_other", ""),
                         key="residence_disposition_other_" + str(idx),
                     )
-            with rc3:
-                st.write("")
 
         st.session_state.borrowers[idx] = borrower
 
@@ -3068,6 +2808,7 @@ def refresh_page2():
     st.session_state.sale_proceeds_deposit_raw = ""
     st.session_state.sale_proceeds_mortgage_raw = ""
     st.session_state.sale_proceeds_legal_fees_raw = "1000.00"
+    st.session_state.sale_proceeds_other_debts_raw = ""
     st.session_state.sale_proceeds_address_synced = False
     st.session_state.sale_proceeds_mortgage_synced = False
     st.session_state.sale_proceeds_synced_net_amount = None
@@ -3081,13 +2822,6 @@ def render_down_payment():
     st.write("Enter property price, down payment, and the sources funding it.")
     render_calculator_popover("downpayment")
 
-    st.session_state.mortgage_structure = st.selectbox(
-        "Mortgage Structure", MORTGAGE_STRUCTURE_OPTIONS,
-        index=MORTGAGE_STRUCTURE_OPTIONS.index(st.session_state.mortgage_structure)
-        if st.session_state.mortgage_structure in MORTGAGE_STRUCTURE_OPTIONS else 0,
-        key="mortgage_structure_input", help=help_mortgage_structure_text(),
-    )
-
     col1, col2 = st.columns(2)
     with col1:
         st.session_state.purchase_price_raw = money_text_input(
@@ -3099,44 +2833,6 @@ def render_down_payment():
             "Down Payment Amount ($)", st.session_state.down_payment_raw, key="down_payment_input",
             placeholder="e.g., 100,000",
         )
-
-    _dp_purchase_price = parse_money(st.session_state.purchase_price_raw)
-    _dp_down_payment = parse_money(st.session_state.down_payment_raw)
-    _dp_appraised = parse_money(st.session_state.get("property_appraisal_value_raw", ""))
-    if _dp_purchase_price is not None and _dp_purchase_price > 0:
-        if st.session_state.mortgage_structure:
-            _max_base_mortgage, _max_ltv_used, _min_down, _notes = get_max_base_mortgage(
-                _dp_purchase_price, _dp_appraised, st.session_state.mortgage_structure,
-            )
-            _lending_value = get_lending_value(_dp_purchase_price, _dp_appraised)
-            st.caption(
-                "Required minimum down payment: " + fmt_money_md(_min_down)
-                + " — based on " + st.session_state.mortgage_structure
-                + " mortgage at max. {:.2f}% LTV against the lending value ({}).".format(
-                    _max_ltv_used, fmt_money_md(_lending_value)
-                )
-            )
-            for _note in _notes:
-                st.caption(":orange[" + _note + "]")
-        else:
-            _min_down, _max_ltv_for_price, _is_insured_eligible = get_min_down_payment(_dp_purchase_price)
-            if not _is_insured_eligible:
-                st.caption(
-                    "Estimated minimum down payment: " + fmt_money_md(_min_down)
-                    + " (20% — purchase price is \\$1,500,000 or more, conventional only)."
-                )
-            else:
-                st.caption(
-                    "Estimated minimum down payment: " + fmt_money_md(_min_down)
-                    + " (max. base LTV ~{:.2f}%, per Canadian purchase-price tiering — select a Mortgage "
-                    "Structure above for the exact figure).".format(_max_ltv_for_price)
-                )
-        if _dp_down_payment is not None and _dp_down_payment < _min_down - 0.01:
-            _shortfall = _min_down - _dp_down_payment
-            st.caption(
-                ":red[Entered down payment is " + fmt_money_md(_shortfall) + " below the minimum required — "
-                "increase it by that amount to proceed.]"
-            )
 
     purchase_price = parse_money(st.session_state.purchase_price_raw)
     down_payment = parse_money(st.session_state.down_payment_raw)
@@ -3212,22 +2908,20 @@ def render_down_payment():
                     unsafe_allow_html=True,
                 )
             else:
-                dp_amt_col, dp_detail_col = st.columns(2)
-                with dp_amt_col:
-                    amount_raw = money_text_input(
-                        "Amount ($)",
-                        st.session_state.source_amounts.get(source["key"], ""),
-                        key="amt_" + source["key"],
-                        placeholder="Enter amount",
-                    )
-                    st.session_state.source_amounts[source["key"]] = amount_raw
-                with dp_detail_col:
-                    st.session_state.source_details[source["key"]] = st.text_input(
-                        "Detail (optional)",
-                        value=st.session_state.source_details.get(source["key"], ""),
-                        key="detail_" + source["key"],
-                        placeholder="e.g. who, or which account/institution",
-                    )
+                amount_raw = money_text_input(
+                    source["label"] + " Amount ($)",
+                    st.session_state.source_amounts.get(source["key"], ""),
+                    key="amt_" + source["key"],
+                    placeholder="Enter amount",
+                )
+                st.session_state.source_amounts[source["key"]] = amount_raw
+
+                st.session_state.source_details[source["key"]] = st.text_input(
+                    "Detail (optional)",
+                    value=st.session_state.source_details.get(source["key"], ""),
+                    key="detail_" + source["key"],
+                    placeholder="e.g. who, or which account/institution",
+                )
 
                 if source["key"] == "other":
                     st.session_state.other_source_desc = st.text_input(
@@ -3244,88 +2938,84 @@ def render_down_payment():
                     )
 
                     # Auto-populate address and existing mortgage balance from the first property
-                    # that is marked as "Sold Firm" or "Selling" under Debts, if any.
-                    # We'll look at properties and pick the first one that matches these dispositions.
-                    found_address = None
-                    found_balance_total = 0.0
-                    for prop in st.session_state.properties:
-                        disp = prop.get("status", "")
-                        if disp in ("Sold Firm (No debt / exclude from ratios)", "Selling (Subject to sale / bridge / exclude if firm before closing)"):
-                            found_address = prop.get("address", "").strip()
-                            # Sum all mortgage balances for this property
-                            total_mtg = 0.0
-                            for mtg in prop.get("mortgages", []):
-                                total_mtg += parse_money(mtg.get("balance", "")) or 0.0
-                            found_balance_total = total_mtg
-                            break
-
-                    if found_address and not st.session_state.sale_proceeds_address_synced:
-                        st.session_state.sale_proceeds_address = found_address
+                    # entered under Debts & Liabilities marked Sold Firm or Selling, if any — but
+                    # only the first time (so a broker's manual edit here afterward doesn't get
+                    # silently overwritten on rerun).
+                    disposition_match_statuses = (
+                        "Sold Firm (No debt / exclude from ratios)",
+                        "Selling (Subject to sale / bridge / exclude if firm before closing)",
+                    )
+                    matching_properties = [
+                        p for p in st.session_state.properties
+                        if normalize_property_disposition(p).get("status", "") in disposition_match_statuses
+                    ]
+                    if matching_properties and not st.session_state.sale_proceeds_address_synced:
+                        prior_address = matching_properties[0].get("address", "").strip()
+                        if prior_address:
+                            st.session_state.sale_proceeds_address = prior_address
                         st.session_state.sale_proceeds_address_synced = True
-                    if found_balance_total > 0 and not st.session_state.sale_proceeds_mortgage_synced:
-                        st.session_state.sale_proceeds_mortgage_raw = fmt_money(found_balance_total)
+                    if matching_properties and not st.session_state.sale_proceeds_mortgage_synced:
+                        prior_mortgages = matching_properties[0].get("mortgages", [])
+                        prior_balance_total = sum(parse_money(m.get("balance", "")) or 0.0 for m in prior_mortgages)
+                        if prior_balance_total > 0:
+                            st.session_state.sale_proceeds_mortgage_raw = fmt_money(prior_balance_total)
                         st.session_state.sale_proceeds_mortgage_synced = True
 
-                    # NEW layout: 4 rows, 2 columns each
-                    sp_c1, sp_c2 = st.columns(2)
-                    with sp_c1:
+                    # Row 1: Address | Closing Date
+                    row1_c1, row1_c2 = st.columns(2)
+                    with row1_c1:
                         st.session_state.sale_proceeds_address = st.text_input(
                             "Existing Property Address", value=st.session_state.sale_proceeds_address,
                             key="sale_proceeds_address_input",
-                            placeholder="Auto-filled from Debts if available",
+                            placeholder="Auto-filled from Debts & Liabilities if entered there",
                         )
-                    with sp_c2:
+                    with row1_c2:
                         st.session_state.sale_proceeds_closing_date = st.date_input(
                             "Closing Date", value=st.session_state.sale_proceeds_closing_date,
                             key="sale_proceeds_closing_date_input",
                         )
 
-                    sp_c1, sp_c2 = st.columns(2)
-                    with sp_c1:
+                    # Row 2: Sale Price | Commission @ 5% (auto-calculated, read-only)
+                    row2_c1, row2_c2 = st.columns(2)
+                    with row2_c1:
                         st.session_state.sale_proceeds_sale_price_raw = money_text_input(
                             "Sale Price ($)", st.session_state.sale_proceeds_sale_price_raw,
                             key="sale_proceeds_sale_price_input", placeholder="$0.00",
                         )
-                    with sp_c2:
-                        # Commission: auto-calc as 5% of sale price, displayed as a disabled text input
-                        sale_price_v = parse_money(st.session_state.sale_proceeds_sale_price_raw) or 0.0
-                        commission_v = sale_price_v * 0.05
+                    sale_price_v = parse_money(st.session_state.sale_proceeds_sale_price_raw) or 0.0
+                    commission_v = sale_price_v * 0.05
+                    with row2_c2:
                         st.text_input(
-                            "Less: Commission @ 5% ($)",
-                            value=fmt_money(commission_v),
-                            key="sale_proceeds_commission_display",
-                            disabled=True,
+                            "Less: Commission @ 5% ($)", value=fmt_money(commission_v),
+                            key="sale_proceeds_commission_display", disabled=True,
                         )
 
-                    sp_c1, sp_c2 = st.columns(2)
-                    with sp_c1:
+                    # Row 3: Deposit Received | Legal Fees @ $1,000
+                    row3_c1, row3_c2 = st.columns(2)
+                    with row3_c1:
                         st.session_state.sale_proceeds_deposit_raw = money_text_input(
                             "Deposit Received ($)", st.session_state.sale_proceeds_deposit_raw,
                             key="sale_proceeds_deposit_input", placeholder="$0.00",
                         )
-                    with sp_c2:
+                    with row3_c2:
                         st.session_state.sale_proceeds_legal_fees_raw = money_text_input(
                             "Less: Legal Fees @ $1,000 ($)", st.session_state.sale_proceeds_legal_fees_raw,
                             key="sale_proceeds_legal_fees_input", placeholder="$1,000.00",
                         )
 
-                    sp_c1, sp_c2 = st.columns(2)
-                    with sp_c1:
+                    # Row 4: Existing Mortgage | (balanced empty space)
+                    row4_c1, row4_c2 = st.columns(2)
+                    with row4_c1:
                         st.session_state.sale_proceeds_mortgage_raw = money_text_input(
                             "Less: Existing Mortgage ($)", st.session_state.sale_proceeds_mortgage_raw,
-                            key="sale_proceeds_mortgage_input", placeholder="Auto-filled if available",
+                            key="sale_proceeds_mortgage_input", placeholder="$0.00",
                         )
-                    with sp_c2:
-                        # Empty placeholder to maintain grid alignment
-                        st.write("")  # just an empty spacer
+                    with row4_c2:
+                        st.write("")
 
-                    # Net proceeds calculation
                     mortgage_v = parse_money(st.session_state.sale_proceeds_mortgage_raw) or 0.0
                     legal_fees_v = parse_money(st.session_state.sale_proceeds_legal_fees_raw) or 0.0
                     net_proceeds = sale_price_v - mortgage_v - commission_v - legal_fees_v
-                    # Deposit is not part of net proceeds for down payment, it's a separate field.
-                    # But we might want to include deposit as part of down payment? Per spec, net proceeds formula is as given.
-                    # The deposit is separate, but we keep it for reference.
 
                     st.markdown(
                         "<div style='font-weight:700; font-size:15px; margin-top:6px;'>"
@@ -3337,8 +3027,10 @@ def render_down_payment():
                         + fmt_money(commission_v) + " (Commission) − " + fmt_money(legal_fees_v) + " (Legal Fees)"
                     )
 
-                    # Link Net Proceeds to this source's amount, and to the top-level Down Payment Amount
-                    # Only re-sync when the computed value actually changes, so a broker's own edit isn't clobbered.
+                    # Link Net Proceeds to this source's own amount, and to the top-level Down
+                    # Payment Amount — only re-syncing when the computed value actually changes,
+                    # so a broker's own unrelated edit to Down Payment Amount isn't clobbered on
+                    # every rerun (same non-destructive sync pattern used for amortization elsewhere).
                     if sale_price_v > 0 and st.session_state.sale_proceeds_synced_net_amount != net_proceeds:
                         st.session_state.source_amounts["sale_property"] = fmt_money(net_proceeds)
                         st.session_state.down_payment_raw = fmt_money(net_proceeds)
@@ -3485,11 +3177,6 @@ def refresh_property_details():
     st.session_state.subject_heating_type_other = ""
     st.session_state.subject_sewer_other = ""
     st.session_state.subject_water_other = ""
-    st.session_state.subject_region = ""
-    st.session_state.credit_score = ""
-    st.session_state.mortgage_program = ""
-    st.session_state.is_existing_mortgage = False
-    st.session_state.total_incentives_raw = ""
 
 
 def get_subject_property_costs():
@@ -3577,7 +3264,7 @@ def render_property_details():
     # --- Appraisal, Property Value & Purchase Channel (compacted into one section) ---
     with st.container(key="card_appraisal_channel"):
         st.markdown("#### Appraisal" + (" & Purchase Channel" if not is_refinance() else ""))
-        oa_c1, oa_c2, oa_c3 = st.columns(3)
+        oa_c1, oa_c2 = st.columns(2)
         with oa_c1:
             st.session_state.property_appraisal_type = st.selectbox(
                 "Order Appraisal", ["", "Appraisal", "Appraisal with Market Rent"],
@@ -3591,11 +3278,9 @@ def render_property_details():
                     st.session_state.property_appraisal_ordered = True
             if st.session_state.property_appraisal_ordered:
                 st.caption(":green[✓ Ordered (to be set up later).]")
-        with oa_c3:
-            st.write("")
 
         ref_value = get_reference_property_value()
-        av_c1, av_c2, av_c3 = st.columns(3)
+        av_c1, av_c2 = st.columns(2)
         with av_c1:
             st.session_state.property_appraisal_value_raw = money_text_input(
                 "Appraisal Value ($)", st.session_state.property_appraisal_value_raw,
@@ -3714,26 +3399,12 @@ def render_property_details():
                     else:
                         st.caption(msg)
                     if st.session_state.builder_mortgage_product == "Homeline Plan (Single Advance)":
-                        st.caption(
-                            "Note: the qualifying amortization for a Homeline Plan is standardized at 30 years, regardless of the amortization entered above."
-                        )
+                        st.caption("Note: the qualifying amortization for a Homeline Plan is standardized at 30 years, regardless of the amortization entered above.")
                 st.session_state.builder_interest_rate_type = st.selectbox(
                     "Interest Rate Type", INTEREST_RATE_TYPE_OPTIONS,
                     index=INTEREST_RATE_TYPE_OPTIONS.index(st.session_state.builder_interest_rate_type)
                     if st.session_state.builder_interest_rate_type in INTEREST_RATE_TYPE_OPTIONS else 0,
                 )
-                rate_types = get_eligible_rate_types("borrower")
-                if st.session_state.builder_interest_rate_type and st.session_state.builder_interest_rate_type in rate_types["ineligible"]:
-                    st.caption(
-                        ":red[Not eligible for a mortgage in the purchaser's name — eligible options are: "
-                        + ", ".join(rate_types["eligible"]) + ".]"
-                    )
-                rate_types = get_eligible_rate_types("borrower")
-                if st.session_state.builder_interest_rate_type and st.session_state.builder_interest_rate_type in rate_types["ineligible"]:
-                    st.caption(
-                        ":red[Not eligible for a mortgage in the purchaser's name — eligible options are: "
-                        + ", ".join(rate_types["eligible"]) + ".]"
-                    )
                 st.session_state.builder_rate_buydown = st.selectbox(
                     "Is a Builder Interest Rate Buydown being offered?", YES_NO_OPTIONS,
                     index=YES_NO_OPTIONS.index(st.session_state.builder_rate_buydown)
@@ -3764,10 +3435,6 @@ def render_property_details():
                 st.caption(
                     "Adjusted purchase price: " + fmt_money(adjusted_price) + ". " + gst_note
                 )
-
-            eligible, note = is_transaction_type_builder_eligible("Purchase (new only)")
-            if not eligible and note:
-                st.caption(":red[" + note + "]")
 
             st.markdown("**Cashback**")
             c1, c2 = st.columns(2)
@@ -4015,9 +3682,9 @@ def render_property_details():
             field_foundation, field_sqft, field_storeys, field_land_size, field_parking,
             field_garage, field_heating, field_exterior, field_water, field_sewer,
         ]
-        for row_start in range(0, len(prop_char_fields), 3):
-            row_fields = prop_char_fields[row_start:row_start + 3]
-            grid_cols = st.columns(3)
+        for row_start in range(0, len(prop_char_fields), 5):
+            row_fields = prop_char_fields[row_start:row_start + 5]
+            grid_cols = st.columns(5)
             for field_fn, col in zip(row_fields, grid_cols):
                 with col:
                     field_fn()
@@ -4033,17 +3700,10 @@ def render_property_details():
                 key="subject_taxes_input", placeholder="Enter monthly tax amount",
             )
         with c2:
-            condo_fee_applicable_types = ("Condo / Apartment", "Townhouse / Row House")
-            if st.session_state.subject_prop_type in condo_fee_applicable_types:
-                st.session_state.subject_condo_raw = money_text_input(
-                    "Monthly Condo / Strata Fees ($)", st.session_state.subject_condo_raw,
-                    key="subject_condo_input", placeholder="Enter monthly fee amount (0 if none)",
-                )
-            else:
-                st.session_state.subject_condo_raw = "0"
-                st.session_state["subject_condo_input"] = "0"
-                st.markdown("Monthly Condo / Strata Fees ($)")
-                st.caption("Not applicable for this property type.")
+            st.session_state.subject_condo_raw = money_text_input(
+                "Monthly Condo / Strata Fees ($)", st.session_state.subject_condo_raw,
+                key="subject_condo_input", placeholder="Enter monthly fee amount (0 if none)",
+            )
         with c3:
             st.session_state.subject_heat_raw = money_text_input(
                 "Monthly Heating Costs ($)", st.session_state.subject_heat_raw,
@@ -4168,6 +3828,7 @@ def compute_qualifying_variable_income(amounts):
 
 
 def compute_income_source_value(key, amounts):
+    """Qualifying value for one income source's amounts dict, per its calc rule."""
     base_key = base_income_key(key)
     if base_key in EXCLUDED_INCOME_KEYS:
         return 0.0
@@ -4177,20 +3838,12 @@ def compute_income_source_value(key, amounts):
         gross_rental = parse_money(amounts.get("gross_rental", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "50%")
         rate = rental_inclusion_rate_value(rate_label)
-        qualifying = gross_rental * rate
-        max_annual = MAX_APPRAISED_RENT_PER_UNIT * 12
-        if qualifying > max_annual:
-            qualifying = max_annual
-        return qualifying
+        return gross_rental * rate
     elif base_key == "rental_component_primary":
         gross_amount = parse_money(amounts.get("amount", "")) or 0.0
         rate_label = amounts.get("inclusion_rate", "100%")
         rate = rental_inclusion_rate_value(rate_label)
-        qualifying = gross_amount * rate
-        max_annual = MAX_APPRAISED_RENT_PER_UNIT * 12
-        if qualifying > max_annual:
-            qualifying = max_annual
-        return qualifying
+        return gross_amount * rate
     elif base_key in VARIABLE_INCOME_KEYS:
         return compute_qualifying_variable_income(amounts)
     else:
@@ -4270,38 +3923,11 @@ def compute_borrower_income(borrower_idx):
 
 
 def compute_total_income():
-    # First, compute raw income for each borrower
-    raw_total = 0.0
-    all_breakdown = {}
+    grand_total = 0.0
     for idx in range(st.session_state.borrower_count):
-        bidx = str(idx)
-        total, breakdown = compute_borrower_income(idx)
-        raw_total += total
-        all_breakdown[bidx] = breakdown
-
-    regular_income = 0.0
-    ccb_total = 0.0
-    foster_total = 0.0
-    for bidx, breakdown in all_breakdown.items():
-        for key, value in breakdown.items():
-            base = base_income_key(key)
-            if base == "ccb_qfa":
-                ccb_total += value
-            elif base == "foster_care":
-                foster_total += value
-            else:
-                regular_income += value
-
-    total_excluding_rental = regular_income + ccb_total + foster_total
-    if total_excluding_rental > 0:
-        max_ccb = total_excluding_rental * (CCB_MAX_PERCENT / 100.0)
-        if ccb_total > max_ccb:
-            ccb_total = max_ccb
-        max_foster = total_excluding_rental * (FOSTER_CARE_MAX_INCOME_PERCENT / 100.0)
-        if foster_total > max_foster:
-            foster_total = max_foster
-
-    return regular_income + ccb_total + foster_total
+        total, _ = compute_borrower_income(idx)
+        grand_total += total
+    return grand_total
 
 
 def render_income_category_card(bidx, skey, source, amounts):
@@ -4322,7 +3948,7 @@ def render_income_category_card(bidx, skey, source, amounts):
     needs_24mo_check = False
 
     def render_two_year_income_fields(amounts, field_prefix, label="Annual Income"):
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["recent_year"] = st.text_input(
                 "Most Recent Year — " + label + " ($)", value=amounts.get("recent_year", ""),
@@ -4333,8 +3959,6 @@ def render_income_category_card(bidx, skey, source, amounts):
                 "Prior Year — " + label + " ($)", value=amounts.get("prior_year", ""),
                 placeholder="Enter amount", key=field_prefix + "prior_year",
             )
-        with c3:
-            st.write("")
         recent_v = parse_money(amounts.get("recent_year", ""))
         prior_v = parse_money(amounts.get("prior_year", ""))
         if recent_v is not None and prior_v is not None:
@@ -4356,32 +3980,30 @@ def render_income_category_card(bidx, skey, source, amounts):
 
     if skey == "salaried":
         needs_24mo_check = True
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
-            amounts["employer_address"] = st.text_input("Employer Address", value=amounts.get("employer_address", ""), key=prefix + "employer_address")
-        with c2:
             amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
-            amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
-        with c3:
             amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 06/2022", key=prefix + "start_date")
-            amounts["amount"] = money_text_input("Gross Annual Base Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
+        with c2:
+            amounts["employer_address"] = st.text_input("Employer Address", value=amounts.get("employer_address", ""), key=prefix + "employer_address")
+            amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
+        amounts["amount"] = money_text_input("Gross Annual Base Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "commission":
         needs_24mo_check = True
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
-            amounts["employer_address"] = st.text_input("Employer Address", value=amounts.get("employer_address", ""), key=prefix + "employer_address")
-        with c2:
             amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
-            amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
-        with c3:
             amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 06/2022", key=prefix + "start_date")
+        with c2:
+            amounts["employer_address"] = st.text_input("Employer Address", value=amounts.get("employer_address", ""), key=prefix + "employer_address")
+            amounts["title"] = st.text_input("Position / Title", value=amounts.get("title", ""), key=prefix + "title")
         render_two_year_income_fields(amounts, prefix, "Commission Income")
 
     elif skey == "hourly":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
         with c2:
@@ -4392,72 +4014,61 @@ def render_income_category_card(bidx, skey, source, amounts):
                 index=guaranteed_options.index(cur_g) if cur_g in guaranteed_options else 0,
                 key=prefix + "hours_type",
             )
-        with c3:
-            st.write("")
         render_two_year_income_fields(amounts, prefix, "Hourly Income")
 
     elif skey == "bonus_overtime":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["employer_name"] = st.text_input("Primary Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
         with c2:
-            st.write("")
-        with c3:
             st.write("")
         render_two_year_income_fields(amounts, prefix, "Bonus/Overtime Income")
 
     elif skey == "self_employed":
         needs_24mo_check = True
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["business_name"] = st.text_input("Business Name", value=amounts.get("business_name", ""), key=prefix + "business_name")
-            amounts["business_address"] = st.text_input("Business Address", value=amounts.get("business_address", ""), key=prefix + "business_address")
-        with c2:
             amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
-            amounts["title"] = st.text_input("Role / Title", value=amounts.get("title", ""), key=prefix + "title")
-        with c3:
             amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 03/2019", key=prefix + "start_date")
+        with c2:
+            amounts["business_address"] = st.text_input("Business Address", value=amounts.get("business_address", ""), key=prefix + "business_address")
+            amounts["title"] = st.text_input("Role / Title", value=amounts.get("title", ""), key=prefix + "title")
             amounts["ownership_pct"] = st.text_input("Ownership Percentage (%)", value=amounts.get("ownership_pct", ""), key=prefix + "ownership_pct")
         render_two_year_income_fields(amounts, prefix, "Net Business Income")
 
     elif skey == "dividend":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["institution_name"] = st.text_input("Financial Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
         with c2:
             amounts["account_number"] = st.text_input("Account Number", value=amounts.get("account_number", ""), key=prefix + "account_number")
-        with c3:
-            st.write("")
         render_two_year_income_fields(amounts, prefix, "Dividend Income")
 
     elif skey == "parttime":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["employer_name"] = st.text_input("Employer Name", value=amounts.get("employer_name", ""), key=prefix + "employer_name")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
-        with c3:
-            st.write("")
 
     elif skey in ("self_employed_incorporated", "self_employed_professional"):
         needs_24mo_check = True
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["business_name"] = st.text_input("Business / Practice Name", value=amounts.get("business_name", ""), key=prefix + "business_name")
-            amounts["business_address"] = st.text_input("Business Address", value=amounts.get("business_address", ""), key=prefix + "business_address")
-        with c2:
             amounts["phone"] = st.text_input("Phone Number", value=amounts.get("phone", ""), key=prefix + "phone")
-            amounts["title"] = st.text_input("Role / Title", value=amounts.get("title", ""), key=prefix + "title")
-        with c3:
             amounts["start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("start_date", ""), placeholder="e.g. 03/2019", key=prefix + "start_date")
+        with c2:
+            amounts["business_address"] = st.text_input("Business Address", value=amounts.get("business_address", ""), key=prefix + "business_address")
+            amounts["title"] = st.text_input("Role / Title", value=amounts.get("title", ""), key=prefix + "title")
             amounts["ownership_pct"] = st.text_input("Ownership Percentage (%)", value=amounts.get("ownership_pct", ""), key=prefix + "ownership_pct")
         render_two_year_income_fields(amounts, prefix, "Net Income")
 
     elif skey == "disability":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["benefit_type"] = st.text_input("Benefit Type / Provider", value=amounts.get("benefit_type", ""), key=prefix + "benefit_type")
-        with c2:
             duration_options = ["", "Long-Term / Ongoing", "Temporary"]
             cur_d = amounts.get("duration_type", "")
             amounts["duration_type"] = st.selectbox(
@@ -4465,59 +4076,50 @@ def render_income_category_card(bidx, skey, source, amounts):
                 index=duration_options.index(cur_d) if cur_d in duration_options else 0,
                 key=prefix + "duration_type",
             )
-        with c3:
+        with c2:
             amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "ei_parental_benefits":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["return_to_work_date"] = st.text_input("Expected Return-to-Work Date (MM/YYYY)", value=amounts.get("return_to_work_date", ""), key=prefix + "return_to_work_date")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Benefit Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
-        with c3:
-            st.write("")
         st.caption("Note: EI/maternity/parental benefits are usually weaker for qualification since they're temporary.")
 
     elif skey == "foreign_income":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["country"] = st.text_input("Country of Income Source", value=amounts.get("country", ""), key=prefix + "country")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Income ($, CAD equivalent)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
-        with c3:
-            st.write("")
         st.caption("Note: lenders are usually conservative with foreign income due to currency and jurisdiction risk.")
 
     elif skey == "capital_gains":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["description"] = st.text_input("Source / Description", value=amounts.get("description", ""), key=prefix + "description")
         with c2:
             amounts["amount"] = money_text_input("Amount ($, for reference only)", amounts.get("amount", ""), placeholder="Enter amount", key=prefix + "amount")
-        with c3:
-            st.write("")
         st.caption("⚠️ Capital gains are not recurring income — this amount is recorded for reference only and is excluded from GDS/TDS qualification.")
 
     elif skey == "board_director_fees":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["organization_name"] = st.text_input("Organization Name", value=amounts.get("organization_name", ""), key=prefix + "organization_name")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
-        with c3:
-            st.write("")
 
     elif skey == "investment":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["institution_name"] = st.text_input("Financial Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
-        with c2:
             amounts["account_number"] = st.text_input("Account Number", value=amounts.get("account_number", ""), key=prefix + "account_number")
-        with c3:
+        with c2:
             amounts["amount"] = money_text_input("Average Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "rental_component_primary":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             default_address = st.session_state.subject_address.strip()
             amounts["property_address"] = st.text_input(
@@ -4525,16 +4127,15 @@ def render_income_category_card(bidx, skey, source, amounts):
                 placeholder="Defaults to the subject property address", key=prefix + "property_address",
             )
         with c2:
+            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""),
+                placeholder="Enter annual amount", key=prefix + "amount",
+            )
             cur_rate = amounts.get("inclusion_rate", "100%")
             amounts["inclusion_rate"] = st.selectbox(
                 "Rental Income Inclusion Rate",
                 RENTAL_INCLUSION_RATE_OPTIONS,
                 index=RENTAL_INCLUSION_RATE_OPTIONS.index(cur_rate) if cur_rate in RENTAL_INCLUSION_RATE_OPTIONS else 2,
                 key=prefix + "inclusion_rate",
-            )
-        with c3:
-            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""),
-                placeholder="Enter annual amount", key=prefix + "amount",
             )
         is_self_contained = (
             st.session_state.subject_has_rental_component == "Yes"
@@ -4558,7 +4159,7 @@ def render_income_category_card(bidx, skey, source, amounts):
             b = st.session_state.borrowers[borrower_idx_int]
             if b.get("residence_disposition") in rental_disposition_hints:
                 suggested_address = b.get("address", "").strip()
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["property_address"] = st.text_input(
                 "Property Address", value=amounts.get("property_address", "") or suggested_address,
@@ -4566,22 +4167,20 @@ def render_income_category_card(bidx, skey, source, amounts):
             )
             if suggested_address and not amounts.get("property_address", "").strip():
                 st.caption("Suggested from this borrower's current address on Client Details, based on their stated disposition — edit if this is a different property.")
-        with c2:
             cur_prop_type = amounts.get("prop_type", "")
             amounts["prop_type"] = st.selectbox(
                 "Property Type", PROPERTY_TYPES,
                 index=PROPERTY_TYPES.index(cur_prop_type) if cur_prop_type in PROPERTY_TYPES else 0,
                 key=prefix + "prop_type",
             )
-        with c3:
             cur_status = amounts.get("status", "")
             amounts["status"] = st.selectbox(
-                "What's happening with this property?", PROPERTY_DISPOSITION_OPTIONS,
-                index=PROPERTY_DISPOSITION_OPTIONS.index(cur_status) if cur_status in PROPERTY_DISPOSITION_OPTIONS else 0,
+                "What's happening with this property?", PROPERTY_STATUS_OPTIONS,
+                index=PROPERTY_STATUS_OPTIONS.index(cur_status) if cur_status in PROPERTY_STATUS_OPTIONS else 0,
                 key=prefix + "status",
             )
-        rate_col, income_col, _spacer_col = st.columns(3)
-        with rate_col:
+        with c2:
+            amounts["gross_rental"] = money_text_input("Gross Annual Rental Income ($)", amounts.get("gross_rental", ""), placeholder="Enter annual amount", key=prefix + "gross_rental")
             cur_rate = amounts.get("inclusion_rate", "50%")
             amounts["inclusion_rate"] = st.selectbox(
                 "Rental Income Inclusion Rate",
@@ -4589,8 +4188,6 @@ def render_income_category_card(bidx, skey, source, amounts):
                 index=RENTAL_INCLUSION_RATE_OPTIONS.index(cur_rate) if cur_rate in RENTAL_INCLUSION_RATE_OPTIONS else 0,
                 key=prefix + "inclusion_rate",
             )
-        with income_col:
-            amounts["gross_rental"] = money_text_input("Gross Annual Rental Income ($)", amounts.get("gross_rental", ""), placeholder="Enter annual amount", key=prefix + "gross_rental")
         if amounts["status"].startswith("Being Sold"):
             st.caption(
                 "⚠️ This property is marked **" + amounts["status"] + "** — its rental income is excluded "
@@ -4609,22 +4206,18 @@ def render_income_category_card(bidx, skey, source, amounts):
         )
 
     elif skey == "pension":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["institution_name"] = st.text_input("Provider / Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
-        with c3:
-            st.write("")
 
     elif skey == "government_benefits":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["benefit_type"] = st.text_input("Benefit Type", value=amounts.get("benefit_type", ""), key=prefix + "benefit_type")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Income ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
-        with c3:
-            st.write("")
 
     elif skey == "alimony":
         st.caption(
@@ -4634,22 +4227,19 @@ def render_income_category_card(bidx, skey, source, amounts):
         amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     elif skey == "trust_inheritance":
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["institution_name"] = st.text_input("Trust / Institution Name", value=amounts.get("institution_name", ""), key=prefix + "institution_name")
+            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
         with c2:
             amounts["duration"] = st.text_input("Expected Duration of Continued Payments (Months/Years)", value=amounts.get("duration", ""), key=prefix + "duration")
-        with c3:
-            amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
 
     else:  # "other"
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             amounts["source_desc"] = st.text_input("Source Description", value=amounts.get("source_desc", ""), key=prefix + "source_desc")
         with c2:
             amounts["amount"] = money_text_input("Gross Annual Amount ($)", amounts.get("amount", ""), placeholder="Enter annual amount", key=prefix + "amount")
-        with c3:
-            st.write("")
 
     # --- 24-month rule: salaried, commission, self-employed only ---
     if needs_24mo_check:
@@ -4660,15 +4250,14 @@ def render_income_category_card(bidx, skey, source, amounts):
                 "(less than 24 months at current)</div>",
                 unsafe_allow_html=True,
             )
-            pc1, pc2, pc3 = st.columns(3)
+            pc1, pc2 = st.columns(2)
             with pc1:
                 amounts["prev_employer_name"] = st.text_input("Employer Name", value=amounts.get("prev_employer_name", ""), key=prefix + "prev_employer_name")
+                amounts["prev_phone"] = st.text_input("Phone", value=amounts.get("prev_phone", ""), key=prefix + "prev_phone")
                 amounts["prev_start_date"] = st.text_input("Start Date (MM/YYYY)", value=amounts.get("prev_start_date", ""), key=prefix + "prev_start_date")
             with pc2:
                 amounts["prev_employer_address"] = st.text_input("Address", value=amounts.get("prev_employer_address", ""), key=prefix + "prev_employer_address")
                 amounts["prev_title"] = st.text_input("Title", value=amounts.get("prev_title", ""), key=prefix + "prev_title")
-            with pc3:
-                amounts["prev_phone"] = st.text_input("Phone", value=amounts.get("prev_phone", ""), key=prefix + "prev_phone")
                 amounts["prev_end_date"] = st.text_input("End Date (MM/YYYY)", value=amounts.get("prev_end_date", ""), key=prefix + "prev_end_date")
 
     # --- Required documentation (unchanged from before) ---
@@ -4726,7 +4315,18 @@ def render_income():
 
             selected = []
             for type_key in chosen_type_keys:
+                source = get_income_source(type_key)
+                count_key = "inc_count_" + bidx + "_" + type_key
                 count = st.session_state.income_counts.get(bidx, {}).get(type_key, 1)
+                if len(chosen_type_keys) >= 1:
+                    count_col, _spacer_col = st.columns([1, 3])
+                    with count_col:
+                        count = st.selectbox(
+                            "# of " + source["label"],
+                            [1, 2, 3, 4, 5],
+                            index=min(count, 5) - 1,
+                            key=count_key,
+                        )
                 if bidx not in st.session_state.income_counts:
                     st.session_state.income_counts[bidx] = {}
                 st.session_state.income_counts[bidx][type_key] = count
@@ -4745,7 +4345,6 @@ def render_income():
             st.session_state.income_selected[bidx] = selected
 
             # --- Phase 2: detail card for every selected instance, injected here, sequentially ---
-            seen_type_keys = set()
             for instance_key in selected:
                 type_key = base_income_key(instance_key)
                 source = get_income_source(type_key)
@@ -4754,17 +4353,6 @@ def render_income():
                 amounts = st.session_state.income_amounts[bidx][instance_key]
                 st.markdown("---")
                 total_instances_for_type = st.session_state.income_counts.get(bidx, {}).get(type_key, 1)
-                if type_key not in seen_type_keys:
-                    seen_type_keys.add(type_key)
-                    count_col, _spacer_col = st.columns([1, 3])
-                    with count_col:
-                        new_count = st.selectbox(
-                            "# of " + source["label"],
-                            [1, 2, 3, 4, 5],
-                            index=min(total_instances_for_type, 5) - 1,
-                            key="inc_count_" + bidx + "_" + type_key,
-                        )
-                    st.session_state.income_counts[bidx][type_key] = new_count
                 if total_instances_for_type > 1:
                     st.markdown(
                         "<div style='color:#2563eb; font-weight:400;'>"
@@ -5040,59 +4628,76 @@ def render_debts():
                         "Describe property type", value=prop.get("other_type_desc", ""), key="prop_other_" + str(pidx)
                     )
             with pt_c2:
-                # NEW: Use PROPERTY_DISPOSITION_OPTIONS instead of PROPERTY_DISPOSITION_OPTIONS, which is a more complete list of options.
+                normalize_property_disposition(prop)
                 prop["status"] = st.selectbox(
-                    "Property Disposition", PROPERTY_DISPOSITION_OPTIONS,
-                    index=PROPERTY_DISPOSITION_OPTIONS.index(prop.get("status", ""))
-                    if prop.get("status", "") in PROPERTY_DISPOSITION_OPTIONS else 0,
+                    "Property Disposition / Action", PROPERTY_DISPOSITION_OPTIONS,
+                    index=PROPERTY_DISPOSITION_OPTIONS.index(prop.get("status", "")) if prop.get("status", "") in PROPERTY_DISPOSITION_OPTIONS else 0,
                     key="prop_status_" + str(pidx),
                 )
+            is_firm_sale = property_excluded_from_ratios(prop)
+            if prop["status"] == "Sold Firm (No debt / exclude from ratios)":
+                st.caption(
+                    "✅ Excluded from GDS/TDS — with a firm, unconditional sale agreement in place, "
+                    "Canadian lenders generally exclude this property's carrying costs from qualifying "
+                    "ratios since it won't be an ongoing obligation."
+                )
+            elif prop["status"] == "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)":
+                st.caption(
+                    "✅ Excluded from GDS/TDS — the debt is being formally released from this borrower "
+                    "(e.g. title transfer or separation agreement), so it's no longer their ongoing obligation. "
+                    "Confirm the release is documented before relying on this exclusion."
+                )
+            elif prop["status"] == "Selling (Subject to sale / bridge / exclude if firm before closing)":
+                st.caption(
+                    "⚠️ Still included in GDS/TDS — without a firm, unconditional sale agreement, lenders "
+                    "generally still count this property's carrying costs, since the sale isn't guaranteed "
+                    "to close."
+                )
+            elif prop["status"] == "Retaining as Rental (Include rental offset/rules in GDS/TDS)":
+                st.caption(
+                    "ℹ️ Included in GDS/TDS at full carrying cost — this app does not currently apply a "
+                    "rental income offset for other properties owned (only for the subject property's own "
+                    "rental component, entered under Income). If this property generates rental income, "
+                    "enter it as a Rental Property Income source under Income so it's counted toward "
+                    "qualifying income."
+                )
+            elif prop["status"] == "Retaining - Owner Occupied / Second Home (Include full mortgage + taxes + heat in TDS)":
+                st.caption("ℹ️ Included in GDS/TDS at full carrying cost (mortgage, taxes, heat, condo fees).")
 
-            # Determine if we should exclude this property from GDS/TDS
-            exclude_from_ratios = prop["status"] in (
-                "Sold Firm (No debt / exclude from ratios)",
-                "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
-            )
-
-            if exclude_from_ratios:
-                st.caption("✅ Excluded from GDS/TDS — this property's carrying costs will not be included in the ratios.")
-            else:
-                st.caption("⚠️ Included in GDS/TDS — this property's carrying costs will be counted.")
-
-            prop["property_value"] = money_text_input(
-                "Current Property Value ($)", prop.get("property_value", ""),
-                key="prop_value_" + str(pidx), placeholder="Enter estimated value",
-            )
-
-            c1, c2, c3, c4 = st.columns(4)
+            c1, c2 = st.columns(2)
             with c1:
                 prop["mortgage_payment"] = money_text_input(
                     "Monthly Mortgage / Loan Payment ($)", prop["mortgage_payment"],
                     key="prop_mtg_" + str(pidx), placeholder="Enter monthly payment amount",
+                )
+                prop["condo_fees"] = money_text_input(
+                    "Monthly Condo / Strata Fees ($)", prop["condo_fees"],
+                    key="prop_condo_" + str(pidx), placeholder="Enter monthly fee amount (0 if none)",
                 )
             with c2:
                 prop["property_taxes"] = money_text_input(
                     "Monthly Property Taxes ($)", prop["property_taxes"],
                     key="prop_tax_" + str(pidx), placeholder="Enter monthly tax amount",
                 )
-            with c3:
-                prop["condo_fees"] = money_text_input(
-                    "Monthly Condo / Strata Fees ($)", prop["condo_fees"],
-                    key="prop_condo_" + str(pidx), placeholder="Enter monthly fee amount (0 if none)",
-                )
-            with c4:
                 prop["heating"] = money_text_input(
                     "Monthly Heating Costs ($)", prop["heating"],
                     key="prop_heat_" + str(pidx), placeholder="Enter monthly heating amount",
                 )
 
-            num_mtg_options = ["", "Free and Clear", "1", "2", "3", "4"]
-            current_num = prop.get("num_mortgages", "")
-            prop["num_mortgages"] = st.selectbox(
-                "Number of Mortgages on this Property", num_mtg_options,
-                index=num_mtg_options.index(current_num) if current_num in num_mtg_options else 0,
-                key="prop_num_mtg_" + str(pidx),
-            )
+            c3, c4 = st.columns(2)
+            with c3:
+                prop["property_value"] = money_text_input(
+                    "Current Property Value ($)", prop.get("property_value", ""),
+                    key="prop_value_" + str(pidx), placeholder="Enter estimated value",
+                )
+            with c4:
+                num_mtg_options = ["", "Free and Clear", "1", "2", "3", "4"]
+                current_num = prop.get("num_mortgages", "")
+                prop["num_mortgages"] = st.selectbox(
+                    "Number of Mortgages on this Property", num_mtg_options,
+                    index=num_mtg_options.index(current_num) if current_num in num_mtg_options else 0,
+                    key="prop_num_mtg_" + str(pidx),
+                )
 
             if prop["num_mortgages"] not in ("", "Free and Clear"):
                 num_mtg = int(prop["num_mortgages"])
@@ -5124,7 +4729,8 @@ def render_debts():
             st.caption("Property value and mortgage balance feed the Combined LTV figure on the Analysis step.")
 
             prop_total, m, t, c, h = compute_property_total(prop)
-            if not exclude_from_ratios:
+            is_firm_sale = property_excluded_from_ratios(prop)
+            if not is_firm_sale:
                 total_property_debt += prop_total
                 total_mortgage_pi_proxy += m
                 total_taxes += t
@@ -5135,7 +4741,7 @@ def render_debts():
                 "Mortgage/Loan " + fmt_money(m) + " + Taxes " + fmt_money(t)
                 + " + Condo " + fmt_money(c) + " + Heat " + fmt_money(h)
                 + " = " + fmt_money(prop_total) + "/month"
-                + (" (excluded from GDS/TDS)" if exclude_from_ratios else "")
+                + (" (excluded from GDS/TDS — firm sale)" if is_firm_sale else "")
             )
             st.markdown(
                 "<div class='property-total'>Total Monthly Property Debt: " + fmt_money(prop_total) + "</div>",
@@ -5178,7 +4784,6 @@ def render_debts():
 
     st.divider()
 
-   
     with st.container(key="card_other_debts"):
         st.write("**Select Other Debt Types**")
         st.caption("If the client has more than one account of the same type (e.g. two credit cards), check the type once and set how many below.")
@@ -5209,15 +4814,13 @@ def render_debts():
                     + debt_type["label"] + "</div>",
                     unsafe_allow_html=True,
                 )
-                count_widget_key = "debt_count_" + dkey
-                if count_widget_key not in st.session_state:
-                    st.session_state[count_widget_key] = st.session_state.debt_counts.get(dkey, 1)
                 indent_spacer, indent_content = st.columns([0.4, 9.6])
                 with indent_content:
                     count = st.selectbox(
                         "How many separate " + debt_type["label"] + " accounts does the client have?",
                         [1, 2, 3, 4, 5],
-                        key=count_widget_key,
+                        index=st.session_state.debt_counts.get(dkey, 1) - 1,
+                        key="debt_count_" + dkey,
                     )
                 st.session_state.debt_counts[dkey] = count
             else:
@@ -5369,12 +4972,7 @@ def render_debts():
             any_property_shown = False
             property_subtotal_terms = []
             for prop in st.session_state.properties:
-                # Exclude properties that are marked to be excluded from ratios
-                exclude = prop["status"] in (
-                    "Sold Firm (No debt / exclude from ratios)",
-                    "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
-                )
-                if exclude:
+                if property_excluded_from_ratios(prop):
                     continue
                 p_total, m, t, c, h = compute_property_total(prop)
                 if not any_property_shown:
@@ -5513,44 +5111,7 @@ def render_debts():
 STRESS_TEST_ADDON = 2.0  # commonly: contract rate + 2%, per public stress-test convention
 DEFAULT_BENCHMARK_RATE = 5.25  # a commonly cited public benchmark qualifying rate; editable below
 
-def render_osfi_box():
-    st.markdown(
-        """
-        <style>
-       @keyframes osfi_pulse {
-            0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.85); }
-            50% { box-shadow: 0 0 0 10px rgba(220,38,38,0); }
-            100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
-        }
-        div[class*="st-key-osfi_pulse_wrapper"] {
-            animation: osfi_pulse 0.9s infinite !important;
-            border: 3px solid #dc2626 !important;
-            border-radius: 8px !important;
-            padding: 2px !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    with st.container(key="osfi_pulse_wrapper"):
-        with st.expander("🔴 OSFI Minimum Qualifying Rate — click to view current stress test details", expanded=False):
-            st.markdown(
-                "- **What it is:** The stress test requires borrowers to qualify at a higher "
-                "rate than their actual contract rate, to ensure they can handle financial shocks.\n"
-                "- **The buffer:** Currently set at **:red[" + "{:.2f}%".format(STRESS_TEST_ADDON) + "]**, "
-                "a safety margin showing borrowers can absorb some negative impact to their finances.\n"
-                "- **The floor:** Currently set at **:red[" + "{:.2f}%".format(DEFAULT_BENCHMARK_RATE) + "]**, "
-                "accounting for risks from changes in the broader economy.\n"
-                "- **The rule:** Borrowers must qualify at the *greater* of (contract rate + buffer) or the floor.\n"
-                "- **Source:** Rates are reviewed by OSFI at least annually — verify the current figures directly "
-                "on OSFI's official page linked below."
-            )
-            st.markdown(
-                "[Open OSFI's official Minimum Qualifying Rate page ↗]"
-                "(https://www.osfi-bsif.gc.ca/en/supervision/financial-institutions/banks/minimum-qualifying-rate-uninsured-mortgages)"
-            )
-            
-  
+
 def compute_gds_tds(pi_payment, taxes, heat, condo, other_debt_monthly, annual_income):
     annual_housing = (pi_payment + taxes + heat + condo * 0.5) * 12
     annual_other_debt = other_debt_monthly * 12
@@ -5616,7 +5177,6 @@ def render_analysis():
     # --- Financing Terms (moved here from Property Details) ---
     with st.container(key="card_financing_terms"):
         st.markdown("#### Financing Terms")
-        render_osfi_box()
 
         def field_row(label_widget_fn, help_text_fn, help_key):
             label_widget_fn(help_text_fn())
@@ -5626,8 +5186,7 @@ def render_analysis():
             field_row(
                 lambda help_text: st.session_state.__setitem__("contract_rate", st.number_input(
                     "Contract Interest Rate (%)", min_value=0.0, max_value=25.0,
-                    value=st.session_state.contract_rate,
-                     step=0.05, key="analysis_contract_rate",
+                    value=st.session_state.contract_rate, step=0.05, key="analysis_contract_rate",
                     help=help_text,
                 )),
                 lambda: help_contract_rate_text(st.session_state.contract_rate),
@@ -5700,13 +5259,9 @@ def render_analysis():
         if not excluded:
             other_debt_monthly += compute_debt_payment(dt, amounts)
     # All properties listed in the Debts step are treated as additional (non-subject) properties,
-    # except those that are excluded via disposition (Sold Firm or Title Transfer)
+    # except those marked as a firm/unconditional sale (excluded per standard Canadian lending practice)
     for prop in st.session_state.properties:
-        exclude = prop["status"] in (
-            "Sold Firm (No debt / exclude from ratios)",
-            "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
-        )
-        if exclude:
+        if property_excluded_from_ratios(prop):
             continue
         p_total, _, _, _, _ = compute_property_total(prop)
         other_debt_monthly += p_total
@@ -5734,15 +5289,11 @@ def render_analysis():
     if ltv is None and is_refinance():
         st.caption(":red[LTV can't be calculated — enter the Current Estimated Property Value on the Property Details step.]")
 
-    # --- Combined LTV: subject property + all other (non-excluded) properties from Debts ---
+    # --- Combined LTV: subject property + all other (non-firm-sale) properties from Debts ---
     combined_loan = loan_amount
     combined_value = purchase_price
     for prop in st.session_state.properties:
-        exclude = prop["status"] in (
-            "Sold Firm (No debt / exclude from ratios)",
-            "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
-        )
-        if exclude:
+        if property_excluded_from_ratios(prop):
             continue
         for mtg in prop.get("mortgages", []):
             combined_loan += parse_money(mtg.get("balance", "")) or 0.0
@@ -5810,9 +5361,56 @@ def render_analysis():
     )
 
     st.markdown("#### GDS / TDS Calculation (Contract vs. Stressed)")
+    with st.expander("ℹ️ Show calculation details"):
+        def mo_yr(monthly_val):
+            return "**" + fmt_money(monthly_val) + "**/mo  ·  **" + fmt_money(monthly_val * 12) + "**/yr"
 
-    def mo_yr(monthly_val):
-        return "**" + fmt_money(monthly_val) + "**/mo  ·  **" + fmt_money(monthly_val * 12) + "**/yr"
+        st.markdown("**Housing costs (GDS numerator)**")
+        st.markdown("- Principal & Interest (contract, " + "{:.2f}%".format(st.session_state.contract_rate) + "): " + mo_yr(pi_payment))
+        st.markdown("- Principal & Interest (stressed, " + "{:.2f}%".format(qualifying_rate) + "): " + mo_yr(stressed_pi))
+        st.markdown("- Property Taxes: " + mo_yr(taxes))
+        st.markdown("- Heat: " + mo_yr(heat))
+        st.markdown("- Condo Fees (50% counted): " + mo_yr(condo * 0.5) + "  (full fee: " + mo_yr(condo) + ")")
+        st.divider()
+        st.markdown("**Other debts (added for TDS only)**")
+        any_debt_line = False
+        for instance_key in st.session_state.debt_selected:
+            dt = get_debt_type(instance_key)
+            if not dt:
+                continue
+            amounts = st.session_state.debt_amounts.get(instance_key, {})
+            excluded = (
+                st.session_state.debt_payout_selected.get(instance_key, False)
+                or st.session_state.debt_paid_from_own_funds.get(instance_key, False)
+            )
+            if excluded:
+                continue
+            pay_val = compute_debt_payment(dt, amounts)
+            label = debt_instance_label(dt, instance_key)
+            lender = amounts.get("lender", "").strip()
+            st.markdown("- " + label + (" (" + lender + ")" if lender else "") + ": " + mo_yr(pay_val))
+            any_debt_line = True
+        for prop in st.session_state.properties:
+            if property_excluded_from_ratios(prop):
+                continue
+            p_total, m, t, c, h = compute_property_total(prop)
+            prop_label = "Other Property (" + (prop.get("address", "").strip() or "unnamed") + ")"
+            st.markdown("- " + prop_label + " — total: " + mo_yr(p_total))
+            st.markdown("&nbsp;&nbsp;&nbsp;mortgage " + mo_yr(m) + "  ·  taxes " + mo_yr(t) + "  ·  condo " + mo_yr(c) + "  ·  heat " + mo_yr(h))
+            any_debt_line = True
+        if not any_debt_line:
+            st.caption("No other debts counted toward TDS.")
+        st.divider()
+        st.markdown("**Totals**")
+        st.markdown("- Total Housing Costs (GDS, contract): " + mo_yr(annual_housing / 12))
+        st.markdown("- Total Housing Costs (GDS, stressed): " + mo_yr(stressed_annual_housing / 12))
+        st.markdown("- Total Debt Obligations (TDS, contract): " + mo_yr((annual_housing + annual_other_debt) / 12))
+        st.markdown("- Total Debt Obligations (TDS, stressed): " + mo_yr((stressed_annual_housing + stressed_annual_other_debt) / 12))
+        st.markdown("- Combined Gross Annual Income: **" + fmt_money(total_income) + "**/yr  ·  **" + fmt_money(total_income / 12) + "**/mo")
+        st.divider()
+        st.caption(help_gds_text(total_income, annual_housing, gds))
+        st.divider()
+        st.caption(help_tds_text(total_income, annual_housing, annual_other_debt, tds))
 
     gds_display = "{:.2f}%".format(gds) if gds is not None else "—"
     tds_display = "{:.2f}%".format(tds) if tds is not None else "—"
@@ -5860,11 +5458,7 @@ def render_analysis():
                 label += " (" + lender + ")"
             rows.append((label, pay_val, pay_val * 12))
         for prop in st.session_state.properties:
-            exclude = prop["status"] in (
-                "Sold Firm (No debt / exclude from ratios)",
-                "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
-            )
-            if exclude:
+            if property_excluded_from_ratios(prop):
                 continue
             p_total, _, _, _, _ = compute_property_total(prop)
             addr = prop.get("address", "").strip() or "Unnamed property"
@@ -6029,69 +5623,6 @@ def render_analysis():
         )
 
     st.divider()
-
-    # ----------------------------------------------------------------------
-    # Policy rule checks (read from sidebar inputs)
-    # ----------------------------------------------------------------------
-    st.divider()
-    st.markdown("#### Policy Rule Checks")
-
-    # 1. Geographic LTV tier check
-    region = st.session_state.get("subject_region", "")
-    if region and st.session_state.subject_prop_type:
-        prop_type_key = "single_family" if st.session_state.subject_prop_type in ("Detached", "Semi-Detached", "Townhouse") else "condo"
-        if st.session_state.transaction_type in ("purchase", "builder_purchase"):
-            base_price = parse_money(st.session_state.purchase_price_raw) or 0.0
-        else:
-            base_price = parse_money(st.session_state.subject_property_value_raw) or 0.0
-        if base_price > 0:
-            max_loan, effective_ltv = max_ltv_for_property(base_price, region, prop_type_key)
-            st.caption(
-                f"**LTV tier limit:** Region: {region}, type: {st.session_state.subject_prop_type} → "
-                f"max loan = {fmt_money(max_loan)} (effective LTV: {effective_ltv:.1f}%)."
-            )
-            if loan_amount > max_loan:
-                st.error(f"❌ Loan amount ({fmt_money(loan_amount)}) exceeds the tier limit. Consider larger down payment.")
-
-    # 2. Non‑conforming check
-    score = st.session_state.get("credit_score", "")
-    program = st.session_state.get("mortgage_program", "")
-    if score or program:
-        is_non_conf, max_ltv_allowed = is_non_conforming(score, program, is_existing_debt_only=False)
-        if is_non_conf:
-            st.warning(f"⚠️ Non‑conforming mortgage – max LTV = {max_ltv_allowed:.0f}%.")
-            if ltv and ltv > max_ltv_allowed:
-                st.error(f"❌ Current LTV ({ltv:.1f}%) exceeds the non‑conforming limit.")
-
-    # 3. Variable TDS eligibility
-    if st.session_state.get("mortgage_program"):
-        if is_variable_tds_allowed(st.session_state.mortgage_program):
-            st.caption("✅ This program is eligible for Variable TDS (up to 52% TDS / 39% GDS).")
-        else:
-            st.caption("ℹ️ This program is not eligible for Variable TDS – standard limits apply.")
-
-    # 4. Survey waiver check
-    mortgage_type = st.session_state.get("mortgage_structure", "")
-    ltv_val = ltv or 0
-    existing = st.session_state.get("is_existing_mortgage", False)
-    if mortgage_type:
-        can_waive, reason = can_waive_survey(mortgage_type, ltv_val, existing)
-        if can_waive:
-            st.caption("✅ Survey/title insurance can be waived.")
-        else:
-            st.caption(f"ℹ️ {reason}")
-
-    # 5. Rental income cap warning (if any)
-    for idx in range(st.session_state.borrower_count):
-        bidx = str(idx)
-        for key in st.session_state.income_selected.get(bidx, []):
-            if base_income_key(key) in ("rental", "rental_component_primary"):
-                amounts = st.session_state.income_amounts.get(bidx, {}).get(key, {})
-                raw_amount = parse_money(amounts.get("gross_rental") or amounts.get("amount", "")) or 0.0
-                capped = compute_income_source_value(key, amounts)
-                if raw_amount > 0 and capped < raw_amount:
-                    st.caption(f"ℹ️ Rental income from {key} was capped at ${MAX_APPRAISED_RENT_PER_UNIT:,.0f}/month (annual cap).")
-                break  # only show once per borrower
 
     # --- Navigation ---
     back_col, docs_col = st.columns(2)
@@ -7113,11 +6644,7 @@ def build_system_notes():
         if not excluded:
             other_debt_monthly += compute_debt_payment(dt, amounts)
     for prop in st.session_state.properties:
-        exclude = prop["status"] in (
-            "Sold Firm (No debt / exclude from ratios)",
-            "Title Transfer / Separation / Removed from Title (Exclude debt if formally released)"
-        )
-        if exclude:
+        if property_excluded_from_ratios(prop):
             continue
         p_total, _, _, _, _ = compute_property_total(prop)
         other_debt_monthly += p_total
@@ -7416,12 +6943,7 @@ def render_notes():
 
     submit_disabled = compute_total_income() <= 0
     if st.button("Submit Application", type="primary", use_container_width=True, key="p7_submit", disabled=submit_disabled):
-        with st.spinner("Submitting application..."):
-            email_success, email_message = send_application_email()
-        if email_success:
-            st.success("Application submitted and emailed successfully.")
-        else:
-            st.error("Application could not be emailed: " + email_message)
+        st.success("Application submitted. (Connect this button to your backend to persist the data.)")
 
 
 # ---------------------------------------------------------------------------
@@ -7436,18 +6958,12 @@ if st.session_state.get("last_rendered_step") != st.session_state.step:
         """
         <script>
           (function() {
-            function scrollToTop() {
-              var doc = window.parent.document;
-              doc.documentElement.scrollTop = 0;
-              doc.body.scrollTop = 0;
-              var main = doc.querySelector('section.main');
-              if (main) { main.scrollTop = 0; }
-              window.parent.scrollTo(0, 0);
-            }
-            scrollToTop();
-            setTimeout(scrollToTop, 100);
-            setTimeout(scrollToTop, 300);
-            setTimeout(scrollToTop, 600);
+            var doc = window.parent.document;
+            doc.documentElement.scrollTop = 0;
+            doc.body.scrollTop = 0;
+            var main = doc.querySelector('section.main');
+            if (main) { main.scrollTop = 0; }
+            window.parent.scrollTo(0, 0);
           })();
         </script>
         """,
