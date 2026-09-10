@@ -1455,7 +1455,7 @@ def render_stepper(active_index):
             with help_cols[i]:
                 if show_help:
                     with st.container(key="helpbtn_step_" + str(i)):
-                        with st.popover("⚠", key="step_help_" + str(i)):
+                        with st.popover("!", key="step_help_" + str(i)):
                             st.markdown("**Still needed on this page:**")
                             for m in step_missing:
                                 st.markdown("- " + m)
@@ -1643,19 +1643,21 @@ st.markdown(
         justify-content: center;
     }
     div[class*="st-key-helpbtn_step_"] button {
-        min-height: 1.2em !important;
-        height: 1.2em !important;
-        width: 1.2em !important;
-        min-width: 1.2em !important;
+        min-height: 1.3em !important;
+        height: 1.3em !important;
+        width: 1.3em !important;
+        min-width: 1.3em !important;
         padding: 0 !important;
         font-size: 11px !important;
-        font-weight: 700 !important;
+        font-weight: 800 !important;
         line-height: 1 !important;
         border: none !important;
-        background: transparent !important;
+        background: #ef4444 !important;
         box-shadow: none !important;
-        border-radius: 0 !important;
-        color: #ef4444 !important;
+        border-radius: 50% !important;
+        color: white !important;
+    }
+    div[class*="st-key-helpbtn_step_"] svg,
     div[class*="st-key-helpbtn_step_"] [data-testid="stIconMaterial"],
     div[class*="st-key-helpbtn_step_"] [data-testid*="Icon"] {
         display: none !important;
